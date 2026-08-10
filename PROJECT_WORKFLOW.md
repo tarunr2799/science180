@@ -36,9 +36,11 @@ wp_dlw2o.sql.bak
 ```powershell
 cd C:\Users\lenovo\Downloads\Science
 git init
-git checkout -b dev
 git add .gitignore .gitattributes .cpanel.yml deploy PROJECT_WORKFLOW.md wp-content
 git commit -m "Initial Science180 WordPress workflow"
+git branch -M main
+git remote add origin https://github.com/tarunr2799/science180.git
+git push -u origin main
 ```
 
 Before committing, confirm that `wp-config.php`, SQL dumps, uploads, backups, `wp-admin`, and `wp-includes` are not staged:

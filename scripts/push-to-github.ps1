@@ -1,6 +1,5 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string] $RepoUrl
+    [string] $RepoUrl = "https://github.com/tarunr2799/science180.git"
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,4 +14,3 @@ if (-not (git remote | Select-String -SimpleMatch "origin")) {
 
 git status --short --branch
 git push -u origin main
-

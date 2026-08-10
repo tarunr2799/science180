@@ -4,16 +4,10 @@ This file records the commands for pushing this WordPress repo to GitHub and pul
 
 ## Repository
 
-Recommended private repository:
+Private repository created:
 
 ```text
-Koploseus/science180
-```
-
-If `science180` already exists, use:
-
-```text
-Koploseus/science180-staging
+tarunr2799/science180
 ```
 
 ## Local Push From Windows
@@ -22,21 +16,21 @@ From PowerShell:
 
 ```powershell
 cd C:\Users\lenovo\Downloads\Science
-.\scripts\push-to-github.ps1 -RepoUrl "https://github.com/Koploseus/science180.git"
+.\scripts\push-to-github.ps1
 ```
 
 Equivalent manual commands:
 
 ```powershell
 cd C:\Users\lenovo\Downloads\Science
-git remote add origin https://github.com/Koploseus/science180.git
+git remote add origin https://github.com/tarunr2799/science180.git
 git push -u origin main
 ```
 
 If `origin` already exists:
 
 ```powershell
-git remote set-url origin https://github.com/Koploseus/science180.git
+git remote set-url origin https://github.com/tarunr2799/science180.git
 git push -u origin main
 ```
 
@@ -45,8 +39,13 @@ git push -u origin main
 In cPanel **Git Version Control**, clone:
 
 ```text
-https://github.com/Koploseus/science180.git
+https://github.com/tarunr2799/science180.git
 ```
+
+Because this is a private repository, cPanel needs GitHub authentication before it can clone or pull. Recommended options:
+
+- SSH deploy key: create an SSH key in cPanel and add its public key to GitHub repository deploy keys.
+- HTTPS token: use a GitHub fine-grained token with repository read access.
 
 Suggested repository path:
 
@@ -103,4 +102,3 @@ wp-includes/
 ```
 
 They are intentionally ignored by Git.
-
