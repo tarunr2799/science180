@@ -1,0 +1,13 @@
+# Ignore all log files
+*.log
+*.txt
+error.log
+queue.log
+maintenance.log
+reports.log
+db-upgrade.log
+
+# But keep the .htaccess and index.php files
+!.htaccess
+!index.php
+!.gitignore

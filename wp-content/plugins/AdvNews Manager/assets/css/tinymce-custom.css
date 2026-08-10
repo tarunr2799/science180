@@ -1,0 +1,36 @@
+/* Make <br> tags visible in TinyMCE visual editor */
+br {
+    display: inline-block;
+    width: 1px;
+    height: 1em;
+    background: transparent;
+    position: relative;
+}
+
+br:after {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 0;
+    color: #999;
+    font-size: 12px;
+    opacity: 0.5;
+}
+
+/* Preserve spacing between spans */
+span + br + span {
+    display: block;
+    margin-top: 0;
+}
+
+/* Make sure spans with <br> between them are visible */
+p span, div span {
+    display: inline;
+}
+
+/* Add visual indicator for line breaks */
+br.mce-item-anchor {
+    display: inline-block;
+    width: 100%;
+    height: 1em;
+}

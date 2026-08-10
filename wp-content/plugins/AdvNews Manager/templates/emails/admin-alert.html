@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>Admin Alert Notification</title>
+    <style>
+        /* Reset styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        .email-wrapper {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header based on alert type */
+        .email-header {
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header-critical { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
+        .header-warning { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); }
+        .header-info { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
+        .header-success { background: linear-gradient(135deg, #28a745 0%, #218838 100%); }
+
+        .alert-icon {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 35px;
+        }
+
+        .header-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header-time {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+        }
+
+        /* Content */
+        .email-content {
+            padding: 40px 30px;
+        }
+
+        .alert-summary {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid;
+        }
+
+        .alert-summary.critical { border-left-color: #dc3545; }
+        .alert-summary.warning { border-left-color: #ffc107; }
+        .alert-summary.info { border-left-color: #17a2b8; }
+        .alert-summary.success { border-left-color: #28a745; }
+
+        .alert-summary h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .alert-message {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .metric-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1.2;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        .metric-trend {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .trend-up { color: #28a745; }
+        .trend-down { color: #dc3545; }
+
+        /* Alert Details */
+        .details-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .details-section h4 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .detail-value.critical { color: #dc3545; }
+        .detail-value.warning { color: #ffc107; }
+        .detail-value.success { color: #28a745; }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .action-button {
+            flex: 1;
+            min-width: 150px;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .action-primary {
+            background: #007bff;
+            color: #ffffff;
+        }
+
+        .action-primary:hover {
+            background: #0056b3;
+        }
+
+        .action-secondary {
+            background: #6c757d;
+            color: #ffffff;
+        }
+
+        .action-secondary:hover {
+            background: #545b62;
+        }
+
+        .action-danger {
+            background: #dc3545;
+            color: #ffffff;
+        }
+
+        .action-danger:hover {
+            background: #bd2130;
+        }
+
+        /* Timeline */
+        .timeline {
+            margin: 30px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            margin-bottom: 15px;
+        }
+
+        .timeline-time {
+            min-width: 80px;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .timeline-content {
+            flex: 1;
+            padding-left: 15px;
+            border-left: 2px solid #dee2e6;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .timeline-description {
+            color: #666;
+            font-size: 13px;
+        }
+
+        /* Recommendations */
+        .recommendations {
+            background: #e2f0d9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .recommendations h4 {
+            color: #155724;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .recommendations ul {
+            margin-left: 20px;
+            color: #155724;
+        }
+
+        .recommendations li {
+            margin-bottom: 8px;
+        }
+
+        /* System Status */
+        .system-status {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .status-ok { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-error { background: #f8d7da; color: #721c24; }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-button {
+                width: 100%;
+            }
+
+            .system-status {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <!-- Header - dynamic based on alert type -->
+        <div class="email-header header-[alert_type]">
+            <div class="alert-icon">[alert_icon]</div>
+            <h1 class="header-title">[alert_title]</h1>
+            <p class="header-time">[current_time] • [current_date]</p>
+        </div>
+
+        <!-- Content -->
+        <div class="email-content">
+            <!-- Alert Summary -->
+            <div class="alert-summary [alert_type]">
+                <h3>📊 Alert Summary</h3>
+                <p class="alert-message">[alert_message]</p>
+            </div>
+
+            <!-- Key Metrics -->
+            <h3 style="margin: 20px 0 15px;">Key Metrics</h3>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">[metric_1_value]</div>
+                    <div class="metric-label">[metric_1_label]</div>
+                    <div class="metric-trend [metric_1_trend_class]">[metric_1_trend]</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-value">[metric_2_value]</div>
+                    <div class="metric-label">[metric_2_label]</div>
+                    <div class="metric-trend [metric_2_trend_class]">[metric_2_trend]</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-value">[metric_3_value]</div>
+                    <div class="metric-label">[metric_3_label]</div>
+                    <div class="metric-trend [metric_3_trend_class]">[metric_3_trend]</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-value">[metric_4_value]</div>
+                    <div class="metric-label">[metric_4_label]</div>
+                    <div class="metric-trend [metric_4_trend_class]">[metric_4_trend]</div>
+                </div>
+            </div>
+
+            <!-- Detailed Information -->
+            <div class="details-section">
+                <h4>🔍 Detailed Information</h4>
+
+                <div class="detail-item">
+                    <span class="detail-label">Alert ID:</span>
+                    <span class="detail-value">[alert_id]</span>
+                </div>
+
+                <div class="detail-item">
+                    <span class="detail-label">Severity:</span>
+                    <span class="detail-value [alert_severity_class]">[alert_severity]</span>
+                </div>
+
+                <div class="detail-item">
+                    <span class="detail-label">Affected System:</span>
+                    <span class="detail-value">[affected_system]</span>
+                </div>
+
+                <div class="detail-item">
+                    <span class="detail-label">First Occurrence:</span>
+                    <span class="detail-value">[first_occurrence]</span>
+                </div>
+
+                <div class="detail-item">
+                    <span class="detail-label">Last Occurrence:</span>
+                    <span class="detail-value">[last_occurrence]</span>
+                </div>
+
+                <div class="detail-item">
+                    <span class="detail-label">Frequency:</span>
+                    <span class="detail-value">[frequency]</span>
+                </div>
+            </div>
+
+            <!-- Timeline for recurring issues -->
+            <div class="timeline">
+                <h4 style="margin-bottom: 15px;">⏱️ Recent Occurrences</h4>
+
+                <div class="timeline-item">
+                    <div class="timeline-time">[time_1]</div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">[event_1_title]</div>
+                        <div class="timeline-description">[event_1_description]</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-time">[time_2]</div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">[event_2_title]</div>
+                        <div class="timeline-description">[event_2_description]</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-time">[time_3]</div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">[event_3_title]</div>
+                        <div class="timeline-description">[event_3_description]</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="recommendations">
+                <h4>💡 Recommended Actions</h4>
+                <ul>
+                    <li>[recommendation_1]</li>
+                    <li>[recommendation_2]</li>
+                    <li>[recommendation_3]</li>
+                </ul>
+            </div>
+
+            <!-- System Status Overview -->
+            <h3 style="margin: 30px 0 15px;">🖥️ System Status</h3>
+            <div class="system-status">
+                <div class="status-item status-[cron_status]">
+                    <strong>Cron Jobs</strong><br>
+                    [cron_status_text]
+                </div>
+
+                <div class="status-item status-[queue_status]">
+                    <strong>Email Queue</strong><br>
+                    [queue_status_text]
+                </div>
+
+                <div class="status-item status-[db_status]">
+                    <strong>Database</strong><br>
+                    [db_status_text]
+                </div>
+
+                <div class="status-item status-[smtp_status]">
+                    <strong>SMTP</strong><br>
+                    [smtp_status_text]
+                </div>
+
+                <div class="status-item status-[disk_status]">
+                    <strong>Disk Space</strong><br>
+                    [disk_status_text]
+                </div>
+
+                <div class="status-item status-[memory_status]">
+                    <strong>Memory</strong><br>
+                    [memory_status_text]
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <a href="[view_details_url]" class="action-button action-primary">View Details</a>
+                <a href="[take_action_url]" class="action-button action-danger">Take Action</a>
+                <a href="[dismiss_url]" class="action-button action-secondary">Dismiss</a>
+            </div>
+
+            <!-- Additional Notes -->
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 30px; font-size: 13px; color: #666;">
+                <p><strong>📝 Additional Notes:</strong></p>
+                <p>[additional_notes]</p>
+                <p style="margin-top: 10px;">This is an automated alert from AdvNews Manager. For immediate assistance, contact [support_contact].</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        [email_footer]
+    </div>
+</body>
+</html>

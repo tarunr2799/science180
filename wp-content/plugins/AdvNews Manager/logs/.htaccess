@@ -1,0 +1,62 @@
+# AdvNews Manager - Logs Directory Protection
+# Prevent direct access to log files
+
+# Deny access to all files
+<FilesMatch ".*">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Deny access to specific file types
+<FilesMatch "\.(log|txt|php|html?|xml|js|css)$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Protect against malicious scripts
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^.*\.(php|php\d+|phtml|pl|py|jsp|asp|htm|shtml|sh|cgi|phar)$ - [F,L]
+</IfModule>
+
+# Disable script execution
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Prevent access from specific IPs (optional - uncomment and modify as needed)
+# <Limit GET POST PUT DELETE>
+#     Order Allow,Deny
+#     Allow from all
+#     Deny from 123.456.789.0
+# </Limit>
+
+# Additional security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Disable server signature
+ServerSignature Off
+
+# Prevent access to hidden files
+<FilesMatch "^\.">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>Welcome Back - You've Resubscribed</title>
+    <style>
+        /* Reset styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        .email-wrapper {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header */
+        .email-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            padding: 48px 40px;
+            text-align: center;
+        }
+
+        .welcome-back-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .header-title {
+            color: #ffffff;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+        }
+
+        /* Content */
+        .email-content {
+            padding: 48px 40px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .greeting-name {
+            color: #28a745;
+        }
+
+        .message-box {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .message-box p {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .message-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* What's New Section */
+        .whats-new {
+            margin: 40px 0;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .update-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .update-item:hover {
+            transform: translateX(5px);
+        }
+
+        .update-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border-radius: 50%;
+            margin-right: 15px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 20px;
+        }
+
+        .update-content {
+            flex: 1;
+        }
+
+        .update-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .update-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Benefits Grid */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .benefit-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .benefit-emoji {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .benefit-card h4 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .benefit-card p {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* Call to Action */
+        .cta-section {
+            text-align: center;
+            margin: 40px 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .cta-note {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* Testimonial */
+        .testimonial {
+            margin: 40px 0;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .testimonial-quote {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+
+        .testimonial-author {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .testimonial-role {
+            color: #999;
+            font-size: 13px;
+        }
+
+        /* Social Links */
+        .social-links {
+            text-align: center;
+            margin: 40px 0 20px;
+        }
+
+        .social-link {
+            display: inline-block;
+            margin: 0 8px;
+        }
+
+        .social-link img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .social-link:hover img {
+            transform: scale(1.1);
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .email-header {
+                padding: 32px 20px;
+            }
+
+            .header-title {
+                font-size: 24px;
+            }
+
+            .email-content {
+                padding: 32px 20px;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .update-item {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .update-icon {
+                margin: 0 auto 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <!-- Header -->
+        <div class="email-header">
+            <div class="welcome-back-icon">🎉</div>
+            <h1 class="header-title">Welcome Back!</h1>
+            <p class="header-subtitle">We're thrilled to have you with us again</p>
+        </div>
+
+        <!-- Content -->
+        <div class="email-content">
+            <p class="greeting">
+                Hello <span class="greeting-name">[first_name]</span>! 👋
+            </p>
+
+            <div class="message-box">
+                <p>You've successfully resubscribed to our newsletter. Thank you for giving us another chance to deliver value to your inbox!</p>
+                <p>We've missed you and promise to make it worth your while.</p>
+            </div>
+
+            <!-- What's New Since You've Been Away -->
+            <div class="whats-new">
+                <h3 class="section-title">✨ What's New Since You've Been Away</h3>
+
+                <div class="update-item">
+                    <div class="update-icon">📱</div>
+                    <div class="update-content">
+                        <div class="update-title">Improved Mobile Experience</div>
+                        <div class="update-description">Our newsletters are now fully optimized for mobile devices, making reading on the go a breeze.</div>
+                    </div>
+                </div>
+
+                <div class="update-item">
+                    <div class="update-icon">🎯</div>
+                    <div class="update-content">
+                        <div class="update-title">Personalized Content</div>
+                        <div class="update-description">We've enhanced our content personalization to bring you more relevant articles and offers.</div>
+                    </div>
+                </div>
+
+                <div class="update-item">
+                    <div class="update-icon">⚡</div>
+                    <div class="update-content">
+                        <div class="update-title">Weekly Digest</div>
+                        <div class="update-description">Now featuring a weekly roundup of the most important news and trends in your industry.</div>
+                    </div>
+                </div>
+
+                <div class="update-item">
+                    <div class="update-icon">🎁</div>
+                    <div class="update-content">
+                        <div class="update-title">Exclusive Member Benefits</div>
+                        <div class="update-description">Access to special discounts, early-bird pricing, and members-only content.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Benefits Grid -->
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-emoji">📰</div>
+                    <h4>Weekly Insights</h4>
+                    <p>Curated content delivered every Tuesday</p>
+                </div>
+
+                <div class="benefit-card">
+                    <div class="benefit-emoji">🏷️</div>
+                    <h4>Exclusive Offers</h4>
+                    <p>Special discounts for subscribers only</p>
+                </div>
+
+                <div class="benefit-card">
+                    <div class="benefit-emoji">📊</div>
+                    <h4>Industry Reports</h4>
+                    <p>Quarterly trends and analysis</p>
+                </div>
+
+                <div class="benefit-card">
+                    <div class="benefit-emoji">🤝</div>
+                    <h4>Community Access</h4>
+                    <p>Connect with like-minded professionals</p>
+                </div>
+            </div>
+
+            <!-- Call to Action -->
+            <div class="cta-section">
+                <a href="[preferences_link]" class="cta-button">
+                    Update Your Preferences
+                </a>
+                <p class="cta-note">
+                    Tell us what topics interest you most
+                </p>
+            </div>
+
+            <!-- Testimonial -->
+            <div class="testimonial">
+                <p class="testimonial-quote">
+                    "I've tried many newsletters, but this one consistently delivers the most valuable insights.
+                    So glad to be back!"
+                </p>
+                <p class="testimonial-author">— Michael Chen</p>
+                <p class="testimonial-role">Product Manager, TechCorp</p>
+            </div>
+
+            <!-- Social Links -->
+            <div class="social-links">
+                <a href="[facebook_url]" class="social-link">
+                    <img src="https://via.placeholder.com/36/3b5998/ffffff?text=f" alt="Facebook">
+                </a>
+                <a href="[twitter_url]" class="social-link">
+                    <img src="https://via.placeholder.com/36/1da1f2/ffffff?text=t" alt="Twitter">
+                </a>
+                <a href="[linkedin_url]" class="social-link">
+                    <img src="https://via.placeholder.com/36/0077b5/ffffff?text=in" alt="LinkedIn">
+                </a>
+                <a href="[instagram_url]" class="social-link">
+                    <img src="https://via.placeholder.com/36/e4405f/ffffff?text=ig" alt="Instagram">
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        [email_footer]
+    </div>
+</body>
+</html>

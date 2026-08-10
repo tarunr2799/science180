@@ -1,0 +1,85 @@
+# OS and editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets and environment-specific config
+.env
+.env.*
+!.env.example
+wp-config.php
+wp-config.php.bak
+wp-config-local.php
+
+# WordPress core: keep Git focused on project-owned wp-content code
+/index.php
+/license.txt
+/readme.html
+/wp-activate.php
+/wp-blog-header.php
+/wp-comments-post.php
+/wp-cron.php
+/wp-links-opml.php
+/wp-load.php
+/wp-login.php
+/wp-mail.php
+/wp-settings.php
+/wp-signup.php
+/wp-trackback.php
+/wp-config-sample.php
+/xmlrpc.php
+/wp-admin/
+/wp-includes/
+/aios-bootstrap.php
+/php.ini
+/newsletterm/
+
+# Generated uploads, backups, cache, logs
+/wp-content/uploads/
+/wp-content/cache/
+/wp-content/upgrade/
+/wp-content/upgrade-temp-backup/
+/wp-content/maintenance/
+/wp-content/maintenance.php
+/wp-content/aiowps_backups/
+/wp-content/backup*/
+/wp-content/backups/
+/wp-content/ai1wm-backups/
+/wp-content/wflogs/
+/wp-content/debug.log
+/wp-content/et-cache/
+/wp-content/litespeed/
+/wp-content/wp-rocket-config/
+/error_log
+
+# Cache/object-cache drop-ins
+/wp-content/advanced-cache.php
+/wp-content/object-cache.php
+
+# Host-managed tooling and inactive admin file tools
+/wp-content/mu-plugins/wp-toolkit.php
+/wp-content/mu-plugins/wp-toolkit/
+/wp-content/plugins/wp-file-manager/
+
+# Local exports and archives
+*.sql
+*.sql.gz
+*.zip
+*.tar
+*.tar.gz
+*.bak
+*.log
+
+# Dependencies and build outputs
+**/node_modules/
+**/.cache/
+**/.sass-cache/
+
+# cPanel and server noise
+/cgi-bin/
+/tmp/
+/logs/

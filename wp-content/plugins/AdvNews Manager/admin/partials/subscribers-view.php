@@ -1,0 +1,394 @@
+<?php
+// admin/partials/subscribers-view.php
+if (!defined('ABSPATH')) exit;
+
+$subscriber_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$subscriber_class = new AdvNews_Subscriber();
+$tracking_class = new AdvNews_Tracking();
+$category_class = new AdvNews_Category();
+
+$subscriber = $subscriber_id ? $subscriber_class->get_subscriber($subscriber_id) : null;
+
+if (!$subscriber) {
+    echo '<div class="notice notice-error"><p>' . __('Subscriber not found.', 'advnews-manager') . '</p></div>';
+    return;
+}
+
+$categories = $subscriber_class->get_subscriber_categories($subscriber_id);
+$activity = $tracking_class->get_subscriber_activity($subscriber_id, 20);
+
+// Get campaign statistics for this subscriber
+global $wpdb;
+$table_prefix = ADVNEWS_TABLE_PREFIX;
+$table_logs = $wpdb->prefix . $table_prefix . 'campaign_logs';
+$table_campaigns = $wpdb->prefix . $table_prefix . 'campaigns';
+
+$campaign_stats = $wpdb->get_row($wpdb->prepare(
+    "SELECT
+        COUNT(*) as total_sent,
+        SUM(CASE WHEN status IN ('delivered', 'opened', 'clicked') THEN 1 ELSE 0 END) as delivered,
+        SUM(CASE WHEN status = 'opened' THEN 1 ELSE 0 END) as opened,
+        SUM(CASE WHEN status = 'clicked' THEN 1 ELSE 0 END) as clicked,
+        SUM(CASE WHEN status = 'bounced' THEN 1 ELSE 0 END) as bounced,
+        SUM(CASE WHEN status = 'unsubscribed' THEN 1 ELSE 0 END) as unsubscribed
+    FROM $table_logs
+    WHERE subscriber_id = %d",
+    $subscriber_id
+));
+?>
+<div class="wrap advnews-subscriber-view">
+    <h1 class="wp-heading-inline">
+        <?php printf(__('View Subscriber: %s', 'advnews-manager'), esc_html($subscriber->email)); ?>
+    </h1>
+    <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $subscriber_id); ?>" class="page-title-action">
+        <?php _e('Edit', 'advnews-manager'); ?>
+    </a>
+    <a href="<?php echo admin_url('admin.php?page=advnews-subscribers'); ?>" class="page-title-action">
+        <?php _e('Back to List', 'advnews-manager'); ?>
+    </a>
+    <hr class="wp-header-end">
+
+    <!-- Subscriber Status Badge -->
+    <div class="subscriber-status-badge status-<?php echo esc_attr($subscriber->status); ?>" style="display:inline-block; padding:5px 15px; border-radius:20px; font-weight:600; margin:10px 0; background:<?php
+        echo $subscriber->status == 'active' ? '#d4edda; color:#155724;' :
+            ($subscriber->status == 'unsubscribed' ? '#f8d7da; color:#721c24;' : '#fff3cd; color:#856404;');
+    ?>">
+        <?php echo esc_html(ucfirst($subscriber->status)); ?>
+    </div>
+
+    <div id="poststuff">
+        <div id="post-body" class="metabox-holder columns-2">
+            <div id="post-body-content">
+                <!-- Basic Information -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Basic Information', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <table class="form-table">
+                            <tr>
+                                <th><?php _e('Email Address:', 'advnews-manager'); ?></th>
+                                <td>
+                                    <strong><?php echo esc_html($subscriber->email); ?></strong>
+                                    <?php if ($subscriber->email_verified): ?>
+                                        <span class="dashicons dashicons-yes" style="color:#00a32a;" title="<?php _e('Email Verified', 'advnews-manager'); ?>"></span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Name:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html(trim($subscriber->first_name . ' ' . $subscriber->last_name)); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Organization:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html($subscriber->organization); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('IP Address:', 'advnews-manager'); ?></th>
+                                <td><code><?php echo esc_html($subscriber->ip_address); ?></code></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Timezone:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html($subscriber->timezone ?: '—'); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Language:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html($subscriber->language ?: '—'); ?></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Categories -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Categories', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <?php if (empty($categories)): ?>
+                            <p><?php _e('No categories assigned.', 'advnews-manager'); ?></p>
+                        <?php else: ?>
+                            <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                                <?php foreach ($categories as $category): ?>
+                                    <span class="category-badge" style="background-color:<?php echo esc_attr($category->color); ?>; color:#fff; padding:5px 12px; border-radius:15px; font-size:13px;">
+                                        <?php echo esc_html($category->name); ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Campaign Statistics -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Campaign Statistics', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#2271b1;">
+                                    <?php echo esc_html($campaign_stats->total_sent ?? 0); ?>
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Total Sent', 'advnews-manager'); ?></div>
+                            </div>
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#00a32a;">
+                                    <?php echo esc_html($campaign_stats->opened ?? 0); ?>
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Opened', 'advnews-manager'); ?></div>
+                            </div>
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#f0c33c;">
+                                    <?php echo esc_html($campaign_stats->clicked ?? 0); ?>
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Clicked', 'advnews-manager'); ?></div>
+                            </div>
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#2271b1;">
+                                    <?php echo esc_html($subscriber->open_rate ?? 0); ?>%
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Open Rate', 'advnews-manager'); ?></div>
+                            </div>
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#2271b1;">
+                                    <?php echo esc_html($subscriber->click_rate ?? 0); ?>%
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Click Rate', 'advnews-manager'); ?></div>
+                            </div>
+                            <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
+                                <div style="font-size:24px; font-weight:600; color:#2271b1;">
+                                    <?php echo esc_html($subscriber->engagement_score ?? 0); ?>
+                                </div>
+                                <div style="font-size:12px; color:#666;"><?php _e('Engagement Score', 'advnews-manager'); ?></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Recent Activity (Last 20)', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <?php if (empty($activity)): ?>
+                            <p><?php _e('No recent activity.', 'advnews-manager'); ?></p>
+                        <?php else: ?>
+                            <table class="wp-list-table widefat fixed striped">
+                                <thead>
+                                    <tr>
+                                        <th><?php _e('Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Type', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Campaign', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Details', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Location', 'advnews-manager'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($activity as $item): ?>
+                                        <tr>
+                                            <td>
+                                                <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item['date']))); ?>
+                                            </td>
+                                            <td>
+                                                <span class="activity-badge activity-<?php echo esc_attr($item['type']); ?>" style="display:inline-block; padding:3px 8px; border-radius:3px; font-size:11px; font-weight:600; background:<?php
+                                                    echo $item['type'] == 'open' ? '#d4edda; color:#155724;' :
+                                                        ($item['type'] == 'click' ? '#cce5ff; color:#004085;' : '#f8d7da; color:#721c24;');
+                                                ?>">
+                                                    <?php echo esc_html(ucfirst($item['type'])); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <strong><?php echo esc_html($item['campaign']); ?></strong>
+                                                <br><small style="color:#666;"><?php echo esc_html($item['subject']); ?></small>
+                                            </td>
+                                            <td>
+                                                <?php if ($item['type'] == 'click' && !empty($item['url'])): ?>
+                                                    <a href="<?php echo esc_url($item['url']); ?>" target="_blank" style="font-size:12px;">
+                                                        <?php echo esc_html(wp_trim_words($item['url'], 5, '...')); ?>
+                                                    </a>
+                                                <?php else: ?>
+                                                    —
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($item['location'])): ?>
+                                                    📍 <?php echo esc_html($item['location']); ?>
+                                                <?php else: ?>
+                                                    —
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div id="postbox-container-1" class="postbox-container">
+                <!-- Timeline -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Timeline', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <table class="widefat">
+                            <tr>
+                                <td><strong><?php _e('Subscribed:', 'advnews-manager'); ?></strong></td>
+                                <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($subscriber->subscribed_at))); ?></td>
+                            </tr>
+                            <?php if ($subscriber->last_email_sent): ?>
+                                <tr>
+                                    <td><strong><?php _e('Last Email Sent:', 'advnews-manager'); ?></strong></td>
+                                    <td>
+                                        <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($subscriber->last_email_sent))); ?>
+                                        <br><small><?php echo esc_html(human_time_diff(strtotime($subscriber->last_email_sent), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?></small>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php if ($subscriber->last_activity_at): ?>
+                                <tr>
+                                    <td><strong><?php _e('Last Activity:', 'advnews-manager'); ?></strong></td>
+                                    <td>
+                                        <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($subscriber->last_activity_at))); ?>
+                                        <br><small><?php echo esc_html(human_time_diff(strtotime($subscriber->last_activity_at), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?></small>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php if ($subscriber->status == 'unsubscribed' && $subscriber->unsubscribed_at): ?>
+                                <tr>
+                                    <td><strong><?php _e('Unsubscribed:', 'advnews-manager'); ?></strong></td>
+                                    <td>
+                                        <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($subscriber->unsubscribed_at))); ?>
+                                        <br><small><?php echo esc_html(human_time_diff(strtotime($subscriber->unsubscribed_at), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?></small>
+                                    </td>
+                                </tr>
+                                <?php if ($subscriber->unsubscribe_reason): ?>
+                                    <tr>
+                                        <td><strong><?php _e('Unsubscribe Reason:', 'advnews-manager'); ?></strong></td>
+                                        <td><?php echo esc_html($subscriber->unsubscribe_reason); ?></td>
+                                    </tr>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('Quick Actions', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $subscriber_id); ?>" class="button button-primary" style="width:100%; text-align:center;">
+                                <?php _e('Edit Subscriber', 'advnews-manager'); ?>
+                            </a>
+                            <?php if ($subscriber->status == 'active'): ?>
+                                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=advnews-subscribers&action=unsubscribe&id=' . $subscriber_id), 'advnews_unsubscribe_subscriber'); ?>"
+                                   class="button"
+                                   style="width:100%; text-align:center; color:#d63638; border-color:#d63638;"
+                                   onclick="return confirm('<?php _e('Are you sure you want to unsubscribe this subscriber?', 'advnews-manager'); ?>');">
+                                    <?php _e('Unsubscribe', 'advnews-manager'); ?>
+                                </a>
+                            <?php elseif ($subscriber->status == 'unsubscribed'): ?>
+                                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=advnews-subscribers&action=resubscribe&id=' . $subscriber_id), 'advnews_resubscribe_subscriber'); ?>"
+                                   class="button"
+                                   style="width:100%; text-align:center; color:#00a32a; border-color:#00a32a;">
+                                    <?php _e('Resubscribe', 'advnews-manager'); ?>
+                                </a>
+                            <?php endif; ?>
+                            <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&subscriber_id=' . $subscriber_id); ?>"
+                               class="button"
+                               style="width:100%; text-align:center;">
+                                <?php _e('View Analytics', 'advnews-manager'); ?>
+                            </a>
+                            <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=advnews-subscribers&action=delete&id=' . $subscriber_id), 'advnews_delete_subscriber'); ?>"
+                               class="button button-link-delete"
+                               style="width:100%; text-align:center;"
+                               onclick="return confirm('<?php _e('Are you sure? This will permanently delete the subscriber.', 'advnews-manager'); ?>');">
+                                <?php _e('Delete Subscriber', 'advnews-manager'); ?>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GDPR Data Export -->
+                <div class="postbox">
+                    <h2 class="hndle"><?php _e('GDPR Data', 'advnews-manager'); ?></h2>
+                    <div class="inside">
+                        <p style="font-size:13px; color:#666; margin-bottom:15px;">
+                            <?php _e('Export or anonymize subscriber data for GDPR compliance.', 'advnews-manager'); ?>
+                        </p>
+                        <a href="<?php echo admin_url('admin-ajax.php?action=advnews_export_subscriber_gdpr&email=' . urlencode($subscriber->email) . '&_wpnonce=' . wp_create_nonce('advnews_ajax_nonce')); ?>"
+                           class="button"
+                           style="width:100%; text-align:center; margin-bottom:10px;">
+                            <?php _e('Export Data (JSON)', 'advnews-manager'); ?>
+                        </a>
+                        <a href="<?php echo admin_url('admin-ajax.php?action=advnews_anonymize_subscriber&email=' . urlencode($subscriber->email) . '&_wpnonce=' . wp_create_nonce('advnews_ajax_nonce')); ?>"
+                           class="button button-link-delete"
+                           style="width:100%; text-align:center;"
+                           onclick="return confirm('<?php _e('This will anonymize all data for this subscriber. This action cannot be undone.', 'advnews-manager'); ?>');">
+                            <?php _e('Anonymize Data', 'advnews-manager'); ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.advnews-subscriber-view .activity-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.activity-open {
+    background: #d4edda;
+    color: #155724;
+}
+.activity-click {
+    background: #cce5ff;
+    color: #004085;
+}
+.activity-unsubscribe {
+    background: #f8d7da;
+    color: #721c24;
+}
+.category-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.subscriber-status-badge {
+    display: inline-block;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+.wp-list-table td {
+    vertical-align: middle;
+}
+.wp-list-table small {
+    color: #666;
+    font-size: 11px;
+}
+.button-link-delete {
+    color: #d63638;
+    border-color: #d63638;
+}
+.button-link-delete:hover {
+    background: #d63638;
+    color: #fff;
+    border-color: #d63638;
+}
+@media (max-width: 782px) {
+    #post-body.columns-2 {
+        display: block;
+    }
+    #postbox-container-1 {
+        float: none;
+        width: 100%;
+        margin-top: 20px;
+    }
+}
+</style>
