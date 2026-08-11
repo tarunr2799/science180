@@ -75,70 +75,79 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
                             <?php _e('Fields to Export:', 'advnews-manager'); ?>
                         </th>
                         <td>
-                            <label>
-                                <input type="checkbox" name="fields[]" value="email" checked disabled>
-                                <?php _e('Email (required)', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="first_name" checked>
-                                <?php _e('First Name', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="last_name" checked>
-                                <?php _e('Last Name', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="organization" checked>
-                                <?php _e('Organization', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="title" checked>
-                                <?php _e('Title/Role', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="website_url" checked>
-                                <?php _e('URL/Website', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="description" checked>
-                                <?php _e('Description', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="country" checked>
-                                <?php _e('Country', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="categories">
-                                <?php _e('Categories', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="status">
-                                <?php _e('Status', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="subscribed_date">
-                                <?php _e('Subscribed Date', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="open_rate">
-                                <?php _e('Open Rate', 'advnews-manager'); ?>
-                            </label><br>
-
-                            <label>
-                                <input type="checkbox" name="fields[]" value="click_rate">
-                                <?php _e('Click Rate', 'advnews-manager'); ?>
-                            </label>
+                            <div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('Select fields', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('fields selected', 'advnews-manager'); ?>">
+                                <button type="button" id="export_fields" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="advnews-multiselect-label"><?php _e('Select fields', 'advnews-manager'); ?></span>
+                                    <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+                                </button>
+                                <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                                    <label class="advnews-multiselect-option is-disabled">
+                                        <input type="checkbox" name="fields[]" value="email" checked disabled>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Email (required)', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="first_name" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('First Name', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="last_name" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Last Name', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="organization" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Organization', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="title" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Title/Role', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="website_url" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('URL/Website', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="description" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Description', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="country" checked>
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Country', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="categories">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Categories', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="status">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Status', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="subscribed_date">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Subscribed Date', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="open_rate">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Open Rate', 'advnews-manager'); ?></span>
+                                    </label>
+                                    <label class="advnews-multiselect-option">
+                                        <input type="checkbox" name="fields[]" value="click_rate">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Click Rate', 'advnews-manager'); ?></span>
+                                    </label>
+                                </div>
+                            </div>
                         </td>
                     </tr>
 
@@ -243,6 +252,53 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
 
 <script>
 jQuery(document).ready(function($) {
+    function updateAdvNewsMultiSelect($select) {
+        var checked = $select.find('input[type="checkbox"]:checked');
+        var label = $select.find('.advnews-multiselect-label');
+        var placeholder = $select.data('placeholder') || '';
+        var plural = $select.data('selected-plural') || 'selected';
+
+        if (checked.length === 0) {
+            label.text(placeholder);
+            return;
+        }
+
+        if (checked.length === 1) {
+            label.text($.trim(checked.closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text()));
+            return;
+        }
+
+        label.text(checked.length + ' ' + plural);
+    }
+
+    $('.advnews-multiselect').each(function() {
+        updateAdvNewsMultiSelect($(this));
+    });
+
+    $(document).on('click', '.advnews-multiselect-toggle', function(e) {
+        e.preventDefault();
+        var $select = $(this).closest('.advnews-multiselect');
+        $('.advnews-multiselect').not($select).removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        $select.toggleClass('is-open');
+        $(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
+    });
+
+    $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
+        updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.advnews-multiselect').length) {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
+
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape') {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
+
     // Show/hide schedule options
     $('#schedule_export').on('change', function() {
         if ($(this).is(':checked')) {
@@ -301,3 +357,99 @@ jQuery(document).ready(function($) {
     });
 });
 </script>
+<style>
+.advnews-multiselect {
+    position: relative;
+    max-width: 420px;
+}
+.advnews-multiselect-toggle {
+    width: 100%;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    color: #2c3338;
+    cursor: pointer;
+    text-align: left;
+}
+.advnews-multiselect-toggle:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 2px solid transparent;
+}
+.advnews-multiselect-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.advnews-multiselect-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+.advnews-multiselect.is-open .advnews-multiselect-menu {
+    display: block;
+}
+.advnews-multiselect-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.advnews-multiselect-option:hover {
+    background: #f0f6fc;
+}
+.advnews-multiselect-option.is-disabled {
+    color: #646970;
+    cursor: default;
+}
+.advnews-multiselect-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.advnews-multiselect-check {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    background: #fff;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check {
+    border-color: #2271b1;
+    background: #2271b1;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check::after {
+    content: "";
+    display: block;
+    width: 4px;
+    height: 8px;
+    margin: 1px 0 0 5px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.advnews-multiselect-text {
+    line-height: 1.3;
+}
+</style>

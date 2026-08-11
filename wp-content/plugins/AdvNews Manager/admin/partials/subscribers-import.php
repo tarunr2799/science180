@@ -57,19 +57,28 @@ global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
 $categories = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table_prefix}categories ORDER BY name");
 ?>
-<div id="default_category" class="advnews-import-category-list">
+<div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('Select categories', 'advnews-manager'); ?>" data-selected-singular="<?php esc_attr_e('category selected', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('categories selected', 'advnews-manager'); ?>">
+<button type="button" id="default_category" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+<span class="advnews-multiselect-label"><?php _e('Select categories', 'advnews-manager'); ?></span>
+<span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+</button>
+<div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
 <?php if (empty($categories)): ?>
 <p><?php _e('No categories found.', 'advnews-manager'); ?></p>
 <?php else: ?>
 <?php
 foreach ($categories as $category):
 ?>
-<label class="advnews-import-category-option">
+<label class="advnews-multiselect-option">
 <input type="checkbox" name="default_category[]" value="<?php echo esc_attr($category->id); ?>">
+<span class="advnews-multiselect-check" aria-hidden="true"></span>
+<span class="advnews-multiselect-text">
 <?php echo esc_html($category->name); ?>
+</span>
 </label>
 <?php endforeach; ?>
 <?php endif; ?>
+</div>
 </div>
 <p class="description">
 <?php _e('Click one or more categories. Subscribers will be assigned to all selected categories.', 'advnews-manager'); ?>
@@ -88,6 +97,53 @@ foreach ($categories as $category):
 </div>
 <script>
 jQuery(document).ready(function($) {
+function updateAdvNewsMultiSelect($select) {
+var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+var label = $select.find('.advnews-multiselect-label');
+var placeholder = $select.data('placeholder') || '';
+var plural = $select.data('selected-plural') || 'selected';
+
+if (checked.length === 0) {
+label.text(placeholder);
+return;
+}
+
+if (checked.length === 1) {
+label.text($.trim(checked.closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text()));
+return;
+}
+
+label.text(checked.length + ' ' + plural);
+}
+
+$('.advnews-multiselect').each(function() {
+updateAdvNewsMultiSelect($(this));
+});
+
+$(document).on('click', '.advnews-multiselect-toggle', function(e) {
+e.preventDefault();
+var $select = $(this).closest('.advnews-multiselect');
+$('.advnews-multiselect').not($select).removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+$select.toggleClass('is-open');
+$(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
+});
+
+$(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
+updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+});
+
+$(document).on('click', function(e) {
+if (!$(e.target).closest('.advnews-multiselect').length) {
+$('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+}
+});
+
+$(document).on('keydown', function(e) {
+if (e.key === 'Escape') {
+$('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+}
+});
+
 // Intercept form submission for better error handling
 $('#advnews-import-form').on('submit', function(e) {
 e.preventDefault();
@@ -119,6 +175,11 @@ resultsDiv.addClass('success')
 .html('<div class="notice notice-success"><p>' + response.data.message + '</p></div>')
 .show();
 form[0].reset();
+setTimeout(function() {
+$('.advnews-multiselect').each(function() {
+updateAdvNewsMultiSelect($(this));
+});
+}, 0);
 } else {
 resultsDiv.addClass('error')
 .html('<div class="notice notice-error"><p>' + (response.data.message || '<?php _e('Import failed.', 'advnews-manager'); ?>') + '</p></div>')
@@ -160,21 +221,93 @@ overflow-x: auto;
 font-size: 12px;
 margin-top: 10px;
 }
-.advnews-import-category-list {
+.advnews-multiselect {
+position: relative;
 max-width: 420px;
-max-height: 180px;
-overflow-y: auto;
-border: 1px solid #ddd;
+}
+.advnews-multiselect-toggle {
+width: 100%;
+min-height: 36px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 10px;
+padding: 0 10px;
+border: 1px solid #8c8f94;
 border-radius: 4px;
 background: #fff;
-padding: 8px 10px;
+color: #2c3338;
+cursor: pointer;
+text-align: left;
 }
-.advnews-import-category-option {
+.advnews-multiselect-toggle:focus {
+border-color: #2271b1;
+box-shadow: 0 0 0 1px #2271b1;
+outline: 2px solid transparent;
+}
+.advnews-multiselect-label {
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+.advnews-multiselect-menu {
+display: none;
+position: absolute;
+z-index: 1000;
+top: calc(100% + 4px);
+left: 0;
+right: 0;
+max-height: 220px;
+overflow-y: auto;
+padding: 6px;
+border: 1px solid #8c8f94;
+border-radius: 4px;
+background: #fff;
+box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+.advnews-multiselect.is-open .advnews-multiselect-menu {
 display: block;
-margin: 0 0 8px;
+}
+.advnews-multiselect-option {
+display: flex;
+align-items: center;
+gap: 8px;
+min-height: 30px;
+padding: 5px 6px;
+border-radius: 3px;
 cursor: pointer;
 }
-.advnews-import-category-option:last-child {
-margin-bottom: 0;
+.advnews-multiselect-option:hover {
+background: #f0f6fc;
+}
+.advnews-multiselect-option input {
+position: absolute;
+opacity: 0;
+pointer-events: none;
+}
+.advnews-multiselect-check {
+width: 16px;
+height: 16px;
+border: 1px solid #8c8f94;
+border-radius: 3px;
+background: #fff;
+box-sizing: border-box;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check {
+border-color: #2271b1;
+background: #2271b1;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check::after {
+content: "";
+display: block;
+width: 4px;
+height: 8px;
+margin: 1px 0 0 5px;
+border: solid #fff;
+border-width: 0 2px 2px 0;
+transform: rotate(45deg);
+}
+.advnews-multiselect-text {
+line-height: 1.3;
 }
 </style>
