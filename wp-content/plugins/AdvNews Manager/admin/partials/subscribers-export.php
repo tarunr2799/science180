@@ -12,7 +12,7 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
         <div class="inside">
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" id="advnews-export-form">
                 <input type="hidden" name="action" value="advnews_export_subscribers">
-                <?php AdvNews_Security::create_nonce_field('advnews_ajax_nonce'); ?>
+                <?php AdvNews_Security::create_nonce_field('advnews_export_subscribers'); ?>
 
                 <h3><?php _e('Export Filters', 'advnews-manager'); ?></h3>
 
