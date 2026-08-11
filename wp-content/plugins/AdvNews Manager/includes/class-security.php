@@ -164,7 +164,7 @@ class AdvNews_Security
      */
     public static function create_nonce_field($action)
     {
-        return wp_nonce_field($action, '_wpnonce', true, false);
+        return wp_nonce_field($action, '_wpnonce', true, true);
     }
 
     /**
