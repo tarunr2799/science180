@@ -248,11 +248,21 @@ class AdvNews_Security
     }
 
     /**
-     * Validate CSV file upload
+     * Validate CSV or Excel file upload
      */
     public static function validate_csv_upload($file)
     {
-        $allowed_types = array('text/csv', 'text/plain', 'application/vnd.ms-excel');
+        $allowed_extensions = array('csv', 'xlsx');
+        $allowed_types = array(
+            'text/csv',
+            'text/plain',
+            'application/csv',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip',
+            'application/x-zip',
+            'application/octet-stream'
+        );
         $max_size = 10 * 1024 * 1024; // 10MB
         if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
             return new WP_Error('invalid_upload', __('Invalid file upload.', 'advnews-manager'));
@@ -262,11 +272,14 @@ class AdvNews_Security
             return new WP_Error('file_too_large',
                 sprintf(__('File is too large. Maximum size is %s.', 'advnews-manager'), size_format($max_size)));
         }
-        // Check file type
+        // Check file type and extension. Some hosts report .xlsx as a generic zip,
+        // so the extension is the stable signal while MIME remains a useful guard.
         $file_info = wp_check_filetype_and_ext($file['tmp_name'], $file['name']);
-        if (!$file_info['type'] || !in_array($file_info['type'], $allowed_types)) {
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $type = isset($file_info['type']) ? $file_info['type'] : '';
+        if (!in_array($extension, $allowed_extensions, true) || ($type && !in_array($type, $allowed_types, true))) {
             return new WP_Error('invalid_file_type',
-                __('Invalid file type. Please upload a CSV file.', 'advnews-manager'));
+                __('Invalid file type. Please upload a CSV or Excel (.xlsx) file.', 'advnews-manager'));
         }
         // Check for malware (basic check)
         if (self::contains_malware($file['tmp_name'])) {

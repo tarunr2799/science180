@@ -27,11 +27,11 @@ if (!empty($server_issues)): ?>
 <?php wp_nonce_field('advnews_ajax_nonce', '_wpnonce', false, true); ?>
 <!-- Backup nonce field for compatibility -->
 <input type="hidden" name="nonce" value="<?php echo wp_create_nonce('advnews_ajax_nonce'); ?>">
-<h3><?php _e('Upload CSV File', 'advnews-manager'); ?></h3>
+<h3><?php _e('Upload CSV or Excel File', 'advnews-manager'); ?></h3>
 <p>
-<input type="file" name="csv_file" accept=".csv" required>
+<input type="file" name="csv_file" accept=".csv,.xlsx" required>
 <br>
-<small><?php _e('Maximum file size: 10MB. Only CSV files are supported.', 'advnews-manager'); ?></small>
+<small><?php _e('Maximum file size: 10MB. Supported formats: CSV and Excel (.xlsx).', 'advnews-manager'); ?></small>
 </p>
 <h3><?php _e('Import Settings', 'advnews-manager'); ?></h3>
 <table class="form-table">
@@ -92,7 +92,7 @@ var resultsDiv = $('#import-results');
 // Validate file is selected
 var fileInput = form.find('input[name="csv_file"]');
 if (!fileInput.val()) {
-alert('<?php _e('Please select a CSV file to import.', 'advnews-manager'); ?>');
+alert('<?php _e('Please select a CSV or Excel file to import.', 'advnews-manager'); ?>');
 return false;
 }
 // Show loading state

@@ -332,7 +332,8 @@ class AdvNews_Ajax
                 'update_existing'   => isset($_POST['update_existing']) && $_POST['update_existing'] == '1',
                 'skip_duplicates'   => isset($_POST['skip_duplicates']) && $_POST['skip_duplicates'] == '1',
                 'default_category'  => $default_categories, // Now an array of IDs
-                'send_welcome'      => isset($_POST['send_welcome']) && $_POST['send_welcome'] == '1'
+                'send_welcome'      => isset($_POST['send_welcome']) && $_POST['send_welcome'] == '1',
+                'file_name'         => isset($file['name']) ? sanitize_file_name($file['name']) : ''
             ];
 
             $subscriber_class = new AdvNews_Subscriber();

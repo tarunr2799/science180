@@ -450,7 +450,7 @@ class AdvNews_Subscriber
         ));
     }
     /**
-    * Import subscribers from CSV - UPDATED for multiple default categories
+    * Import subscribers from CSV or Excel - UPDATED for multiple default categories
     */
     public function import_from_csv($file_path, $options = array())
     {
@@ -467,6 +467,11 @@ class AdvNews_Subscriber
                 error_log('[AdvNews Import] File not accessible: ' . $file_path);
             }
             return new WP_Error('file_access', __('Cannot read uploaded CSV file. Check server permissions.', 'advnews-manager'));
+        }
+
+        $file_name = isset($options['file_name']) && !empty($options['file_name']) ? $options['file_name'] : $file_path;
+        if ($this->is_xlsx_import($file_name)) {
+            return $this->import_from_xlsx($file_path, $options);
         }
 
         $handle = fopen($file_path, 'r');
@@ -689,6 +694,270 @@ class AdvNews_Subscriber
             'skipped'  => $skipped,
             'errors'   => array_slice($errors, 0, 10) // Limit error display
         );
+    }
+
+
+    /**
+     * Detect Excel Open XML imports while preserving the existing CSV method name.
+     */
+    private function is_xlsx_import($file_name)
+    {
+        return strtolower(pathinfo($file_name, PATHINFO_EXTENSION)) === 'xlsx';
+    }
+
+    /**
+     * Convert the first worksheet in an .xlsx file to a temporary CSV, then reuse
+     * the existing importer so duplicate, update, and category behavior stays the same.
+     */
+    private function import_from_xlsx($file_path, $options = array())
+    {
+        if (!class_exists('ZipArchive')) {
+            return new WP_Error('xlsx_zip_missing', __('Excel import requires the PHP Zip extension. Please enable ZipArchive or upload CSV.', 'advnews-manager'));
+        }
+
+        $rows = $this->read_xlsx_rows($file_path);
+        if (is_wp_error($rows)) {
+            return $rows;
+        }
+
+        if (empty($rows)) {
+            return new WP_Error('xlsx_empty', __('Excel file is empty or does not contain readable rows.', 'advnews-manager'));
+        }
+
+        $temp_csv = function_exists('wp_tempnam') ? wp_tempnam('advnews-import') : tempnam(sys_get_temp_dir(), 'advnews-import-');
+        if (!$temp_csv) {
+            return new WP_Error('temp_file_failed', __('Could not create a temporary file for Excel import.', 'advnews-manager'));
+        }
+
+        $handle = fopen($temp_csv, 'w');
+        if (!$handle) {
+            @unlink($temp_csv);
+            return new WP_Error('temp_file_open_failed', __('Could not write the temporary CSV file for Excel import.', 'advnews-manager'));
+        }
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+        fclose($handle);
+
+        $csv_options = $options;
+        $csv_options['file_name'] = 'advnews-import.csv';
+        $result = $this->import_from_csv($temp_csv, $csv_options);
+        @unlink($temp_csv);
+
+        return $result;
+    }
+
+    /**
+     * Read rows from the first worksheet of a simple .xlsx workbook.
+     */
+    private function read_xlsx_rows($file_path)
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($file_path) !== true) {
+            return new WP_Error('xlsx_open_failed', __('Could not open the Excel file. Please check the file and try again.', 'advnews-manager'));
+        }
+
+        $shared_strings = $this->read_xlsx_shared_strings($zip);
+        if (is_wp_error($shared_strings)) {
+            $zip->close();
+            return $shared_strings;
+        }
+
+        $worksheet_path = $this->get_xlsx_worksheet_path($zip);
+        if (is_wp_error($worksheet_path)) {
+            $zip->close();
+            return $worksheet_path;
+        }
+
+        $sheet_xml = $zip->getFromName($worksheet_path);
+        $zip->close();
+
+        if ($sheet_xml === false) {
+            return new WP_Error('xlsx_sheet_missing', __('Could not read the first worksheet from the Excel file.', 'advnews-manager'));
+        }
+
+        $xml = simplexml_load_string($sheet_xml, 'SimpleXMLElement', LIBXML_NONET);
+        if (!$xml) {
+            return new WP_Error('xlsx_xml_invalid', __('The Excel worksheet XML could not be parsed.', 'advnews-manager'));
+        }
+
+        $xml->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $row_nodes = $xml->xpath('//m:sheetData/m:row');
+        if (!$row_nodes) {
+            return array();
+        }
+
+        $rows = array();
+        foreach ($row_nodes as $row_node) {
+            $row_node->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $cell_nodes = $row_node->xpath('m:c');
+            $row = array();
+            $max_index = -1;
+
+            foreach ($cell_nodes as $cell_node) {
+                $cell_ref = (string) $cell_node['r'];
+                $column_index = $cell_ref ? $this->xlsx_column_index($cell_ref) : count($row);
+                $row[$column_index] = $this->get_xlsx_cell_value($cell_node, $shared_strings);
+                $max_index = max($max_index, $column_index);
+            }
+
+            if ($max_index < 0) {
+                continue;
+            }
+
+            $normalized_row = array();
+            for ($i = 0; $i <= $max_index; $i++) {
+                $normalized_row[] = isset($row[$i]) ? $row[$i] : '';
+            }
+
+            if (count(array_filter($normalized_row, function($value) {
+                return trim((string) $value) !== '';
+            })) === 0) {
+                continue;
+            }
+
+            $rows[] = $normalized_row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Locate the first worksheet through workbook relationships, with sheet1 fallback.
+     */
+    private function get_xlsx_worksheet_path($zip)
+    {
+        $fallback = 'xl/worksheets/sheet1.xml';
+        $workbook_xml = $zip->getFromName('xl/workbook.xml');
+        $rels_xml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+
+        if ($workbook_xml === false || $rels_xml === false) {
+            return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_sheet_missing', __('No worksheet was found in the Excel file.', 'advnews-manager'));
+        }
+
+        $workbook = simplexml_load_string($workbook_xml, 'SimpleXMLElement', LIBXML_NONET);
+        $rels = simplexml_load_string($rels_xml, 'SimpleXMLElement', LIBXML_NONET);
+        if (!$workbook || !$rels) {
+            return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_workbook_invalid', __('The Excel workbook structure could not be parsed.', 'advnews-manager'));
+        }
+
+        $workbook->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $sheets = $workbook->xpath('//m:sheets/m:sheet');
+        if (!$sheets || empty($sheets[0])) {
+            return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_sheet_missing', __('No worksheet was found in the Excel file.', 'advnews-manager'));
+        }
+
+        $relationship_id = (string) $sheets[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')->id;
+        if (empty($relationship_id)) {
+            return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_sheet_missing', __('No worksheet relationship was found in the Excel file.', 'advnews-manager'));
+        }
+
+        $rels->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/package/2006/relationships');
+        $relationships = $rels->xpath('//r:Relationship');
+        foreach ($relationships as $relationship) {
+            if ((string) $relationship['Id'] !== $relationship_id) {
+                continue;
+            }
+
+            $target = (string) $relationship['Target'];
+            if (empty($target)) {
+                break;
+            }
+
+            $worksheet_path = ltrim($target, '/');
+            if (strpos($worksheet_path, 'xl/') !== 0) {
+                $worksheet_path = 'xl/' . $worksheet_path;
+            }
+
+            return $zip->locateName($worksheet_path) !== false ? $worksheet_path : new WP_Error('xlsx_sheet_missing', __('The worksheet referenced by the Excel workbook could not be found.', 'advnews-manager'));
+        }
+
+        return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_sheet_missing', __('No worksheet was found in the Excel file.', 'advnews-manager'));
+    }
+
+    /**
+     * Read the shared string table used by .xlsx cells.
+     */
+    private function read_xlsx_shared_strings($zip)
+    {
+        $shared_xml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($shared_xml === false) {
+            return array();
+        }
+
+        $xml = simplexml_load_string($shared_xml, 'SimpleXMLElement', LIBXML_NONET);
+        if (!$xml) {
+            return new WP_Error('xlsx_shared_strings_invalid', __('The Excel shared strings table could not be parsed.', 'advnews-manager'));
+        }
+
+        $xml->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $items = $xml->xpath('//m:si');
+        $strings = array();
+
+        foreach ($items as $item) {
+            $item->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $text_nodes = $item->xpath('.//m:t');
+            $value = '';
+            if ($text_nodes) {
+                foreach ($text_nodes as $text_node) {
+                    $value .= (string) $text_node;
+                }
+            }
+            $strings[] = $value;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * Get a readable value from an .xlsx cell.
+     */
+    private function get_xlsx_cell_value($cell, $shared_strings)
+    {
+        $cell->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $type = (string) $cell['t'];
+
+        if ($type === 'inlineStr') {
+            $text_nodes = $cell->xpath('.//m:t');
+            $value = '';
+            if ($text_nodes) {
+                foreach ($text_nodes as $text_node) {
+                    $value .= (string) $text_node;
+                }
+            }
+            return $value;
+        }
+
+        $value_nodes = $cell->xpath('m:v');
+        $value = $value_nodes && isset($value_nodes[0]) ? (string) $value_nodes[0] : '';
+
+        if ($type === 's') {
+            $index = intval($value);
+            return isset($shared_strings[$index]) ? $shared_strings[$index] : '';
+        }
+
+        if ($type === 'b') {
+            return $value === '1' ? 'TRUE' : 'FALSE';
+        }
+
+        return $value;
+    }
+
+    /**
+     * Convert an Excel cell reference like AB12 into a zero-based column index.
+     */
+    private function xlsx_column_index($cell_ref)
+    {
+        preg_match('/^([A-Z]+)/i', $cell_ref, $matches);
+        $letters = isset($matches[1]) ? strtoupper($matches[1]) : 'A';
+        $index = 0;
+
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - 64);
+        }
+
+        return $index - 1;
     }
 
 
