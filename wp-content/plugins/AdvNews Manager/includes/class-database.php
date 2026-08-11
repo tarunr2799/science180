@@ -7,7 +7,7 @@ class AdvNews_Database
     private $table_prefix;
     private $db_version_option = 'advnews_db_version';
     // BUMP VERSION TO FORCE UPGRADE
-    private $current_db_version = '1.0.6';
+    private $current_db_version = '1.0.7';
 
     public function __construct()
     {
@@ -66,6 +66,9 @@ class AdvNews_Database
         if (version_compare($installed_version, '1.0.6', '<')) {
             $this->upgrade_to_1_0_6();
         }
+        if (version_compare($installed_version, '1.0.7', '<')) {
+            $this->upgrade_to_1_0_7();
+        }
 
         // Add default settings
         $this->add_default_settings();
@@ -104,6 +107,10 @@ class AdvNews_Database
             first_name VARCHAR(100),
             last_name VARCHAR(100),
             organization VARCHAR(255),
+            title VARCHAR(150),
+            website_url VARCHAR(255),
+            description TEXT,
+            country VARCHAR(100),
             status ENUM('active', 'unsubscribed', 'bounced') DEFAULT 'active',
             subscribed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             unsubscribed_at DATETIME NULL,
@@ -125,6 +132,7 @@ class AdvNews_Database
             PRIMARY KEY (id),
             UNIQUE KEY email (email),
             KEY status (status),
+            KEY country (country),
             KEY subscribed_at (subscribed_at),
             KEY last_activity (last_activity_at),
             KEY engagement_score (engagement_score),
@@ -845,6 +853,28 @@ class AdvNews_Database
 
         // Update version
         update_option('advnews_db_version', '1.0.6');
+    }
+
+    /**
+     * Upgrade to 1.0.7 - Add subscriber profile fields for future segmentation.
+     */
+    private function upgrade_to_1_0_7() {
+        $table_name = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+
+        if (!$this->column_exists('subscribers', 'title')) {
+            $this->wpdb->query("ALTER TABLE $table_name ADD COLUMN `title` VARCHAR(150) NULL AFTER `organization`");
+        }
+        if (!$this->column_exists('subscribers', 'website_url')) {
+            $this->wpdb->query("ALTER TABLE $table_name ADD COLUMN `website_url` VARCHAR(255) NULL AFTER `title`");
+        }
+        if (!$this->column_exists('subscribers', 'description')) {
+            $this->wpdb->query("ALTER TABLE $table_name ADD COLUMN `description` TEXT NULL AFTER `website_url`");
+        }
+        if (!$this->column_exists('subscribers', 'country')) {
+            $this->wpdb->query("ALTER TABLE $table_name ADD COLUMN `country` VARCHAR(100) NULL AFTER `description`");
+        }
+
+        update_option('advnews_db_version', '1.0.7');
     }
 
     public function get_table($table_name)

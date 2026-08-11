@@ -96,6 +96,26 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
                             </label><br>
 
                             <label>
+                                <input type="checkbox" name="fields[]" value="title" checked>
+                                <?php _e('Title/Role', 'advnews-manager'); ?>
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="fields[]" value="website_url" checked>
+                                <?php _e('URL/Website', 'advnews-manager'); ?>
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="fields[]" value="description" checked>
+                                <?php _e('Description', 'advnews-manager'); ?>
+                            </label><br>
+
+                            <label>
+                                <input type="checkbox" name="fields[]" value="country" checked>
+                                <?php _e('Country', 'advnews-manager'); ?>
+                            </label><br>
+
+                            <label>
                                 <input type="checkbox" name="fields[]" value="categories">
                                 <?php _e('Categories', 'advnews-manager'); ?>
                             </label><br>
@@ -129,8 +149,6 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
                         <td>
                             <select id="export_format" name="format">
                                 <option value="csv"><?php _e('CSV (Comma Separated Values)', 'advnews-manager'); ?></option>
-                                <option value="json"><?php _e('JSON', 'advnews-manager'); ?></option>
-                                <option value="excel"><?php _e('Excel (XLSX)', 'advnews-manager'); ?></option>
                             </select>
                         </td>
                     </tr>

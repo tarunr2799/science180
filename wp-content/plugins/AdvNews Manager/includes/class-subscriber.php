@@ -46,6 +46,10 @@ class AdvNews_Subscriber
             'first_name' => isset($data['first_name']) ? $data['first_name'] : '',
             'last_name' => isset($data['last_name']) ? $data['last_name'] : '',
             'organization' => isset($data['organization']) ? $data['organization'] : '',
+            'title' => isset($data['title']) ? $data['title'] : '',
+            'website_url' => isset($data['website_url']) ? $this->sanitize_website_url($data['website_url']) : '',
+            'description' => isset($data['description']) ? $data['description'] : '',
+            'country' => isset($data['country']) ? $data['country'] : '',
             'status' => 'active',
             'ip_address' => AdvNews_Security::get_client_ip(),
             'email_verified' => get_option('advnews_double_optin') ? 0 : 1
@@ -148,6 +152,18 @@ class AdvNews_Subscriber
         }
         if (!empty($data['organization'])) {
             $update_data['organization'] = AdvNews_Security::sanitize_text($data['organization']);
+        }
+        if (!empty($data['title'])) {
+            $update_data['title'] = AdvNews_Security::sanitize_text($data['title']);
+        }
+        if (!empty($data['website_url'])) {
+            $update_data['website_url'] = $this->sanitize_website_url($data['website_url']);
+        }
+        if (!empty($data['description'])) {
+            $update_data['description'] = sanitize_textarea_field($data['description']);
+        }
+        if (!empty($data['country'])) {
+            $update_data['country'] = AdvNews_Security::sanitize_text($data['country']);
         }
 
         $result = $this->wpdb->update(
@@ -285,8 +301,8 @@ class AdvNews_Subscriber
         if (!empty($args['search'])) {
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
             $where[] = $this->wpdb->prepare(
-                "(s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR s.organization LIKE %s)",
-                $search, $search, $search, $search
+                "(s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR s.organization LIKE %s OR s.title LIKE %s OR s.website_url LIKE %s OR s.description LIKE %s OR s.country LIKE %s)",
+                $search, $search, $search, $search, $search, $search, $search, $search
             );
         }
 
@@ -340,8 +356,8 @@ class AdvNews_Subscriber
         if (!empty($args['search'])) {
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
             $where[] = $this->wpdb->prepare(
-                "(email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR organization LIKE %s)",
-                $search, $search, $search, $search
+                "(email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR organization LIKE %s OR title LIKE %s OR website_url LIKE %s OR description LIKE %s OR country LIKE %s)",
+                $search, $search, $search, $search, $search, $search, $search, $search
             );
         }
 
@@ -365,6 +381,14 @@ class AdvNews_Subscriber
         if (empty($data)) {
             return true;
         }
+
+        if (isset($data['website_url'])) {
+            $data['website_url'] = $this->sanitize_website_url($data['website_url']);
+        }
+        if (isset($data['description'])) {
+            $data['description'] = sanitize_textarea_field($data['description']);
+        }
+
         $result = $this->wpdb->update(
             $table_name,
             $data,
@@ -506,7 +530,7 @@ class AdvNews_Subscriber
             // Remove BOM and trim whitespace
             $clean_header = trim($header);
             $clean_header = preg_replace('/^\xEF\xBB\xBF/', '', $clean_header);
-            $headers[] = sanitize_text_field($clean_header);
+            $headers[] = $this->normalize_import_header($clean_header);
         }
 
         // Validate required 'email' column exists
@@ -569,6 +593,7 @@ class AdvNews_Subscriber
 
                 // Sanitize the row data
                 $row_data = AdvNews_Security::sanitize_csv_data(array($row_data))[0];
+                $row_data = $this->normalize_import_row($row_data);
 
                 // Validate email
                 $email = AdvNews_Security::validate_email($row_data['email'] ?? '');
@@ -623,6 +648,10 @@ class AdvNews_Subscriber
                     if (!empty($row_data['first_name'])) $update_data['first_name'] = $row_data['first_name'];
                     if (!empty($row_data['last_name']))  $update_data['last_name']  = $row_data['last_name'];
                     if (!empty($row_data['organization'])) $update_data['organization'] = $row_data['organization'];
+                    if (!empty($row_data['title'])) $update_data['title'] = $row_data['title'];
+                    if (!empty($row_data['website_url'])) $update_data['website_url'] = $row_data['website_url'];
+                    if (!empty($row_data['description'])) $update_data['description'] = $row_data['description'];
+                    if (!empty($row_data['country'])) $update_data['country'] = $row_data['country'];
 
                     if (!empty($update_data)) {
                         $this->update_subscriber($existing->id, $update_data);
@@ -642,6 +671,10 @@ class AdvNews_Subscriber
                         'first_name'   => $row_data['first_name'] ?? '',
                         'last_name'    => $row_data['last_name'] ?? '',
                         'organization' => $row_data['organization'] ?? '',
+                        'title'        => $row_data['title'] ?? '',
+                        'website_url'  => $row_data['website_url'] ?? '',
+                        'description'  => $row_data['description'] ?? '',
+                        'country'      => $row_data['country'] ?? '',
                         'ip_address'   => AdvNews_Security::get_client_ip()
                     );
 
@@ -698,6 +731,108 @@ class AdvNews_Subscriber
 
 
     /**
+     * Normalize CSV/Excel column headers to subscriber table keys.
+     */
+    private function normalize_import_header($header)
+    {
+        $key = strtolower(trim(sanitize_text_field($header)));
+        $key = str_replace(array('-', '/', '\\', '.', '(', ')'), ' ', $key);
+        $key = preg_replace('/\s+/', '_', $key);
+        $key = trim($key, '_');
+
+        $aliases = array(
+            'email_address' => 'email',
+            'e_mail' => 'email',
+            'mail' => 'email',
+            'name' => 'full_name',
+            'recipient_name' => 'full_name',
+            'first' => 'first_name',
+            'firstname' => 'first_name',
+            'first_name' => 'first_name',
+            'last' => 'last_name',
+            'lastname' => 'last_name',
+            'last_name' => 'last_name',
+            'company' => 'organization',
+            'organisation' => 'organization',
+            'organization' => 'organization',
+            'institution' => 'organization',
+            'title_role' => 'title',
+            'role' => 'title',
+            'job_title' => 'title',
+            'position' => 'title',
+            'title' => 'title',
+            'url' => 'website_url',
+            'website' => 'website_url',
+            'web_site' => 'website_url',
+            'url_website' => 'website_url',
+            'website_url' => 'website_url',
+            'recipient_url' => 'website_url',
+            'description' => 'description',
+            'bio' => 'description',
+            'notes' => 'description',
+            'recipient_description' => 'description',
+            'organization_description' => 'description',
+            'country' => 'country',
+            'recipient_country' => 'country',
+            'category' => 'categories',
+            'categories' => 'categories',
+        );
+
+        return isset($aliases[$key]) ? $aliases[$key] : $key;
+    }
+
+    /**
+     * Normalize a parsed import row and support combined Name columns.
+     */
+    private function normalize_import_row($row_data)
+    {
+        $row_data = wp_parse_args($row_data, array(
+            'email' => '',
+            'first_name' => '',
+            'last_name' => '',
+            'full_name' => '',
+            'organization' => '',
+            'title' => '',
+            'website_url' => '',
+            'description' => '',
+            'country' => '',
+            'categories' => '',
+        ));
+
+        if (!empty($row_data['full_name']) && empty($row_data['first_name']) && empty($row_data['last_name'])) {
+            $name_parts = preg_split('/\s+/', trim($row_data['full_name']), 2);
+            $row_data['first_name'] = $name_parts[0] ?? '';
+            $row_data['last_name'] = $name_parts[1] ?? '';
+        }
+
+        $row_data['website_url'] = $this->sanitize_website_url($row_data['website_url']);
+
+        return $row_data;
+    }
+
+    /**
+     * Accept website URLs with or without a scheme and store a clean URL.
+     */
+    private function sanitize_website_url($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+
+        if (!preg_match('#^https?://#i', $url)) {
+            $url = 'https://' . ltrim($url, '/');
+        }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return '';
+        }
+
+        return esc_url_raw($url);
+    }
+
+
+    /**
      * Detect Excel Open XML imports while preserving the existing CSV method name.
      */
     private function is_xlsx_import($file_name)
@@ -724,7 +859,11 @@ class AdvNews_Subscriber
             return new WP_Error('xlsx_empty', __('Excel file is empty or does not contain readable rows.', 'advnews-manager'));
         }
 
-        $temp_csv = function_exists('wp_tempnam') ? wp_tempnam('advnews-import') : tempnam(sys_get_temp_dir(), 'advnews-import-');
+        $temp_csv = function_exists('wp_tempnam') ? wp_tempnam('advnews-import') : false;
+        if (!$temp_csv) {
+            $temp_dir = is_writable(dirname($file_path)) ? dirname($file_path) : sys_get_temp_dir();
+            $temp_csv = tempnam($temp_dir, 'advnews-import-');
+        }
         if (!$temp_csv) {
             return new WP_Error('temp_file_failed', __('Could not create a temporary file for Excel import.', 'advnews-manager'));
         }
@@ -1004,7 +1143,7 @@ class AdvNews_Subscriber
         $output = fopen('php://output', 'w');
 
         // Add headers
-        $headers = array('Email', 'First Name', 'Last Name', 'Organization', 'Status', 'Categories', 'Subscribed At', 'Open Rate', 'Click Rate');
+        $headers = array('Email', 'First Name', 'Last Name', 'Organization', 'Title/Role', 'URL/Website', 'Description', 'Country', 'Status', 'Categories', 'Subscribed At', 'Open Rate', 'Click Rate');
         fputcsv($output, $headers);
 
         // Add data
@@ -1021,6 +1160,10 @@ class AdvNews_Subscriber
                 $subscriber->first_name,
                 $subscriber->last_name,
                 $subscriber->organization,
+                $subscriber->title,
+                $subscriber->website_url,
+                $subscriber->description,
+                $subscriber->country,
                 $subscriber->status,
                 implode(', ', $category_names),
                 $subscriber->subscribed_at,

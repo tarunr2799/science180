@@ -82,6 +82,28 @@ $campaign_stats = $wpdb->get_row($wpdb->prepare(
                                 <td><?php echo esc_html($subscriber->organization); ?></td>
                             </tr>
                             <tr>
+                                <th><?php _e('Title/Role:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html(isset($subscriber->title) ? $subscriber->title : ''); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('URL/Website:', 'advnews-manager'); ?></th>
+                                <td>
+                                    <?php if (!empty($subscriber->website_url)): ?>
+                                        <a href="<?php echo esc_url($subscriber->website_url); ?>" target="_blank" rel="noopener noreferrer">
+                                            <?php echo esc_html($subscriber->website_url); ?>
+                                        </a>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Description:', 'advnews-manager'); ?></th>
+                                <td><?php echo nl2br(esc_html(isset($subscriber->description) ? $subscriber->description : '')); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php _e('Country:', 'advnews-manager'); ?></th>
+                                <td><?php echo esc_html(isset($subscriber->country) ? $subscriber->country : ''); ?></td>
+                            </tr>
+                            <tr>
                                 <th><?php _e('IP Address:', 'advnews-manager'); ?></th>
                                 <td><code><?php echo esc_html($subscriber->ip_address); ?></code></td>
                             </tr>

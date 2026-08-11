@@ -409,6 +409,10 @@ class AdvNews_Ajax
             'first_name' => $subscriber->first_name,
             'last_name' => $subscriber->last_name,
             'organization' => $subscriber->organization,
+            'title' => $subscriber->title,
+            'website_url' => $subscriber->website_url,
+            'description' => $subscriber->description,
+            'country' => $subscriber->country,
             'status' => $subscriber->status,
             'categories' => wp_list_pluck($categories, 'id')
         ));

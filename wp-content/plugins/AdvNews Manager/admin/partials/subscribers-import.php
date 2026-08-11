@@ -52,21 +52,27 @@ if (!empty($server_issues)): ?>
 <tr>
 <th><label for="default_category"><?php _e('Default Categories:', 'advnews-manager'); ?></label></th>
 <td>
-<select id="default_category" name="default_category[]" multiple="multiple" size="4" style="min-width: 250px; height: auto;">
-<option value=""><?php _e('None', 'advnews-manager'); ?></option>
 <?php
 global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
 $categories = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table_prefix}categories ORDER BY name");
+?>
+<div id="default_category" class="advnews-import-category-list">
+<?php if (empty($categories)): ?>
+<p><?php _e('No categories found.', 'advnews-manager'); ?></p>
+<?php else: ?>
+<?php
 foreach ($categories as $category):
 ?>
-<option value="<?php echo esc_attr($category->id); ?>">
+<label class="advnews-import-category-option">
+<input type="checkbox" name="default_category[]" value="<?php echo esc_attr($category->id); ?>">
 <?php echo esc_html($category->name); ?>
-</option>
+</label>
 <?php endforeach; ?>
-</select>
+<?php endif; ?>
+</div>
 <p class="description">
-<?php _e('Hold Ctrl/Cmd to select multiple categories. Subscribers will be assigned to all selected categories.', 'advnews-manager'); ?>
+<?php _e('Click one or more categories. Subscribers will be assigned to all selected categories.', 'advnews-manager'); ?>
 </p>
 </td>
 </tr>
@@ -154,16 +160,21 @@ overflow-x: auto;
 font-size: 12px;
 margin-top: 10px;
 }
-#default_category[multiple] {
-min-height: 100px;
+.advnews-import-category-list {
+max-width: 420px;
+max-height: 180px;
+overflow-y: auto;
 border: 1px solid #ddd;
 border-radius: 4px;
+background: #fff;
+padding: 8px 10px;
 }
-#default_category[multiple] option {
-padding: 8px;
+.advnews-import-category-option {
+display: block;
+margin: 0 0 8px;
 cursor: pointer;
 }
-#default_category[multiple] option:hover {
-background-color: #f0f0f1;
+.advnews-import-category-option:last-child {
+margin-bottom: 0;
 }
 </style>

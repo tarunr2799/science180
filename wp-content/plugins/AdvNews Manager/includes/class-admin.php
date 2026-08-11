@@ -2400,7 +2400,11 @@ class AdvNews_Admin
             'email' => sanitize_email($_POST['email']),
             'first_name' => sanitize_text_field($_POST['first_name']),
             'last_name' => sanitize_text_field($_POST['last_name']),
-            'organization' => sanitize_text_field($_POST['organization'])
+            'organization' => sanitize_text_field($_POST['organization']),
+            'title' => isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '',
+            'website_url' => isset($_POST['website_url']) ? sanitize_text_field($_POST['website_url']) : '',
+            'description' => isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '',
+            'country' => isset($_POST['country']) ? sanitize_text_field($_POST['country']) : ''
         );
 
         // Add categories if provided
@@ -3893,9 +3897,15 @@ border-radius: 4px;
             $args['date_to'] = sanitize_text_field($_POST['date_to']);
         }
 
-        $fields = isset($_POST['fields']) && is_array($_POST['fields']) ? $_POST['fields'] : array('email', 'first_name', 'last_name');
+        $fields = isset($_POST['fields']) && is_array($_POST['fields']) ? $_POST['fields'] : array('email', 'first_name', 'last_name', 'organization', 'title', 'website_url', 'description', 'country');
         $fields = array_map('sanitize_text_field', $fields);
+        if (!in_array('email', $fields, true)) {
+            array_unshift($fields, 'email');
+        }
         $format = isset($_POST['format']) ? sanitize_text_field($_POST['format']) : 'csv';
+        if ($format !== 'csv') {
+            $format = 'csv';
+        }
         $filename = isset($_POST['filename']) ? sanitize_file_name($_POST['filename']) : '';
         if (empty($filename)) {
             $filename = 'subscribers-export-' . date('Y-m-d-H-i-s');
@@ -3956,6 +3966,18 @@ border-radius: 4px;
                 case 'organization':
                     $headers[] = __('Organization', 'advnews-manager');
                     break;
+                case 'title':
+                    $headers[] = __('Title/Role', 'advnews-manager');
+                    break;
+                case 'website_url':
+                    $headers[] = __('URL/Website', 'advnews-manager');
+                    break;
+                case 'description':
+                    $headers[] = __('Description', 'advnews-manager');
+                    break;
+                case 'country':
+                    $headers[] = __('Country', 'advnews-manager');
+                    break;
                 case 'categories':
                     $headers[] = __('Categories', 'advnews-manager');
                     break;
@@ -3993,6 +4015,18 @@ border-radius: 4px;
                         break;
                     case 'organization':
                         $row[] = $subscriber->organization;
+                        break;
+                    case 'title':
+                        $row[] = isset($subscriber->title) ? $subscriber->title : '';
+                        break;
+                    case 'website_url':
+                        $row[] = isset($subscriber->website_url) ? $subscriber->website_url : '';
+                        break;
+                    case 'description':
+                        $row[] = isset($subscriber->description) ? $subscriber->description : '';
+                        break;
+                    case 'country':
+                        $row[] = isset($subscriber->country) ? $subscriber->country : '';
                         break;
                     case 'categories':
                         $categories = $subscriber_class->get_subscriber_categories($subscriber->id);

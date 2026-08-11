@@ -3,7 +3,7 @@
 * Plugin Name: AdvNews Manager
 * Plugin URI: https://example.com/advnews-manager
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.4
+* Version: 1.0.5
 * Author: Your Name
 * Author URI: https://example.com
 * Text Domain: advnews-manager
@@ -17,8 +17,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.4');
-define('ADVNEWS_DB_VERSION', '1.0.4');
+define('ADVNEWS_VERSION', '1.0.5');
+define('ADVNEWS_DB_VERSION', '1.0.7');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ADVNEWS_PLUGIN_BASENAME', plugin_basename(__FILE__));

@@ -90,6 +90,50 @@ foreach ($subscriber_categories as $cat) {
 
                     <tr>
                         <th scope="row">
+                            <label for="title"><?php _e('Title/Role', 'advnews-manager'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" id="title" name="title"
+                                   value="<?php echo $subscriber && isset($subscriber->title) ? esc_attr($subscriber->title) : ''; ?>"
+                                   class="regular-text"
+                                   placeholder="<?php esc_attr_e('Teacher, President, CEO...', 'advnews-manager'); ?>">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="website_url"><?php _e('URL/Website', 'advnews-manager'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" id="website_url" name="website_url"
+                                   value="<?php echo $subscriber && isset($subscriber->website_url) ? esc_attr($subscriber->website_url) : ''; ?>"
+                                   class="regular-text"
+                                   placeholder="<?php esc_attr_e('https://example.com', 'advnews-manager'); ?>">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="description"><?php _e('Description', 'advnews-manager'); ?></label>
+                        </th>
+                        <td>
+                            <textarea id="description" name="description" class="large-text" rows="4"><?php echo $subscriber && isset($subscriber->description) ? esc_textarea($subscriber->description) : ''; ?></textarea>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="country"><?php _e('Country', 'advnews-manager'); ?></label>
+                        </th>
+                        <td>
+                            <input type="text" id="country" name="country"
+                                   value="<?php echo $subscriber && isset($subscriber->country) ? esc_attr($subscriber->country) : ''; ?>"
+                                   class="regular-text">
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
                             <label><?php _e('Categories', 'advnews-manager'); ?></label>
                         </th>
                         <td>
