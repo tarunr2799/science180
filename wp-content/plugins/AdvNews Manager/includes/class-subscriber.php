@@ -271,6 +271,8 @@ class AdvNews_Subscriber
             'status' => '',
             'category_id' => null,
             'search' => '',
+            'date_from' => '',
+            'date_to' => '',
             'orderby' => 'subscribed_at',
             'order' => 'DESC',
             'limit' => 20,
@@ -306,6 +308,14 @@ class AdvNews_Subscriber
             );
         }
 
+        if (!empty($args['date_from'])) {
+            $where[] = $this->wpdb->prepare("s.subscribed_at >= %s", sanitize_text_field($args['date_from']) . ' 00:00:00');
+        }
+
+        if (!empty($args['date_to'])) {
+            $where[] = $this->wpdb->prepare("s.subscribed_at <= %s", sanitize_text_field($args['date_to']) . ' 23:59:59');
+        }
+
         // Build WHERE clause
         $where_clause = 'WHERE ' . implode(' AND ', $where);
 
@@ -331,7 +341,9 @@ class AdvNews_Subscriber
         $defaults = array(
             'status' => '',
             'category_id' => null,
-            'search' => ''
+            'search' => '',
+            'date_from' => '',
+            'date_to' => ''
         );
         $args = wp_parse_args($args, $defaults);
 
@@ -343,7 +355,7 @@ class AdvNews_Subscriber
 
         // Status filter
         if (!empty($args['status'])) {
-            $where[] = $this->wpdb->prepare("status = %s", $args['status']);
+            $where[] = $this->wpdb->prepare("s.status = %s", $args['status']);
         }
 
         // Category filter
@@ -356,9 +368,17 @@ class AdvNews_Subscriber
         if (!empty($args['search'])) {
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
             $where[] = $this->wpdb->prepare(
-                "(email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR organization LIKE %s OR title LIKE %s OR website_url LIKE %s OR description LIKE %s OR country LIKE %s)",
+                "(s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR s.organization LIKE %s OR s.title LIKE %s OR s.website_url LIKE %s OR s.description LIKE %s OR s.country LIKE %s)",
                 $search, $search, $search, $search, $search, $search, $search, $search
             );
+        }
+
+        if (!empty($args['date_from'])) {
+            $where[] = $this->wpdb->prepare("s.subscribed_at >= %s", sanitize_text_field($args['date_from']) . ' 00:00:00');
+        }
+
+        if (!empty($args['date_to'])) {
+            $where[] = $this->wpdb->prepare("s.subscribed_at <= %s", sanitize_text_field($args['date_to']) . ' 23:59:59');
         }
 
         // Build WHERE clause

@@ -237,8 +237,8 @@ class AdvNews_Campaign
         unset($data['id'], $data['created_at'], $data['sent_at']);
         
         $campaign = $this->get_campaign($id);
-        if ($campaign && $campaign->status === 'sent') {
-            return new WP_Error('campaign_sent', __('Cannot update a sent campaign.', 'advnews-manager'));
+        if (!$campaign) {
+            return new WP_Error('campaign_not_found', __('Campaign not found.', 'advnews-manager'));
         }
         
         // If categories are being updated, recalculate recipients
@@ -350,6 +350,7 @@ class AdvNews_Campaign
         $table_campaign_categories = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
 
         $where = array('1=1');
+        $filter_join = '';
 
         if (!empty($args['status'])) {
             $where[] = $this->wpdb->prepare("c.status = %s", $args['status']);
@@ -358,6 +359,11 @@ class AdvNews_Campaign
         if (!empty($args['search'])) {
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
             $where[] = $this->wpdb->prepare("(c.name LIKE %s OR c.subject LIKE %s)", $search, $search);
+        }
+
+        if (!empty($args['category_id'])) {
+            $filter_join = "INNER JOIN $table_campaign_categories ccf ON c.id = ccf.campaign_id";
+            $where[] = $this->wpdb->prepare("ccf.category_id = %d", $args['category_id']);
         }
 
         $where_clause = 'WHERE ' . implode(' AND ', $where);
@@ -371,6 +377,7 @@ class AdvNews_Campaign
                 GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name SEPARATOR ', ') as category_names,
                 GROUP_CONCAT(DISTINCT cat.id ORDER BY cat.name SEPARATOR ',') as category_ids
                 FROM $table_campaigns c
+                $filter_join
                 LEFT JOIN $table_campaign_categories cc ON c.id = cc.campaign_id
                 LEFT JOIN $table_categories cat ON cc.category_id = cat.id
                 $where_clause
@@ -395,6 +402,7 @@ class AdvNews_Campaign
 
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $table_categories = $this->wpdb->prefix . $this->table_prefix . 'categories';
+        $table_campaign_categories = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
 
         $where = array('1=1');
         $join = "LEFT JOIN $table_categories cat ON c.category_id = cat.id";
@@ -404,7 +412,10 @@ class AdvNews_Campaign
         }
 
         if (!empty($args['category_id'])) {
-            $where[] = $this->wpdb->prepare("c.category_id = %d", $args['category_id']);
+            $where[] = $this->wpdb->prepare(
+                "EXISTS (SELECT 1 FROM $table_campaign_categories ccf WHERE ccf.campaign_id = c.id AND ccf.category_id = %d)",
+                $args['category_id']
+            );
         }
 
         if (!empty($args['search'])) {
@@ -427,8 +438,8 @@ class AdvNews_Campaign
             return new WP_Error('campaign_not_found', __('Campaign not found.', 'advnews-manager'));
         }
 
-        if (in_array($campaign->status, array('sent', 'sending'))) {
-            return new WP_Error('campaign_already_sent', __('Campaign is already sent or being sent.', 'advnews-manager'));
+        if ($campaign->status === 'sending') {
+            return new WP_Error('campaign_already_sent', __('Campaign is already being sent.', 'advnews-manager'));
         }
 
         // Get ALL category IDs for this campaign
@@ -466,15 +477,20 @@ class AdvNews_Campaign
         }
 
         if ($queued_count === 0) {
-            return new WP_Error('no_subscribers', __('No active subscribers found for the selected categories.', 'advnews-manager'));
+            return new WP_Error('no_subscribers', __('No new active subscribers found for the selected categories.', 'advnews-manager'));
         }
 
-        // Update campaign with the ACTUAL count of rows created in logs
+        $total_logs = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->wpdb->prefix}{$this->table_prefix}campaign_logs WHERE campaign_id = %d",
+            $campaign_id
+        ));
+
+        // Update campaign with the ACTUAL count of rows in logs
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $this->wpdb->update(
             $table_name,
             array(
-                'total_recipients' => $queued_count,
+                'total_recipients' => intval($total_logs),
                 'status' => 'sending',
                 'scheduled_for' => null, // Clear schedule once sending starts
                 'sent_at' => current_time('mysql')
@@ -620,31 +636,124 @@ class AdvNews_Campaign
             return new WP_Error('campaign_not_found', __('Campaign not found.', 'advnews-manager'));
         }
 
-        unset($campaign->id, $campaign->category_name);
+        $category_ids = !empty($campaign->category_ids) ? $campaign->category_ids : array($campaign->category_id);
+        $category_ids = array_filter(array_map('intval', $category_ids));
 
-        $campaign->name .= ' - ' . __('Copy', 'advnews-manager');
-        $campaign->status = 'draft';
-        $campaign->scheduled_for = null;
-        $campaign->sent_at = null;
-        $campaign->total_recipients = 0;
-        $campaign->sent_count = 0;
-        $campaign->delivered_count = 0;
-        $campaign->open_count = 0;
-        $campaign->click_count = 0;
-        $campaign->bounce_count = 0;
-        $campaign->unsubscribe_count = 0;
-        $campaign->open_rate = 0;
-        $campaign->click_rate = 0;
+        $data = array(
+            'name' => $campaign->name . ' - ' . __('Copy', 'advnews-manager'),
+            'subject' => $campaign->subject,
+            'category_ids' => $category_ids,
+            'content' => $campaign->content,
+            'template_id' => $campaign->template_id,
+            'from_name' => $campaign->from_name,
+            'from_email' => $campaign->from_email,
+            'reply_to' => $campaign->reply_to,
+            'status' => 'draft',
+            'priority' => $campaign->priority,
+            'track_opens' => $campaign->track_opens,
+            'track_clicks' => $campaign->track_clicks,
+            'respect_cooldown' => $campaign->respect_cooldown
+        );
 
-        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $result = $this->create_campaign($data);
 
-        $result = $this->wpdb->insert($table_name, (array) $campaign);
-
-        if (!$result) {
-            return new WP_Error('db_error', __('Failed to duplicate campaign.', 'advnews-manager'));
+        if (is_wp_error($result)) {
+            return $result;
         }
 
-        return $this->wpdb->insert_id;
+        return $result;
+    }
+
+    /**
+     * Add one active subscriber to a campaign queue.
+     */
+    public function add_recipient_to_campaign($campaign_id, $email)
+    {
+        $campaign = $this->get_campaign($campaign_id);
+        if (!$campaign) {
+            return new WP_Error('campaign_not_found', __('Campaign not found.', 'advnews-manager'));
+        }
+
+        $email = sanitize_email($email);
+        if (!is_email($email)) {
+            return new WP_Error('invalid_email', __('Invalid email address.', 'advnews-manager'));
+        }
+
+        $subscriber_class = new AdvNews_Subscriber();
+        $subscriber = $subscriber_class->get_subscriber_by_email($email);
+        if (!$subscriber || $subscriber->status !== 'active') {
+            return new WP_Error('subscriber_not_found', __('Only existing active subscribers can be added to a campaign.', 'advnews-manager'));
+        }
+
+        $queue_class = new AdvNews_Queue();
+        $added = $queue_class->add_to_queue($campaign_id, $subscriber->id, $campaign->respect_cooldown);
+        if (!$added) {
+            return new WP_Error('recipient_already_added', __('This subscriber is already in this campaign or has already received it.', 'advnews-manager'));
+        }
+
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+        $total_logs = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_logs WHERE campaign_id = %d",
+            $campaign_id
+        ));
+
+        $update_data = array('total_recipients' => intval($total_logs));
+        if (in_array($campaign->status, array('sent', 'sending'), true)) {
+            $update_data['status'] = 'sending';
+            $update_data['sent_at'] = current_time('mysql');
+        }
+
+        $this->wpdb->update($table_campaigns, $update_data, array('id' => $campaign_id));
+
+        if (in_array($campaign->status, array('sent', 'sending'), true) && !wp_next_scheduled('advnews_process_queue')) {
+            wp_schedule_single_event(time(), 'advnews_process_queue');
+        }
+
+        return array(
+            'campaign_id' => $campaign_id,
+            'subscriber_id' => $subscriber->id,
+            'email' => $subscriber->email
+        );
+    }
+
+    /**
+     * End a scheduled, sending, or paused campaign and cancel queued recipients.
+     */
+    public function end_campaign($campaign_id)
+    {
+        $campaign = $this->get_campaign($campaign_id);
+        if (!$campaign) {
+            return new WP_Error('campaign_not_found', __('Campaign not found.', 'advnews-manager'));
+        }
+
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+
+        $this->wpdb->update(
+            $table_logs,
+            array(
+                'status' => 'failed',
+                'bounce_message' => __('Campaign ended by admin', 'advnews-manager')
+            ),
+            array(
+                'campaign_id' => $campaign_id,
+                'status' => 'queued'
+            )
+        );
+
+        $update_data = array(
+            'status' => 'sent',
+            'scheduled_for' => null
+        );
+        if (empty($campaign->sent_at)) {
+            $update_data['sent_at'] = current_time('mysql');
+        }
+
+        $result = $this->wpdb->update($table_campaigns, $update_data, array('id' => $campaign_id));
+        $this->update_campaign_stats($campaign_id);
+
+        return $result !== false;
     }
 
     /**
@@ -817,10 +926,15 @@ class AdvNews_Campaign
      */
     public function get_campaigns_by_category($category_id, $limit = 20)
     {
-        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_campaign_categories = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
 
         $campaigns = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT * FROM $table_name WHERE category_id = %d ORDER BY created_at DESC LIMIT %d",
+            "SELECT c.* FROM $table_campaigns c
+            INNER JOIN $table_campaign_categories cc ON c.id = cc.campaign_id
+            WHERE cc.category_id = %d
+            ORDER BY c.created_at DESC
+            LIMIT %d",
             $category_id,
             $limit
         ));

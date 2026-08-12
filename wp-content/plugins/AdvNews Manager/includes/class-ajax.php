@@ -47,6 +47,8 @@ class AdvNews_Ajax
         add_action('wp_ajax_advnews_send_campaign', array($this, 'ajax_send_campaign'));
         add_action('wp_ajax_advnews_pause_campaign', array($this, 'ajax_pause_campaign'));
         add_action('wp_ajax_advnews_resume_campaign', array($this, 'ajax_resume_campaign'));
+        add_action('wp_ajax_advnews_end_campaign', array($this, 'ajax_end_campaign'));
+        add_action('wp_ajax_advnews_add_campaign_recipient', array($this, 'ajax_add_campaign_recipient'));
         add_action('wp_ajax_advnews_get_campaign_stats', array($this, 'ajax_get_campaign_stats'));
         add_action('wp_ajax_advnews_count_recipients', array($this, 'ajax_count_recipients'));
         add_action('wp_ajax_advnews_send_test', array($this, 'ajax_send_test'));
@@ -379,6 +381,14 @@ class AdvNews_Ajax
         if (isset($_POST['search']) && $_POST['search']) {
             $args['search'] = sanitize_text_field($_POST['search']);
         }
+        if (isset($_POST['date_from']) && $_POST['date_from']) {
+            $args['date_from'] = sanitize_text_field($_POST['date_from']);
+        }
+        if (isset($_POST['date_to']) && $_POST['date_to']) {
+            $args['date_to'] = sanitize_text_field($_POST['date_to']);
+        }
+        $args['limit'] = 0;
+        $args['offset'] = 0;
 
         $subscriber_class = new AdvNews_Subscriber();
         $subscriber_class->export_to_csv($args);
@@ -694,13 +704,12 @@ class AdvNews_Ajax
         $this->check_capability();
 
         $campaign_id = isset($_POST['campaign_id']) ? intval($_POST['campaign_id']) : 0;
-        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        if (!$campaign_id) {
+            wp_send_json_error(array('message' => __('Invalid campaign ID.', 'advnews-manager')));
+        }
 
-        $result = $this->wpdb->update(
-            $table_name,
-            array('status' => 'paused'),
-            array('id' => $campaign_id, 'status' => 'sending')
-        );
+        $queue_class = new AdvNews_Queue();
+        $result = $queue_class->pause_sending($campaign_id);
 
         if ($result === false) {
             wp_send_json_error(array('message' => __('Failed to pause campaign.', 'advnews-manager')));
@@ -717,13 +726,12 @@ class AdvNews_Ajax
         $this->check_capability();
 
         $campaign_id = isset($_POST['campaign_id']) ? intval($_POST['campaign_id']) : 0;
-        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        if (!$campaign_id) {
+            wp_send_json_error(array('message' => __('Invalid campaign ID.', 'advnews-manager')));
+        }
 
-        $result = $this->wpdb->update(
-            $table_name,
-            array('status' => 'sending'),
-            array('id' => $campaign_id, 'status' => 'paused')
-        );
+        $queue_class = new AdvNews_Queue();
+        $result = $queue_class->resume_sending($campaign_id);
 
         if ($result === false) {
             wp_send_json_error(array('message' => __('Failed to resume campaign.', 'advnews-manager')));
@@ -731,6 +739,57 @@ class AdvNews_Ajax
 
         wp_send_json_success(array(
             'message' => __('Campaign resumed successfully.', 'advnews-manager')
+        ));
+    }
+
+    public function ajax_end_campaign()
+    {
+        $this->verify_nonce();
+        $this->check_capability();
+
+        $campaign_id = isset($_POST['campaign_id']) ? intval($_POST['campaign_id']) : 0;
+        if (!$campaign_id) {
+            wp_send_json_error(array('message' => __('Invalid campaign ID.', 'advnews-manager')));
+        }
+
+        $campaign_class = new AdvNews_Campaign();
+        $result = $campaign_class->end_campaign($campaign_id);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+
+        if (!$result) {
+            wp_send_json_error(array('message' => __('Failed to end campaign.', 'advnews-manager')));
+        }
+
+        wp_send_json_success(array(
+            'message' => __('Campaign ended successfully.', 'advnews-manager')
+        ));
+    }
+
+    public function ajax_add_campaign_recipient()
+    {
+        $this->verify_nonce();
+        $this->check_capability();
+
+        $campaign_id = isset($_POST['campaign_id']) ? intval($_POST['campaign_id']) : 0;
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+
+        if (!$campaign_id) {
+            wp_send_json_error(array('message' => __('Invalid campaign ID.', 'advnews-manager')));
+        }
+
+        $campaign_class = new AdvNews_Campaign();
+        $result = $campaign_class->add_recipient_to_campaign($campaign_id, $email);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+        }
+
+        wp_send_json_success(array(
+            'message' => __('Recipient added to the campaign queue.', 'advnews-manager'),
+            'data' => $result
         ));
     }
 
@@ -889,17 +948,17 @@ class AdvNews_Ajax
             wp_send_json_error(array('message' => __('Failed to save template.', 'advnews-manager')));
         }
 
-        // Handle multiple categories
-        if ($template_id && isset($_POST['template_categories']) && is_array($_POST['template_categories'])) {
-            $categories = array_map('intval', $_POST['template_categories']);
+        if ($template_id) {
+            $categories = array();
+            if (isset($_POST['template_categories']) && is_array($_POST['template_categories'])) {
+                $categories = array_filter(array_map('intval', $_POST['template_categories']));
+            }
             $wpdb->delete($rel_table, array('template_id' => $template_id));
             foreach ($categories as $cat_id) {
-                if ($cat_id > 0) {
-                    $wpdb->insert($rel_table, array(
-                        'template_id' => $template_id,
-                        'category_id' => $cat_id
-                    ));
-                }
+                $wpdb->insert($rel_table, array(
+                    'template_id' => $template_id,
+                    'category_id' => $cat_id
+                ));
             }
         }
 
@@ -1011,6 +1070,12 @@ class AdvNews_Ajax
             wp_send_json_error(array('message' => __('Template not found.', 'advnews-manager')));
         }
 
+        $rel_table = $this->wpdb->prefix . $this->table_prefix . 'template_categories';
+        $category_ids = $this->wpdb->get_col($this->wpdb->prepare(
+            "SELECT category_id FROM $rel_table WHERE template_id = %d",
+            $template_id
+        ));
+
         wp_send_json_success(array(
             'id' => $template->id,
             'content' => $template->content,
@@ -1018,6 +1083,7 @@ class AdvNews_Ajax
             'subject' => $template->subject,
             'name' => $template->name,
             'category_id' => $template->category_id,
+            'category_ids' => array_map('intval', $category_ids),
             'is_active' => $template->is_active
         ));
     }
@@ -1029,33 +1095,28 @@ class AdvNews_Ajax
         $this->verify_nonce();
         $this->check_capability();
 
-        $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
         $table_name  = $this->wpdb->prefix . $this->table_prefix . 'templates';
         $rel_table   = $this->wpdb->prefix . $this->table_prefix . 'template_categories';
 
         // Fetch templates with their associated category IDs
-        $templates = $this->wpdb->get_results($this->wpdb->prepare(
+        $templates = $this->wpdb->get_results(
             "SELECT t.id, t.name, t.subject, t.is_active, GROUP_CONCAT(tc.category_id) as category_ids
             FROM $table_name t
             LEFT JOIN $rel_table tc ON t.id = tc.template_id
             WHERE t.is_active = 1
             GROUP BY t.id
             ORDER BY t.name ASC"
-        ));
+        );
 
         $options = '<option value="">' . __('Select a template', 'advnews-manager') . '</option>';
         foreach ($templates as $template) {
-            $cats = $template->category_ids ? explode(',', $template->category_ids) : array();
-            $matches = in_array($category_id, $cats) || empty(array_filter($cats));
-
-            if ($matches) {
-                $options .= sprintf(
-                    '<option value="%d">%s (%s)</option>',
-                    $template->id,
-                    esc_html($template->name),
-                    esc_html($template->subject)
-                );
-            }
+            $options .= sprintf(
+                '<option value="%d" data-categories="%s">%s (%s)</option>',
+                $template->id,
+                esc_attr($template->category_ids),
+                esc_html($template->name),
+                esc_html($template->subject)
+            );
         }
 
         wp_send_json_success(array(
@@ -1071,19 +1132,16 @@ class AdvNews_Ajax
         $this->check_capability();
 
         $template_id = isset($_POST['template_id']) ? intval($_POST['template_id']) : 0;
+        if (!$template_id) {
+            wp_send_json_error(array('message' => __('Invalid template ID.', 'advnews-manager')));
+        }
+
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'templates';
         $campaigns_table = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $rel_table = $this->wpdb->prefix . $this->table_prefix . 'template_categories';
 
-        $in_use = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM $campaigns_table WHERE template_id = %d",
-            $template_id
-        ));
-
-        if ($in_use > 0) {
-            wp_send_json_error(array(
-                'message' => sprintf(__('Cannot delete template. It is used by %d campaigns.', 'advnews-manager'), $in_use)
-            ));
-        }
+        $this->wpdb->update($campaigns_table, array('template_id' => null), array('template_id' => $template_id));
+        $this->wpdb->delete($rel_table, array('template_id' => $template_id));
 
         $result = $this->wpdb->delete($table_name, array('id' => $template_id));
 
@@ -2384,6 +2442,8 @@ class AdvNews_Ajax
             'status' => isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '',
             'category_id' => isset($_POST['category_id']) ? intval($_POST['category_id']) : null,
             'search' => isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '',
+            'date_from' => isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : '',
+            'date_to' => isset($_POST['date_to']) ? sanitize_text_field($_POST['date_to']) : '',
             'limit' => 10,
             'offset' => 0
         );

@@ -61,6 +61,7 @@ class AdvNews_Geolocation {
                 'country' => 'Local',
                 'country_code' => 'XX',
                 'city' => 'Local',
+                'region' => '',
                 'latitude' => null,
                 'longitude' => null,
                 'timezone' => null
@@ -87,6 +88,7 @@ class AdvNews_Geolocation {
             'country' => 'Unknown',
             'country_code' => 'XX',
             'city' => 'Unknown',
+            'region' => '',
             'latitude' => null,
             'longitude' => null,
             'timezone' => null
@@ -163,7 +165,13 @@ class AdvNews_Geolocation {
                 $mask_bin = '';
                 for ($i = 0; $i < 128; $i += 8) {
                     $byte_bits = min(8, max(0, $bits - $i));
-                    $mask_bin .= chr($byte_bits === 8 ? 0xFF : (0xFF << (8 - $byte_bits)));
+                    if ($byte_bits === 8) {
+                        $mask_bin .= chr(0xFF);
+                    } elseif ($byte_bits === 0) {
+                        $mask_bin .= chr(0x00);
+                    } else {
+                        $mask_bin .= chr((0xFF << (8 - $byte_bits)) & 0xFF);
+                    }
                 }
 
                 return ($ip_bin & $mask_bin) === ($subnet_bin & $mask_bin);
@@ -219,6 +227,7 @@ class AdvNews_Geolocation {
             'country' => $location['country'],
             'country_code' => $location['country_code'],
             'city' => $location['city'],
+            'region' => isset($location['region']) ? $location['region'] : '',
             'latitude' => $location['latitude'],
             'longitude' => $location['longitude'],
             'timezone' => $location['timezone'],
@@ -324,6 +333,7 @@ class AdvNews_Geolocation {
                 'country' => $data['country_name'],
                 'country_code' => $data['country_code'],
                 'city' => $data['city'],
+                'region' => '',
                 'latitude' => $data['latitude'],
                 'longitude' => $data['longitude'],
                 'timezone' => null
@@ -400,6 +410,7 @@ class AdvNews_Geolocation {
                 'country' => $data['country'] ?? 'Unknown',
                 'country_code' => $data['country_code'] ?? 'XX',
                 'city' => $data['city'] ?? 'Unknown',
+                'region' => $data['region'] ?? '',
                 'latitude' => $data['latitude'] ?? null,
                 'longitude' => $data['longitude'] ?? null,
                 'timezone' => $data['timezone'] ?? null
@@ -500,14 +511,31 @@ class AdvNews_Geolocation {
         $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
         $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
 
-        $where = '';
+        $open_where = array("country != ''", "country != 'Local'", "country != 'Unknown'");
+        $click_where = array("country != ''", "country != 'Local'", "country != 'Unknown'");
+        $city_where = array("country != ''", "country != 'Local'", "country != 'Unknown'", "city != ''", "city != 'Local'", "city != 'Unknown'");
+
         if ($start_date && $end_date) {
-            $where = $this->wpdb->prepare(
-                " WHERE opened_at BETWEEN %s AND %s",
+            $open_where[] = $this->wpdb->prepare(
+                "opened_at BETWEEN %s AND %s",
+                $start_date,
+                $end_date
+            );
+            $click_where[] = $this->wpdb->prepare(
+                "clicked_at BETWEEN %s AND %s",
+                $start_date,
+                $end_date
+            );
+            $city_where[] = $this->wpdb->prepare(
+                "opened_at BETWEEN %s AND %s",
                 $start_date,
                 $end_date
             );
         }
+
+        $open_where_clause = 'WHERE ' . implode(' AND ', $open_where);
+        $click_where_clause = 'WHERE ' . implode(' AND ', $click_where);
+        $city_where_clause = 'WHERE ' . implode(' AND ', $city_where);
 
         // Get opens by country
         $opens_by_country = $this->wpdb->get_results(
@@ -517,8 +545,7 @@ class AdvNews_Geolocation {
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT campaign_id) as campaigns
             FROM $table_opens
-            $where
-            AND country != '' AND country != 'Local' AND country != 'Unknown'
+            $open_where_clause
             GROUP BY country
             ORDER BY opens DESC
             LIMIT 20"
@@ -531,8 +558,7 @@ class AdvNews_Geolocation {
                 COUNT(*) as clicks,
                 COUNT(DISTINCT subscriber_id) as unique_clickers
             FROM $table_clicks
-            $where
-            AND country != '' AND country != 'Local' AND country != 'Unknown'
+            $click_where_clause
             GROUP BY country
             ORDER BY clicks DESC
             LIMIT 20"
@@ -546,9 +572,7 @@ class AdvNews_Geolocation {
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors
             FROM $table_opens
-            $where
-            AND country != '' AND country != 'Local' AND country != 'Unknown'
-            AND city != '' AND city != 'Local' AND city != 'Unknown'
+            $city_where_clause
             GROUP BY country, city
             ORDER BY opens DESC
             LIMIT 30"
@@ -578,14 +602,15 @@ class AdvNews_Geolocation {
     public function get_map_data($start_date = null, $end_date = null) {
         $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
 
-        $where = '';
+        $where = array("country_code != ''", "country_code != 'XX'");
         if ($start_date && $end_date) {
-            $where = $this->wpdb->prepare(
-                " WHERE opened_at BETWEEN %s AND %s",
+            $where[] = $this->wpdb->prepare(
+                "opened_at BETWEEN %s AND %s",
                 $start_date,
                 $end_date
             );
         }
+        $where_clause = 'WHERE ' . implode(' AND ', $where);
 
         return $this->wpdb->get_results(
             "SELECT
@@ -594,8 +619,7 @@ class AdvNews_Geolocation {
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors
             FROM $table_opens
-            $where
-            AND country_code != '' AND country_code != 'XX'
+            $where_clause
             GROUP BY country_code, country
             ORDER BY opens DESC"
         );

@@ -36,7 +36,7 @@ class AdvNews_Queue
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
 
         $existing = $this->wpdb->get_row($this->wpdb->prepare(
-            "SELECT id, status, send_after FROM $table_name
+            "SELECT id, status, send_after, retry_count, bounce_message FROM $table_name
             WHERE campaign_id = %d AND subscriber_id = %d",
             $campaign_id,
             $subscriber_id
@@ -47,9 +47,12 @@ class AdvNews_Queue
                 return false;
             }
             if ($existing->status === 'queued') {
-                return true;
+                return false;
             }
             if ($existing->status === 'failed') {
+                if ($existing->bounce_message === __('Campaign ended by admin', 'advnews-manager')) {
+                    return false;
+                }
                 $this->wpdb->update(
                     $table_name,
                     array(
@@ -128,7 +131,7 @@ class AdvNews_Queue
             INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
             INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
             WHERE cl.status = 'queued'
-            AND c.status IN ('scheduled', 'sending', 'draft', 'paused', 'sent')
+            AND c.status IN ('scheduled', 'sending', 'sent')
             AND (c.scheduled_for IS NULL OR c.scheduled_for <= %s OR c.scheduled_for = '0000-00-00 00:00:00')
             AND (cl.send_after IS NULL OR cl.send_after <= %s OR cl.send_after = '0000-00-00 00:00:00')
             ORDER BY c.priority DESC, cl.send_after ASC, cl.created_at ASC
@@ -510,12 +513,12 @@ class AdvNews_Queue
         ));
         $cleared += $orphaned_queued;
 
-        // 3. Clear 'sent' emails from campaigns that are already marked 'sent' or 'draft'
+        // 3. Clear 'sent' emails from campaigns that are already marked closed
         $mismatched = $this->wpdb->query($this->wpdb->prepare(
             "UPDATE $table_logs cl
             INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
             SET cl.status = 'failed'
-            WHERE cl.status IN ('sent', 'queued')
+            WHERE cl.status = 'sent'
             AND c.status IN ('sent', 'draft', 'paused')
             AND cl.created_at < %s",
             $one_hour_ago
@@ -533,8 +536,8 @@ class AdvNews_Queue
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
 
-        $where = "status = 'failed'";
-        $params = array();
+        $where = "status = 'failed' AND (bounce_message IS NULL OR bounce_message != %s)";
+        $params = array(__('Campaign ended by admin', 'advnews-manager'));
 
         if ($campaign_id) {
             $where .= " AND campaign_id = %d";
@@ -549,13 +552,13 @@ class AdvNews_Queue
         ));
 
         if ($result > 0) {
-            $affected_campaigns = $this->wpdb->get_col($this->wpdb->prepare(
-                "SELECT DISTINCT campaign_id FROM $table_logs WHERE status = 'queued' AND campaign_id IN (
-                SELECT campaign_id FROM $table_logs WHERE status = 'failed' " .
-                ($campaign_id ? "AND campaign_id = %d" : "") .
-                ")",
-                $params
-            ));
+            if ($campaign_id) {
+                $affected_campaigns = array($campaign_id);
+            } else {
+                $affected_campaigns = $this->wpdb->get_col(
+                    "SELECT DISTINCT campaign_id FROM $table_logs WHERE status = 'queued'"
+                );
+            }
 
             foreach ($affected_campaigns as $camp_id) {
                 $this->wpdb->update(

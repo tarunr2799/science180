@@ -221,6 +221,11 @@ $categories = $category_class->get_all_categories();
                                            id="save_template"
                                            class="button button-primary button-large"
                                            value="<?php echo $template_id ? __('Update Template', 'advnews-manager') : __('Save Template', 'advnews-manager'); ?>">
+                                    <input type="submit"
+                                           name="send_template_now"
+                                           id="send_template_now"
+                                           class="button button-secondary button-large"
+                                           value="<?php _e('Send Now', 'advnews-manager'); ?>">
                                 </div>
                                 <div class="clear"></div>
                             </div>
@@ -556,10 +561,23 @@ jQuery(document).ready(function($) {
     $('#template-form').on('submit', function(e) {
         var name = $('#template_name').val().trim();
         var subject = $('#template_subject').val().trim();
+        var submitter = e.originalEvent && e.originalEvent.submitter ? e.originalEvent.submitter : document.activeElement;
+        var isSendNow = submitter && submitter.name === 'send_template_now';
 
         if (!name || !subject) {
             e.preventDefault();
             alert('<?php _e('Please fill in all required fields.', 'advnews-manager'); ?>');
+            return false;
+        }
+
+        if (isSendNow && $('input[name="template_categories[]"]:checked').length === 0) {
+            e.preventDefault();
+            alert('<?php _e('Select at least one category before sending this template.', 'advnews-manager'); ?>');
+            return false;
+        }
+
+        if (isSendNow && !confirm('<?php _e('Send this template now to active subscribers in the selected categories?', 'advnews-manager'); ?>')) {
+            e.preventDefault();
             return false;
         }
 

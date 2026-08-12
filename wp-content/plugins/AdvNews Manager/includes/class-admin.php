@@ -2340,6 +2340,9 @@ class AdvNews_Admin
         if (isset($_GET['page']) && $_GET['page'] === 'advnews-templates' && isset($_GET['action']) && $_GET['action'] === 'delete') {
             $this->handle_delete_template();
         }
+        if (isset($_GET['page']) && $_GET['page'] === 'advnews-templates' && isset($_GET['action']) && $_GET['action'] === 'duplicate') {
+            $this->handle_duplicate_template();
+        }
     }
 
     /**
@@ -2798,31 +2801,67 @@ border-radius: 4px;
         // Save to main templates table
         if ($template_id) {
             $result = $wpdb->update($table_name, $data, array('id' => $template_id));
-            $message = 'updated';
+            $message = 'template_updated';
         } else {
             $result = $wpdb->insert($table_name, $data);
             $template_id = $wpdb->insert_id;
-            $message = 'created';
+            $message = 'template_created';
         }
 
         if ($result === false) {
             wp_die(__('Failed to save template.', 'advnews-manager'));
         }
 
-        // Handle multiple categories via junction table
-        if ($template_id && isset($_POST['template_categories']) && is_array($_POST['template_categories'])) {
-            $categories = array_map('intval', $_POST['template_categories']);
-            // Remove old associations
+        $categories = array();
+        if (isset($_POST['template_categories']) && is_array($_POST['template_categories'])) {
+            $categories = array_filter(array_map('intval', $_POST['template_categories']));
+        }
+
+        if ($template_id) {
             $wpdb->delete($rel_table, array('template_id' => $template_id));
-            // Insert new associations
             foreach ($categories as $cat_id) {
-                if ($cat_id > 0) {
-                    $wpdb->insert($rel_table, array(
-                        'template_id' => $template_id,
-                        'category_id' => $cat_id
-                    ));
-                }
+                $wpdb->insert($rel_table, array(
+                    'template_id' => $template_id,
+                    'category_id' => $cat_id
+                ));
             }
+        }
+
+        if (isset($_POST['send_template_now'])) {
+            if (empty($categories)) {
+                wp_die(__('Select at least one template category before sending.', 'advnews-manager'));
+            }
+
+            $campaign_class = new AdvNews_Campaign();
+            $campaign_id = $campaign_class->create_campaign(array(
+                'name' => sprintf('%s - %s', $data['name'], current_time('mysql')),
+                'subject' => $data['subject'],
+                'category_ids' => $categories,
+                'content' => $data['content'],
+                'template_id' => $template_id,
+                'status' => 'draft',
+                'priority' => 'normal',
+                'track_opens' => 1,
+                'track_clicks' => 1,
+                'respect_cooldown' => 1
+            ));
+
+            if (is_wp_error($campaign_id)) {
+                wp_die($campaign_id->get_error_message());
+            }
+
+            $send_result = $campaign_class->send_campaign($campaign_id);
+            if (is_wp_error($send_result)) {
+                wp_die($send_result->get_error_message());
+            }
+
+            wp_redirect(add_query_arg(array(
+                'page' => 'advnews-campaigns',
+                'action' => 'edit',
+                'id' => $campaign_id,
+                'message' => 'campaign_sent'
+            ), admin_url('admin.php')));
+            exit;
         }
 
         wp_redirect(add_query_arg(array(
@@ -2854,18 +2893,10 @@ border-radius: 4px;
         global $wpdb;
         $table_name = $wpdb->prefix . $this->table_prefix . 'templates';
         $campaigns_table = $wpdb->prefix . $this->table_prefix . 'campaigns';
+        $rel_table = $wpdb->prefix . $this->table_prefix . 'template_categories';
 
-        $in_use = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $campaigns_table WHERE template_id = %d",
-            $template_id
-        ));
-
-        if ($in_use > 0) {
-            wp_die(sprintf(
-                __('Cannot delete template. It is used by %d campaigns.', 'advnews-manager'),
-                $in_use
-            ));
-        }
+        $wpdb->update($campaigns_table, array('template_id' => null), array('template_id' => $template_id));
+        $wpdb->delete($rel_table, array('template_id' => $template_id));
 
         $result = $wpdb->delete($table_name, array('id' => $template_id));
         if ($result === false) {
@@ -2875,6 +2906,74 @@ border-radius: 4px;
         wp_redirect(add_query_arg(array(
             'page' => 'advnews-templates',
             'message' => 'template_deleted'
+        ), admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * Handle duplicate template
+     */
+    public function handle_duplicate_template()
+    {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'advnews_duplicate_template')) {
+            wp_die(__('Security check failed.', 'advnews-manager'));
+        }
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+
+        $template_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        if (!$template_id) {
+            wp_die(__('Invalid template ID.', 'advnews-manager'));
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . $this->table_prefix . 'templates';
+        $rel_table = $wpdb->prefix . $this->table_prefix . 'template_categories';
+
+        $template = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d",
+            $template_id
+        ));
+
+        if (!$template) {
+            wp_die(__('Template not found.', 'advnews-manager'));
+        }
+
+        $result = $wpdb->insert($table_name, array(
+            'name' => $template->name . ' - ' . __('Copy', 'advnews-manager'),
+            'subject' => $template->subject,
+            'content' => $template->content,
+            'css' => $template->css,
+            'category_id' => $template->category_id,
+            'thumbnail' => $template->thumbnail,
+            'is_responsive' => $template->is_responsive,
+            'is_active' => $template->is_active,
+            'usage_count' => 0
+        ));
+
+        if (!$result) {
+            wp_die(__('Failed to duplicate template.', 'advnews-manager'));
+        }
+
+        $new_template_id = $wpdb->insert_id;
+        $category_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT category_id FROM $rel_table WHERE template_id = %d",
+            $template_id
+        ));
+
+        foreach ($category_ids as $cat_id) {
+            $wpdb->insert($rel_table, array(
+                'template_id' => $new_template_id,
+                'category_id' => intval($cat_id)
+            ));
+        }
+
+        wp_redirect(add_query_arg(array(
+            'page' => 'advnews-templates',
+            'action' => 'edit',
+            'id' => $new_template_id,
+            'message' => 'template_duplicated'
         ), admin_url('admin.php')));
         exit;
     }
@@ -3612,6 +3711,9 @@ border-radius: 4px;
             $category_ids[] = intval($_POST['category_id']);
         }
 
+        $campaign_class = new AdvNews_Campaign();
+        $existing_campaign = $campaign_id ? $campaign_class->get_campaign($campaign_id) : null;
+
         // Prepare data for Campaign Class (which handles junction table)
         $data = array(
             'name' => sanitize_text_field($_POST['name']),
@@ -3626,13 +3728,13 @@ border-radius: 4px;
             'priority' => isset($_POST['priority']) ? sanitize_text_field($_POST['priority']) : 'normal',
             'track_opens' => isset($_POST['track_opens']) ? 1 : 0,
             'track_clicks' => isset($_POST['track_clicks']) ? 1 : 0,
-            'respect_cooldown' => isset($_POST['respect_cooldown']) ? 1 : 1
+            'respect_cooldown' => isset($_POST['respect_cooldown']) ? 1 : 0
         );
 
         if (isset($_POST['send_now'])) {
             // FORCE IMMEDIATE SEND: Clear future schedule and let send_campaign() handle status
             $data['scheduled_for'] = null;
-            $data['status'] = 'draft';
+            $data['status'] = ($existing_campaign && $existing_campaign->status === 'sent') ? 'sent' : 'draft';
         } elseif (!empty($_POST['scheduled_for'])) {
             // Normalize input format (replace T with space) and convert to GMT for storage
             $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
@@ -3646,7 +3748,6 @@ border-radius: 4px;
             error_log('AdvNews: Prepared data: ' . print_r($data, true));
         }
 
-        $campaign_class = new AdvNews_Campaign();
         if ($campaign_id) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('AdvNews: Updating campaign ' . $campaign_id);
@@ -3896,6 +3997,8 @@ border-radius: 4px;
         if (isset($_POST['date_to']) && !empty($_POST['date_to'])) {
             $args['date_to'] = sanitize_text_field($_POST['date_to']);
         }
+        $args['limit'] = 0;
+        $args['offset'] = 0;
 
         $fields = isset($_POST['fields']) && is_array($_POST['fields']) ? $_POST['fields'] : array('email', 'first_name', 'last_name', 'organization', 'title', 'website_url', 'description', 'country');
         $fields = array_map('sanitize_text_field', $fields);
@@ -3941,12 +4044,16 @@ border-radius: 4px;
     /**
      * Generate export file for download
      */
-    private function generate_export_file($subscribers, $fields, $format, $filename)
+    private function generate_export_file($subscribers, $fields, $format, $filename, $return_content = false)
     {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=' . $filename);
-        header('Pragma: no-cache');
-        header('Expires: 0');
+        if ($return_content) {
+            ob_start();
+        } else {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename=' . $filename);
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
 
         $output = fopen('php://output', 'w');
         fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
@@ -4056,6 +4163,9 @@ border-radius: 4px;
         }
 
         fclose($output);
+        if ($return_content) {
+            return ob_get_clean();
+        }
         exit;
     }
 
@@ -4137,14 +4247,15 @@ border-radius: 4px;
     private function run_scheduled_export($export)
     {
         $subscriber_class = new AdvNews_Subscriber();
-        $subscribers = $subscriber_class->get_all_subscribers($export['args']);
+        $args = isset($export['args']) && is_array($export['args']) ? $export['args'] : array();
+        $args['limit'] = 0;
+        $args['offset'] = 0;
+        $subscribers = $subscriber_class->get_all_subscribers($args);
         if (empty($subscribers)) {
             return;
         }
 
-        ob_start();
-        $this->generate_export_file($subscribers, $export['fields'], $export['format'], $export['filename']);
-        $content = ob_get_clean();
+        $content = $this->generate_export_file($subscribers, $export['fields'], $export['format'], $export['filename'], true);
 
         $to = $export['email'];
         $subject = sprintf(__('Scheduled Subscriber Export - %s', 'advnews-manager'), date_i18n(get_option('date_format')));
@@ -4186,6 +4297,12 @@ border-radius: 4px;
         }
         if (isset($_POST['search']) && !empty($_POST['search'])) {
             $args['search'] = sanitize_text_field($_POST['search']);
+        }
+        if (isset($_POST['date_from']) && !empty($_POST['date_from'])) {
+            $args['date_from'] = sanitize_text_field($_POST['date_from']);
+        }
+        if (isset($_POST['date_to']) && !empty($_POST['date_to'])) {
+            $args['date_to'] = sanitize_text_field($_POST['date_to']);
         }
 
         $subscriber_class = new AdvNews_Subscriber();

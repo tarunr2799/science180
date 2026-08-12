@@ -149,7 +149,7 @@ class AdvNews_Category
             );
         }
 
-        $campaign_table = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $campaign_table = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
         $campaigns_using = $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT COUNT(*) FROM $campaign_table WHERE category_id = %d",
             $id
@@ -184,10 +184,10 @@ class AdvNews_Category
      */
     public function get_campaign_count($category_id)
     {
-        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
 
         return $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE category_id = %d",
+            "SELECT COUNT(DISTINCT campaign_id) FROM $table_name WHERE category_id = %d",
             $category_id
         ));
     }
@@ -202,13 +202,20 @@ class AdvNews_Category
 
         // Get open rate for this category's campaigns
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_campaign_categories = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
         $avg_open_rate = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT AVG(open_rate) FROM $table_campaigns WHERE category_id = %d AND status = 'sent'",
+            "SELECT AVG(c.open_rate)
+            FROM $table_campaigns c
+            INNER JOIN $table_campaign_categories cc ON c.id = cc.campaign_id
+            WHERE cc.category_id = %d AND c.status = 'sent'",
             $category_id
         ));
 
         $avg_click_rate = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT AVG(click_rate) FROM $table_campaigns WHERE category_id = %d AND status = 'sent'",
+            "SELECT AVG(c.click_rate)
+            FROM $table_campaigns c
+            INNER JOIN $table_campaign_categories cc ON c.id = cc.campaign_id
+            WHERE cc.category_id = %d AND c.status = 'sent'",
             $category_id
         ));
 

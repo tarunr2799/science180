@@ -180,7 +180,12 @@ class AdvNews_Cron
 
         // 3. ✅ NEW: Auto-update MaxMind GeoIP2 Local Database
         if (get_option('advnews_maxmind_auto_update') && get_option('advnews_maxmind_license_key')) {
-            self::update_maxmind_db_silent();
+            $last_update = intval(get_option('advnews_maxmind_last_update', 0));
+            if (!$last_update || (time() - $last_update) >= WEEK_IN_SECONDS) {
+                if (self::update_maxmind_db_silent()) {
+                    update_option('advnews_maxmind_last_update', time());
+                }
+            }
         }
 
         // 4. Clean up old tracking data
@@ -295,13 +300,13 @@ class AdvNews_Cron
     */
     private static function update_maxmind_db_silent() {
         $license_key = get_option('advnews_maxmind_license_key', '');
-        if (empty($license_key)) return;
+        if (empty($license_key)) return false;
 
         $upload_dir = wp_upload_dir();
         $db_dir = $upload_dir['basedir'] . '/advnews-maxmind/';
         if (!wp_mkdir_p($db_dir)) {
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] Cannot create MaxMind upload directory.');
-            return;
+            return false;
         }
 
         $gz_url = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={$license_key}&suffix=tar.gz";
@@ -312,14 +317,14 @@ class AdvNews_Cron
         $remote_size = self::get_remote_file_size($gz_url);
         if (!$remote_size) {
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Could not determine remote file size. MaxMind may be blocking the request or the license key is invalid.');
-            return;
+            return false;
         }
 
         // 2. Download file (resumable chunked download)
         $download_result = self::download_file_resumable($gz_url, $temp_file, $remote_size);
         if (is_wp_error($download_result)) {
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: ' . $download_result->get_error_message());
-            return; // Temp file is kept so it can be resumed on the next cron run
+            return false; // Temp file is kept so it can be resumed on the next cron run
         }
 
         // 3. STRICT CHECK: Verify size before extraction
@@ -328,7 +333,7 @@ class AdvNews_Cron
         if (filesize($temp_file) !== $remote_size) {
             @unlink($temp_file);
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Final file size mismatch after download. File corrupted.');
-            return;
+            return false;
         }
 
         // 4. Extract to temporary directory (ONLY if size matches perfectly)
@@ -344,7 +349,7 @@ class AdvNews_Cron
             @unlink($temp_file);
             self::delete_directory($extract_dir);
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed (Extraction): ' . $e->getMessage());
-            return;
+            return false;
         }
 
         // Clean up the archive after successful extraction
@@ -371,7 +376,7 @@ class AdvNews_Cron
         if (!$mmdb_path) {
             self::delete_directory($extract_dir);
             if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Could not find .mmdb file in archive.');
-            return;
+            return false;
         }
 
         // 6. STRICT SIZE CHECK ON EXTRACTED MMDB: A valid GeoLite2-City.mmdb is ALWAYS > 10MB.
@@ -381,7 +386,7 @@ class AdvNews_Cron
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[AdvNews] MaxMind update FAILED: Extracted .mmdb file is too small (' . $mmdb_size . ' bytes). File is corrupted or invalid. OLD DATABASE PRESERVED.');
             }
-            return; // ABORT: Do NOT overwrite the existing good database!
+            return false; // ABORT: Do NOT overwrite the existing good database!
         }
 
         // 7. Validation passed! Safely replace the old database.
@@ -401,6 +406,8 @@ class AdvNews_Cron
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[AdvNews] MaxMind database successfully updated via daily cron. New size: ' . size_format($mmdb_size));
         }
+
+        return true;
     }
 
 

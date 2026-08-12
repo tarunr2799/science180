@@ -42,6 +42,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
                 <option value="draft" <?php selected($status, 'draft'); ?>><?php _e('Draft', 'advnews-manager'); ?></option>
                 <option value="scheduled" <?php selected($status, 'scheduled'); ?>><?php _e('Scheduled', 'advnews-manager'); ?></option>
                 <option value="sending" <?php selected($status, 'sending'); ?>><?php _e('Sending', 'advnews-manager'); ?></option>
+                <option value="paused" <?php selected($status, 'paused'); ?>><?php _e('Paused', 'advnews-manager'); ?></option>
                 <option value="sent" <?php selected($status, 'sent'); ?>><?php _e('Sent', 'advnews-manager'); ?></option>
             </select>
             <select name="category_id">

@@ -139,7 +139,7 @@ if (isset($_GET['message'])) {
                                             <?php endif; ?>
                                         </select>
                                         <p class="description">
-                                            <?php _e('Select a template to pre-fill the email content. Templates are filtered by selected categories.', 'advnews-manager'); ?>
+                                            <?php _e('Select a template to pre-fill the email content. Template categories can preselect campaign categories without limiting your choices.', 'advnews-manager'); ?>
                                         </p>
                                         <div id="template-preview-loading" style="display:none; margin-top:10px;">
                                             <span class="spinner is-active"></span> <?php _e('Loading template...', 'advnews-manager'); ?>
@@ -239,6 +239,15 @@ if (isset($_GET['message'])) {
                                             <option value="scheduled" <?php selected($campaign ? $campaign->status : '', 'scheduled'); ?>>
                                                 <?php _e('Scheduled', 'advnews-manager'); ?>
                                             </option>
+                                            <option value="sending" <?php selected($campaign ? $campaign->status : '', 'sending'); ?>>
+                                                <?php _e('Sending', 'advnews-manager'); ?>
+                                            </option>
+                                            <option value="sent" <?php selected($campaign ? $campaign->status : '', 'sent'); ?>>
+                                                <?php _e('Sent', 'advnews-manager'); ?>
+                                            </option>
+                                            <option value="paused" <?php selected($campaign ? $campaign->status : '', 'paused'); ?>>
+                                                <?php _e('Paused', 'advnews-manager'); ?>
+                                            </option>
                                         </select>
                                     </div>
                                     <div class="misc-pub-section">
@@ -269,10 +278,8 @@ if (isset($_GET['message'])) {
                                     <div id="publishing-action">
                                         <input type="submit" name="save" class="button button-primary button-large"
                                             value="<?php _e('Save Campaign', 'advnews-manager'); ?>">
-                                        <?php if (!$campaign || $campaign->status !== 'sent'): ?>
-                                            <input type="submit" name="send_now" class="button button-secondary"
-                                                value="<?php _e('Send Now', 'advnews-manager'); ?>">
-                                        <?php endif; ?>
+                                        <input type="submit" name="send_now" class="button button-secondary"
+                                            value="<?php echo $campaign && $campaign->status === 'sent' ? esc_attr__('Queue New Recipients', 'advnews-manager') : esc_attr__('Send Now', 'advnews-manager'); ?>">
                                     </div>
                                     <div class="clear"></div>
                                 </div>
@@ -339,62 +346,20 @@ if (isset($_GET['message'])) {
 <script>
 jQuery(document).ready(function($) {
 
-    // Filter templates based on selected categories
     function filterTemplatesByCategory() {
-        var selectedCategories = $('input[name="category_ids[]"]:checked').map(function() {
-            return $(this).val();
-        }).get();
+        $('#template_id').find('option').show();
+    }
 
-        var $templateSelect = $('#template_id');
-        var currentValue = $templateSelect.val();
-        var campaignTemplateId = <?php echo $campaign ? $campaign->template_id : 0; ?>;
-
-        // Show all options first
-        $templateSelect.find('option').show();
-
-        if (selectedCategories.length > 0) {
-            $templateSelect.find('option').each(function() {
-                var $option = $(this);
-                var optionValue = $option.val();
-                if (optionValue === '') return; // Keep empty option visible
-
-                var templateCatsStr = $option.data('categories');
-                var templateCats = templateCatsStr ? templateCatsStr.toString().split(',') : [];
-
-                // Check if template matches ANY selected category OR is uncategorized
-                var matches = false;
-                var isUncategorized = (templateCats.length === 0 || templateCats.indexOf('') !== -1 || templateCats.indexOf('0') !== -1);
-
-                if (isUncategorized) {
-                    matches = true;
-                } else {
-                    for (var i = 0; i < selectedCategories.length; i++) {
-                        if (templateCats.indexOf(selectedCategories[i]) !== -1) {
-                            matches = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (matches) {
-                    $option.show();
-                } else {
-                    $option.hide();
-                }
-
-                // Always keep the campaign's current template visible if it exists
-                if (campaignTemplateId && optionValue == campaignTemplateId) {
-                    $option.show();
-                }
-            });
-
-            // If current value is now hidden, clear it (unless it's the existing campaign template)
-            if (currentValue && $templateSelect.find('option[value="' + currentValue + '"]').is(':hidden')) {
-                if (!campaignTemplateId || currentValue != campaignTemplateId) {
-                    $templateSelect.val('');
-                }
-            }
+    function applyTemplateCategories(categoryIds) {
+        if (!categoryIds || !categoryIds.length) {
+            return;
         }
+
+        $('input[name="category_ids[]"]').prop('checked', false);
+        categoryIds.forEach(function(categoryId) {
+            $('input[name="category_ids[]"][value="' + categoryId + '"]').prop('checked', true);
+        });
+        updateRecipientCount();
     }
 
     // Update recipient count via AJAX for multiple categories
@@ -446,7 +411,6 @@ jQuery(document).ready(function($) {
 
     // Bind change event to checkboxes
     $('input[name="category_ids[]"]').on('change', function() {
-        filterTemplatesByCategory();
         updateRecipientCount();
     });
 
@@ -482,6 +446,17 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
+                    var responseCategories = response.data.category_ids || [];
+                    if (!responseCategories.length) {
+                        var optionCategories = $('#template_id option:selected').data('categories');
+                        responseCategories = optionCategories ? optionCategories.toString().split(',') : [];
+                    }
+                    applyTemplateCategories(responseCategories.filter(function(id) { return id !== '' && id !== '0'; }));
+
+                    if (!$('#subject').val().trim() && response.data.subject) {
+                        $('#subject').val(response.data.subject);
+                    }
+
                     if (editor) {
                         editor.setContent(response.data.content);
                     } else {
