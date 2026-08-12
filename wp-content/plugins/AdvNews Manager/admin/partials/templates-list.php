@@ -61,18 +61,55 @@ $templates = $wpdb->get_results($wpdb->prepare(
     </a>
     <hr class="wp-header-end">
 
-    <?php if (isset($_GET['message'])): ?>
-        <div class="notice notice-success is-dismissible">
+    <?php
+    $template_notice_messages = array(
+        'template_created',
+        'template_updated',
+        'template_deleted',
+        'template_duplicated',
+        'bulk_templates_deleted',
+        'bulk_templates_activated',
+        'bulk_templates_deactivated',
+        'bulk_templates_none',
+        'bulk_action_missing'
+    );
+    ?>
+    <?php if (isset($_GET['message']) && in_array(sanitize_key($_GET['message']), $template_notice_messages, true)): ?>
+        <?php
+        $message = sanitize_key($_GET['message']);
+        $processed = isset($_GET['processed']) ? max(0, intval($_GET['processed'])) : 0;
+        $notice_class = in_array($message, array('bulk_action_missing', 'bulk_templates_none'), true) ? 'notice-warning' : 'notice-success';
+        ?>
+        <div class="notice <?php echo esc_attr($notice_class); ?> is-dismissible">
             <p>
                 <?php
-                if ($_GET['message'] == 'template_created') {
+                if ($message == 'template_created') {
                     _e('Template created successfully.', 'advnews-manager');
-                } elseif ($_GET['message'] == 'template_updated') {
+                } elseif ($message == 'template_updated') {
                     _e('Template updated successfully.', 'advnews-manager');
-                } elseif ($_GET['message'] == 'template_deleted') {
+                } elseif ($message == 'template_deleted') {
                     _e('Template deleted successfully.', 'advnews-manager');
-                } elseif ($_GET['message'] == 'template_duplicated') {
+                } elseif ($message == 'template_duplicated') {
                     _e('Template duplicated successfully.', 'advnews-manager');
+                } elseif ($message === 'bulk_templates_deleted') {
+                    printf(
+                        esc_html(_n('%s template deleted.', '%s templates deleted.', $processed, 'advnews-manager')),
+                        esc_html(number_format_i18n($processed))
+                    );
+                } elseif ($message === 'bulk_templates_activated') {
+                    printf(
+                        esc_html(_n('%s template activated.', '%s templates activated.', $processed, 'advnews-manager')),
+                        esc_html(number_format_i18n($processed))
+                    );
+                } elseif ($message === 'bulk_templates_deactivated') {
+                    printf(
+                        esc_html(_n('%s template deactivated.', '%s templates deactivated.', $processed, 'advnews-manager')),
+                        esc_html(number_format_i18n($processed))
+                    );
+                } elseif ($message === 'bulk_templates_none') {
+                    esc_html_e('Select at least one template before applying a bulk action.', 'advnews-manager');
+                } elseif ($message === 'bulk_action_missing') {
+                    esc_html_e('Select a bulk action before clicking Apply.', 'advnews-manager');
                 }
                 ?>
             </p>
@@ -115,9 +152,44 @@ $templates = $wpdb->get_results($wpdb->prepare(
         <?php endif; ?>
     </form>
 
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="advnews-templates-bulk-form">
+        <input type="hidden" name="action" value="advnews_bulk_templates">
+        <input type="hidden" name="selected_bulk_action" value="">
+        <?php wp_nonce_field('advnews_bulk_templates'); ?>
+
+        <div class="tablenav top">
+            <div class="alignleft actions bulkactions">
+                <label for="advnews-templates-bulk-action-top" class="screen-reader-text"><?php _e('Select bulk action', 'advnews-manager'); ?></label>
+                <select name="bulk_action" id="advnews-templates-bulk-action-top">
+                    <option value=""><?php _e('Bulk Actions', 'advnews-manager'); ?></option>
+                    <option value="delete"><?php _e('Delete', 'advnews-manager'); ?></option>
+                    <option value="activate"><?php _e('Activate', 'advnews-manager'); ?></option>
+                    <option value="deactivate"><?php _e('Deactivate', 'advnews-manager'); ?></option>
+                </select>
+                <input type="submit" class="button action" value="<?php esc_attr_e('Apply', 'advnews-manager'); ?>">
+            </div>
+            <?php if ($total > $per_page): ?>
+                <div class="tablenav-pages">
+                    <?php
+                    echo paginate_links(array(
+                        'base' => add_query_arg('paged', '%#%'),
+                        'format' => '',
+                        'prev_text' => __('&laquo;'),
+                        'next_text' => __('&raquo;'),
+                        'total' => ceil($total / $per_page),
+                        'current' => $paged
+                    ));
+                    ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
     <table class="wp-list-table widefat fixed striped advnews-template-table">
         <thead>
             <tr>
+                <td class="manage-column column-cb check-column">
+                    <input type="checkbox" id="advnews-templates-select-all-top">
+                </td>
                 <th class="column-title"><?php _e('Title', 'advnews-manager'); ?></th>
                 <th><?php _e('Subject', 'advnews-manager'); ?></th>
                 <th><?php _e('Categories', 'advnews-manager'); ?></th>
@@ -129,11 +201,14 @@ $templates = $wpdb->get_results($wpdb->prepare(
         <tbody>
             <?php if (empty($templates)): ?>
                 <tr>
-                    <td colspan="6"><?php _e('No templates found.', 'advnews-manager'); ?></td>
+                    <td colspan="7"><?php _e('No templates found.', 'advnews-manager'); ?></td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($templates as $template): ?>
                     <tr>
+                        <th scope="row" class="check-column">
+                            <input type="checkbox" name="template_ids[]" value="<?php echo esc_attr($template->id); ?>">
+                        </th>
                         <td class="template-title column-title">
                             <strong>
                                 <a href="<?php echo admin_url('admin.php?page=advnews-templates&action=edit&id=' . $template->id); ?>">
@@ -182,10 +257,33 @@ $templates = $wpdb->get_results($wpdb->prepare(
                 <?php endforeach; ?>
             <?php endif; ?>
         </tbody>
+        <tfoot>
+            <tr>
+                <td class="manage-column column-cb check-column">
+                    <input type="checkbox" id="advnews-templates-select-all-bottom">
+                </td>
+                <th class="column-title"><?php _e('Title', 'advnews-manager'); ?></th>
+                <th><?php _e('Subject', 'advnews-manager'); ?></th>
+                <th><?php _e('Categories', 'advnews-manager'); ?></th>
+                <th><?php _e('Status', 'advnews-manager'); ?></th>
+                <th><?php _e('Used', 'advnews-manager'); ?></th>
+                <th><?php _e('Updated', 'advnews-manager'); ?></th>
+            </tr>
+        </tfoot>
     </table>
 
-    <?php if ($total > $per_page): ?>
         <div class="tablenav bottom">
+            <div class="alignleft actions bulkactions">
+                <label for="advnews-templates-bulk-action-bottom" class="screen-reader-text"><?php _e('Select bulk action', 'advnews-manager'); ?></label>
+                <select name="bulk_action2" id="advnews-templates-bulk-action-bottom">
+                    <option value=""><?php _e('Bulk Actions', 'advnews-manager'); ?></option>
+                    <option value="delete"><?php _e('Delete', 'advnews-manager'); ?></option>
+                    <option value="activate"><?php _e('Activate', 'advnews-manager'); ?></option>
+                    <option value="deactivate"><?php _e('Deactivate', 'advnews-manager'); ?></option>
+                </select>
+                <input type="submit" class="button action" value="<?php esc_attr_e('Apply', 'advnews-manager'); ?>">
+            </div>
+            <?php if ($total > $per_page): ?>
             <div class="tablenav-pages">
                 <?php
                 echo paginate_links(array(
@@ -198,8 +296,9 @@ $templates = $wpdb->get_results($wpdb->prepare(
                 ));
                 ?>
             </div>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+    </form>
 </div>
 
 <style>
@@ -313,6 +412,12 @@ $templates = $wpdb->get_results($wpdb->prepare(
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+#advnews-templates-bulk-form .column-cb {
+    width: 2.2em;
+}
+#advnews-templates-bulk-form .tablenav {
+    margin: 8px 0;
+}
 .category-badge {
     display: inline-block;
     margin: 2px 3px 2px 0;
@@ -394,6 +499,51 @@ jQuery(document).ready(function($) {
         if (e.key === 'Escape') {
             $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
         }
+    });
+
+    function syncTemplateBulkSelectAll() {
+        var $items = $('#advnews-templates-bulk-form tbody input[name="template_ids[]"]');
+        var checkedCount = $items.filter(':checked').length;
+        var allChecked = $items.length > 0 && checkedCount === $items.length;
+        $('#advnews-templates-select-all-top, #advnews-templates-select-all-bottom').prop('checked', allChecked);
+    }
+
+    $('#advnews-templates-select-all-top, #advnews-templates-select-all-bottom').on('change', function() {
+        var isChecked = $(this).is(':checked');
+        $('#advnews-templates-bulk-form tbody input[name="template_ids[]"]').prop('checked', isChecked);
+        $('#advnews-templates-select-all-top, #advnews-templates-select-all-bottom').prop('checked', isChecked);
+    });
+
+    $(document).on('change', '#advnews-templates-bulk-form tbody input[name="template_ids[]"]', syncTemplateBulkSelectAll);
+
+    $('#advnews-templates-bulk-form .bulkactions .action').on('click', function() {
+        var selectedAction = $(this).closest('.bulkactions').find('select').val();
+        $('#advnews-templates-bulk-form input[name="selected_bulk_action"]').val(selectedAction);
+    });
+
+    $('#advnews-templates-bulk-form').on('submit', function(e) {
+        var $form = $(this);
+        var selectedAction = $form.find('input[name="selected_bulk_action"]').val() || $form.find('select[name="bulk_action"]').val() || $form.find('select[name="bulk_action2"]').val();
+        var selectedItems = $form.find('tbody input[name="template_ids[]"]:checked').length;
+
+        if (!selectedAction) {
+            alert('<?php esc_html_e('Please select a bulk action.', 'advnews-manager'); ?>');
+            e.preventDefault();
+            return false;
+        }
+
+        if (!selectedItems) {
+            alert('<?php esc_html_e('Please select at least one template.', 'advnews-manager'); ?>');
+            e.preventDefault();
+            return false;
+        }
+
+        if (selectedAction === 'delete' && !confirm('<?php esc_html_e('Are you sure you want to delete the selected templates?', 'advnews-manager'); ?>')) {
+            e.preventDefault();
+            return false;
+        }
+
+        return true;
     });
 });
 </script>

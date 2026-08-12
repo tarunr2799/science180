@@ -38,6 +38,33 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
     </a>
     <hr class="wp-header-end">
 
+    <?php
+    $campaign_notice_messages = array('bulk_campaigns_deleted', 'bulk_campaigns_none', 'bulk_action_missing');
+    ?>
+    <?php if (isset($_GET['message']) && in_array(sanitize_key($_GET['message']), $campaign_notice_messages, true)): ?>
+        <?php
+        $message = sanitize_key($_GET['message']);
+        $processed = isset($_GET['processed']) ? max(0, intval($_GET['processed'])) : 0;
+        $notice_class = in_array($message, array('bulk_action_missing', 'bulk_campaigns_none'), true) ? 'notice-warning' : 'notice-success';
+        ?>
+        <div class="notice <?php echo esc_attr($notice_class); ?> is-dismissible">
+            <p>
+                <?php
+                if ($message === 'bulk_campaigns_deleted') {
+                    printf(
+                        esc_html(_n('%s campaign deleted.', '%s campaigns deleted.', $processed, 'advnews-manager')),
+                        esc_html(number_format_i18n($processed))
+                    );
+                } elseif ($message === 'bulk_campaigns_none') {
+                    esc_html_e('Select at least one campaign before applying a bulk action.', 'advnews-manager');
+                } elseif ($message === 'bulk_action_missing') {
+                    esc_html_e('Select a bulk action before clicking Apply.', 'advnews-manager');
+                }
+                ?>
+            </p>
+        </div>
+    <?php endif; ?>
+
     <div class="advnews-filters">
         <form method="get">
             <input type="hidden" name="page" value="advnews-campaigns">
@@ -82,9 +109,42 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
 
     <div id="campaign-list-result" style="display:none; margin-bottom:20px;"></div>
 
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="advnews-campaigns-bulk-form">
+        <input type="hidden" name="action" value="advnews_bulk_campaigns">
+        <input type="hidden" name="selected_bulk_action" value="">
+        <?php wp_nonce_field('advnews_bulk_campaigns'); ?>
+
+        <div class="tablenav top">
+            <div class="alignleft actions bulkactions">
+                <label for="advnews-campaigns-bulk-action-top" class="screen-reader-text"><?php _e('Select bulk action', 'advnews-manager'); ?></label>
+                <select name="bulk_action" id="advnews-campaigns-bulk-action-top">
+                    <option value=""><?php _e('Bulk Actions', 'advnews-manager'); ?></option>
+                    <option value="delete"><?php _e('Delete', 'advnews-manager'); ?></option>
+                </select>
+                <input type="submit" class="button action" value="<?php esc_attr_e('Apply', 'advnews-manager'); ?>">
+            </div>
+            <?php if ($total > 20): ?>
+                <div class="tablenav-pages">
+                    <?php
+                    echo paginate_links(array(
+                        'base' => add_query_arg('paged', '%#%'),
+                        'format' => '',
+                        'prev_text' => __('&laquo;'),
+                        'next_text' => __('&raquo;'),
+                        'total' => ceil($total / 20),
+                        'current' => $paged
+                    ));
+                    ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
     <table class="wp-list-table widefat fixed striped">
         <thead>
             <tr>
+                <td class="manage-column column-cb check-column">
+                    <input type="checkbox" id="advnews-campaigns-select-all-top">
+                </td>
                 <th><?php _e('ID', 'advnews-manager'); ?></th>
                 <th><?php _e('Name', 'advnews-manager'); ?></th>
                 <th><?php _e('Status', 'advnews-manager'); ?></th>
@@ -99,7 +159,7 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
         <tbody>
             <?php if (empty($campaigns)): ?>
                 <tr>
-                    <td colspan="9"><?php _e('No campaigns found.', 'advnews-manager'); ?></td>
+                    <td colspan="10"><?php _e('No campaigns found.', 'advnews-manager'); ?></td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($campaigns as $campaign): ?>
@@ -114,6 +174,9 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
                     ));
                     ?>
                     <tr id="campaign-row-<?php echo esc_attr($campaign->id); ?>">
+                        <th scope="row" class="check-column">
+                            <input type="checkbox" name="campaign_ids[]" value="<?php echo esc_attr($campaign->id); ?>">
+                        </th>
                         <td><?php echo esc_html($campaign->id); ?></td>
                         <td>
                             <strong>
@@ -183,10 +246,34 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
                 <?php endforeach; ?>
             <?php endif; ?>
         </tbody>
+        <tfoot>
+            <tr>
+                <td class="manage-column column-cb check-column">
+                    <input type="checkbox" id="advnews-campaigns-select-all-bottom">
+                </td>
+                <th><?php _e('ID', 'advnews-manager'); ?></th>
+                <th><?php _e('Name', 'advnews-manager'); ?></th>
+                <th><?php _e('Status', 'advnews-manager'); ?></th>
+                <th><?php _e('Categories', 'advnews-manager'); ?></th>
+                <th><?php _e('Recipients', 'advnews-manager'); ?></th>
+                <th><?php _e('Open Rate', 'advnews-manager'); ?></th>
+                <th><?php _e('Click Rate', 'advnews-manager'); ?></th>
+                <th><?php _e('Scheduled', 'advnews-manager'); ?></th>
+                <th><?php _e('Actions', 'advnews-manager'); ?></th>
+            </tr>
+        </tfoot>
     </table>
 
-    <?php if ($total > 20): ?>
-        <div class="tablenav">
+        <div class="tablenav bottom">
+            <div class="alignleft actions bulkactions">
+                <label for="advnews-campaigns-bulk-action-bottom" class="screen-reader-text"><?php _e('Select bulk action', 'advnews-manager'); ?></label>
+                <select name="bulk_action2" id="advnews-campaigns-bulk-action-bottom">
+                    <option value=""><?php _e('Bulk Actions', 'advnews-manager'); ?></option>
+                    <option value="delete"><?php _e('Delete', 'advnews-manager'); ?></option>
+                </select>
+                <input type="submit" class="button action" value="<?php esc_attr_e('Apply', 'advnews-manager'); ?>">
+            </div>
+            <?php if ($total > 20): ?>
             <div class="tablenav-pages">
                 <?php
                 echo paginate_links(array(
@@ -199,8 +286,9 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
                 ));
                 ?>
             </div>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+    </form>
 </div>
 
 <script>
@@ -251,6 +339,51 @@ jQuery(document).ready(function($) {
         }
     });
 
+    function syncCampaignBulkSelectAll() {
+        var $items = $('#advnews-campaigns-bulk-form tbody input[name="campaign_ids[]"]');
+        var checkedCount = $items.filter(':checked').length;
+        var allChecked = $items.length > 0 && checkedCount === $items.length;
+        $('#advnews-campaigns-select-all-top, #advnews-campaigns-select-all-bottom').prop('checked', allChecked);
+    }
+
+    $('#advnews-campaigns-select-all-top, #advnews-campaigns-select-all-bottom').on('change', function() {
+        var isChecked = $(this).is(':checked');
+        $('#advnews-campaigns-bulk-form tbody input[name="campaign_ids[]"]').prop('checked', isChecked);
+        $('#advnews-campaigns-select-all-top, #advnews-campaigns-select-all-bottom').prop('checked', isChecked);
+    });
+
+    $(document).on('change', '#advnews-campaigns-bulk-form tbody input[name="campaign_ids[]"]', syncCampaignBulkSelectAll);
+
+    $('#advnews-campaigns-bulk-form .bulkactions .action').on('click', function() {
+        var selectedAction = $(this).closest('.bulkactions').find('select').val();
+        $('#advnews-campaigns-bulk-form input[name="selected_bulk_action"]').val(selectedAction);
+    });
+
+    $('#advnews-campaigns-bulk-form').on('submit', function(e) {
+        var $form = $(this);
+        var selectedAction = $form.find('input[name="selected_bulk_action"]').val() || $form.find('select[name="bulk_action"]').val() || $form.find('select[name="bulk_action2"]').val();
+        var selectedItems = $form.find('tbody input[name="campaign_ids[]"]:checked').length;
+
+        if (!selectedAction) {
+            alert('<?php esc_html_e('Please select a bulk action.', 'advnews-manager'); ?>');
+            e.preventDefault();
+            return false;
+        }
+
+        if (!selectedItems) {
+            alert('<?php esc_html_e('Please select at least one campaign.', 'advnews-manager'); ?>');
+            e.preventDefault();
+            return false;
+        }
+
+        if (selectedAction === 'delete' && !confirm('<?php esc_html_e('Are you sure you want to delete the selected campaigns?', 'advnews-manager'); ?>')) {
+            e.preventDefault();
+            return false;
+        }
+
+        return true;
+    });
+
     // Duplicate campaign
     $('.duplicate-campaign-link').on('click', function(e) {
         e.preventDefault();
@@ -299,6 +432,7 @@ jQuery(document).ready(function($) {
                         $('#campaign-list-result').addClass('updated').html('<p>' + response.data.message + '</p>').show();
                         $('#campaign-row-' + campaignId).fadeOut(500, function() {
                             $(this).remove();
+                            syncCampaignBulkSelectAll();
                         });
                     } else {
                         $('#campaign-list-result').addClass('error').html('<p>' + response.data.message + '</p>').show();
@@ -341,6 +475,12 @@ jQuery(document).ready(function($) {
     .delete-campaign-link:hover {
         color: #b32d2e;
         text-decoration: underline;
+    }
+    #advnews-campaigns-bulk-form .column-cb {
+        width: 2.2em;
+    }
+    #advnews-campaigns-bulk-form .tablenav {
+        margin: 8px 0;
     }
     .category-badge {
         display: inline-block;

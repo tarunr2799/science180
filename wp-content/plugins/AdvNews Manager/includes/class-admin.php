@@ -33,6 +33,8 @@ class AdvNews_Admin
         // Admin post actions
         add_action('admin_post_advnews_save_campaign', array($this, 'handle_save_campaign'));
         add_action('admin_post_advnews_save_template', array($this, 'handle_save_template'));
+        add_action('admin_post_advnews_bulk_campaigns', array($this, 'handle_bulk_campaigns'));
+        add_action('admin_post_advnews_bulk_templates', array($this, 'handle_bulk_templates'));
         add_action('admin_post_advnews_export_subscribers', array($this, 'handle_export_subscribers'));
         add_action('admin_post_advnews_save_category', array($this, 'handle_save_category'));
         add_action('admin_post_advnews_save_subscriber', array($this, 'handle_save_subscriber'));
@@ -3098,6 +3100,172 @@ border-radius: 4px;
     }
 
     /**
+     * Build a safe redirect URL for list-table bulk actions.
+     */
+    private function get_bulk_action_redirect_url($page, $message, $processed = 0)
+    {
+        $fallback = admin_url('admin.php?page=' . $page);
+        $redirect_url = isset($_POST['_wp_http_referer']) ? wp_unslash($_POST['_wp_http_referer']) : $fallback;
+        $redirect_url = wp_validate_redirect($redirect_url, $fallback);
+        $redirect_url = remove_query_arg(array('message', 'processed'), $redirect_url);
+
+        return add_query_arg(array(
+            'message' => $message,
+            'processed' => max(0, intval($processed))
+        ), $redirect_url);
+    }
+
+    /**
+     * Handle campaign list bulk actions.
+     */
+    public function handle_bulk_campaigns()
+    {
+        check_admin_referer('advnews_bulk_campaigns');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+
+        $bulk_action = isset($_POST['selected_bulk_action']) ? sanitize_key(wp_unslash($_POST['selected_bulk_action'])) : '';
+        if (empty($bulk_action) && isset($_POST['bulk_action'])) {
+            $bulk_action = sanitize_key(wp_unslash($_POST['bulk_action']));
+        }
+        if (empty($bulk_action) && isset($_POST['bulk_action2'])) {
+            $bulk_action = sanitize_key(wp_unslash($_POST['bulk_action2']));
+        }
+
+        $campaign_ids = isset($_POST['campaign_ids']) ? (array) wp_unslash($_POST['campaign_ids']) : array();
+        $campaign_ids = array_values(array_unique(array_filter(array_map('intval', $campaign_ids))));
+
+        if (empty($bulk_action)) {
+            wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-campaigns', 'bulk_action_missing'));
+            exit;
+        }
+
+        if (empty($campaign_ids)) {
+            wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-campaigns', 'bulk_campaigns_none'));
+            exit;
+        }
+
+        $processed = 0;
+        switch ($bulk_action) {
+            case 'delete':
+                $campaign_class = new AdvNews_Campaign();
+                foreach ($campaign_ids as $campaign_id) {
+                    $result = $campaign_class->delete_campaign($campaign_id);
+                    if (!is_wp_error($result) && $result !== false) {
+                        $processed++;
+                    }
+                }
+                $message = 'bulk_campaigns_deleted';
+                break;
+
+            default:
+                wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-campaigns', 'bulk_action_missing'));
+                exit;
+        }
+
+        wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-campaigns', $message, $processed));
+        exit;
+    }
+
+    /**
+     * Delete a template and unlink campaigns that reference it.
+     */
+    private function delete_template_by_id($template_id)
+    {
+        $template_id = intval($template_id);
+        if (!$template_id) {
+            return false;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . $this->table_prefix . 'templates';
+        $campaigns_table = $wpdb->prefix . $this->table_prefix . 'campaigns';
+        $rel_table = $wpdb->prefix . $this->table_prefix . 'template_categories';
+
+        $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_name WHERE id = %d", $template_id));
+        if (!$exists) {
+            return false;
+        }
+
+        $wpdb->update($campaigns_table, array('template_id' => null), array('template_id' => $template_id));
+        $wpdb->delete($rel_table, array('template_id' => $template_id));
+
+        $result = $wpdb->delete($table_name, array('id' => $template_id));
+
+        return $result !== false;
+    }
+
+    /**
+     * Handle template list bulk actions.
+     */
+    public function handle_bulk_templates()
+    {
+        check_admin_referer('advnews_bulk_templates');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+
+        $bulk_action = isset($_POST['selected_bulk_action']) ? sanitize_key(wp_unslash($_POST['selected_bulk_action'])) : '';
+        if (empty($bulk_action) && isset($_POST['bulk_action'])) {
+            $bulk_action = sanitize_key(wp_unslash($_POST['bulk_action']));
+        }
+        if (empty($bulk_action) && isset($_POST['bulk_action2'])) {
+            $bulk_action = sanitize_key(wp_unslash($_POST['bulk_action2']));
+        }
+
+        $template_ids = isset($_POST['template_ids']) ? (array) wp_unslash($_POST['template_ids']) : array();
+        $template_ids = array_values(array_unique(array_filter(array_map('intval', $template_ids))));
+
+        if (empty($bulk_action)) {
+            wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-templates', 'bulk_action_missing'));
+            exit;
+        }
+
+        if (empty($template_ids)) {
+            wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-templates', 'bulk_templates_none'));
+            exit;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . $this->table_prefix . 'templates';
+        $processed = 0;
+
+        switch ($bulk_action) {
+            case 'delete':
+                foreach ($template_ids as $template_id) {
+                    if ($this->delete_template_by_id($template_id)) {
+                        $processed++;
+                    }
+                }
+                $message = 'bulk_templates_deleted';
+                break;
+
+            case 'activate':
+            case 'deactivate':
+                $is_active = $bulk_action === 'activate' ? 1 : 0;
+                foreach ($template_ids as $template_id) {
+                    $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_name WHERE id = %d", $template_id));
+                    if ($exists) {
+                        $wpdb->update($table_name, array('is_active' => $is_active), array('id' => $template_id));
+                        $processed++;
+                    }
+                }
+                $message = $bulk_action === 'activate' ? 'bulk_templates_activated' : 'bulk_templates_deactivated';
+                break;
+
+            default:
+                wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-templates', 'bulk_action_missing'));
+                exit;
+        }
+
+        wp_safe_redirect($this->get_bulk_action_redirect_url('advnews-templates', $message, $processed));
+        exit;
+    }
+
+    /**
      * Handle delete template
      */
     public function handle_delete_template()
@@ -3114,15 +3282,7 @@ border-radius: 4px;
             wp_die(__('Invalid template ID.', 'advnews-manager'));
         }
 
-        global $wpdb;
-        $table_name = $wpdb->prefix . $this->table_prefix . 'templates';
-        $campaigns_table = $wpdb->prefix . $this->table_prefix . 'campaigns';
-        $rel_table = $wpdb->prefix . $this->table_prefix . 'template_categories';
-
-        $wpdb->update($campaigns_table, array('template_id' => null), array('template_id' => $template_id));
-        $wpdb->delete($rel_table, array('template_id' => $template_id));
-
-        $result = $wpdb->delete($table_name, array('id' => $template_id));
+        $result = $this->delete_template_by_id($template_id);
         if ($result === false) {
             wp_die(__('Failed to delete template.', 'advnews-manager'));
         }
