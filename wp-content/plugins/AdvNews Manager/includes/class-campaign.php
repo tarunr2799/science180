@@ -336,6 +336,7 @@ class AdvNews_Campaign
         $defaults = array(
             'status' => '',
             'category_id' => null,
+            'category_ids' => array(),
             'search' => '',
             'orderby' => 'created_at',
             'order' => 'DESC',
@@ -351,6 +352,13 @@ class AdvNews_Campaign
 
         $where = array('1=1');
         $filter_join = '';
+        $category_ids = array();
+        if (!empty($args['category_ids'])) {
+            $category_ids = is_array($args['category_ids']) ? $args['category_ids'] : array($args['category_ids']);
+        } elseif (!empty($args['category_id'])) {
+            $category_ids = array($args['category_id']);
+        }
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
 
         if (!empty($args['status'])) {
             $where[] = $this->wpdb->prepare("c.status = %s", $args['status']);
@@ -361,9 +369,10 @@ class AdvNews_Campaign
             $where[] = $this->wpdb->prepare("(c.name LIKE %s OR c.subject LIKE %s)", $search, $search);
         }
 
-        if (!empty($args['category_id'])) {
+        if (!empty($category_ids)) {
             $filter_join = "INNER JOIN $table_campaign_categories ccf ON c.id = ccf.campaign_id";
-            $where[] = $this->wpdb->prepare("ccf.category_id = %d", $args['category_id']);
+            $placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+            $where[] = $this->wpdb->prepare("ccf.category_id IN ($placeholders)", $category_ids);
         }
 
         $where_clause = 'WHERE ' . implode(' AND ', $where);
@@ -396,7 +405,7 @@ class AdvNews_Campaign
      */
     public function count_campaigns($args = array())
     {
-        $defaults = array('status' => '', 'category_id' => null, 'search' => '');
+        $defaults = array('status' => '', 'category_id' => null, 'category_ids' => array(), 'search' => '');
 
         $args = wp_parse_args($args, $defaults);
 
@@ -406,15 +415,23 @@ class AdvNews_Campaign
 
         $where = array('1=1');
         $join = "LEFT JOIN $table_categories cat ON c.category_id = cat.id";
+        $category_ids = array();
+        if (!empty($args['category_ids'])) {
+            $category_ids = is_array($args['category_ids']) ? $args['category_ids'] : array($args['category_ids']);
+        } elseif (!empty($args['category_id'])) {
+            $category_ids = array($args['category_id']);
+        }
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
 
         if (!empty($args['status'])) {
             $where[] = $this->wpdb->prepare("c.status = %s", $args['status']);
         }
 
-        if (!empty($args['category_id'])) {
+        if (!empty($category_ids)) {
+            $placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
             $where[] = $this->wpdb->prepare(
-                "EXISTS (SELECT 1 FROM $table_campaign_categories ccf WHERE ccf.campaign_id = c.id AND ccf.category_id = %d)",
-                $args['category_id']
+                "EXISTS (SELECT 1 FROM $table_campaign_categories ccf WHERE ccf.campaign_id = c.id AND ccf.category_id IN ($placeholders))",
+                $category_ids
             );
         }
 

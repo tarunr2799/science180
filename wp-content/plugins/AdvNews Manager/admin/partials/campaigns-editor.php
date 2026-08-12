@@ -42,6 +42,9 @@ if (isset($_GET['message'])) {
         case 'campaign_sent':
             $message_text = __('Campaign queued for sending.', 'advnews-manager');
             break;
+        case 'campaign_scheduled':
+            $message_text = __('Campaign scheduled successfully.', 'advnews-manager');
+            break;
         case 'error':
             $message_text = __('An error occurred. Please try again.', 'advnews-manager');
             $message_class = 'notice-error';
@@ -91,32 +94,41 @@ if (isset($_GET['message'])) {
                                     </td>
                                 </tr>
 
-                                <!-- UPDATED: Multi-category Checkboxes -->
                                 <tr>
                                     <th><label><?php _e('Categories', 'advnews-manager'); ?> <span class="required">*</span></label></th>
                                     <td>
-                                        <div class="advnews-categories-checkbox-group" style="max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #fff;">
-                                            <?php if (empty($categories)): ?>
-                                                <p><?php _e('No categories found.', 'advnews-manager'); ?>
-                                                    <a href="<?php echo admin_url('admin.php?page=advnews-categories&action=add'); ?>"><?php _e('Create one now', 'advnews-manager'); ?></a>
-                                                </p>
-                                            <?php else: ?>
-                                                <?php foreach ($categories as $category): ?>
-                                                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
-                                                        <input type="checkbox" name="category_ids[]" value="<?php echo esc_attr($category->id); ?>"
-                                                            <?php checked(in_array($category->id, $assigned_category_ids)); ?>>
-                                                        <span style="display: inline-block; width: 12px; height: 12px; background-color: <?php echo esc_attr($category->color); ?>; border-radius: 3px; margin-right: 5px;"></span>
-                                                        <?php echo esc_html($category->name); ?>
-                                                    </label>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
+                                        <div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('Select categories', 'advnews-manager'); ?>" data-selected-singular="<?php esc_attr_e('category selected', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('categories selected', 'advnews-manager'); ?>">
+                                            <button type="button" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                                <span class="advnews-multiselect-label"><?php _e('Select categories', 'advnews-manager'); ?></span>
+                                                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+                                            </button>
+                                            <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                                                <?php if (empty($categories)): ?>
+                                                    <p class="advnews-multiselect-empty">
+                                                        <?php _e('No categories found.', 'advnews-manager'); ?>
+                                                        <a href="<?php echo admin_url('admin.php?page=advnews-categories&action=add'); ?>"><?php _e('Create one now', 'advnews-manager'); ?></a>
+                                                    </p>
+                                                <?php else: ?>
+                                                    <?php foreach ($categories as $category): ?>
+                                                        <label class="advnews-multiselect-option">
+                                                            <input type="checkbox" name="category_ids[]" value="<?php echo esc_attr($category->id); ?>"
+                                                                <?php checked(in_array($category->id, $assigned_category_ids)); ?>>
+                                                            <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                                            <span class="advnews-category-swatch" style="background-color: <?php echo esc_attr($category->color); ?>;" aria-hidden="true"></span>
+                                                            <span class="advnews-multiselect-text"><?php echo esc_html($category->name); ?></span>
+                                                        </label>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
+                                        <?php if (!empty($categories)): ?>
+                                            <div class="advnews-selected-summary" aria-live="polite"></div>
+                                        <?php endif; ?>
                                         <p class="description">
-                                            <?php _e('Select one or more categories. Subscribers in any of the selected categories will receive this campaign.', 'advnews-manager'); ?>
+                                            <?php _e('Click one or more categories. Subscribers in any selected category will receive this campaign once.', 'advnews-manager'); ?>
                                         </p>
                                     </td>
                                 </tr>
-                                <!-- END UPDATED SECTION -->
 
                                 <tr>
                                     <th><label for="template_id"><?php _e('Use Template', 'advnews-manager'); ?></label></th>
@@ -278,6 +290,8 @@ if (isset($_GET['message'])) {
                                     <div id="publishing-action">
                                         <input type="submit" name="save" class="button button-primary button-large"
                                             value="<?php _e('Save Campaign', 'advnews-manager'); ?>">
+                                        <input type="submit" name="schedule_campaign" class="button button-secondary"
+                                            value="<?php esc_attr_e('Schedule a Message', 'advnews-manager'); ?>">
                                         <input type="submit" name="send_now" class="button button-secondary"
                                             value="<?php echo $campaign && $campaign->status === 'sent' ? esc_attr__('Queue New Recipients', 'advnews-manager') : esc_attr__('Send Now', 'advnews-manager'); ?>">
                                     </div>
@@ -345,6 +359,59 @@ if (isset($_GET['message'])) {
 
 <script>
 jQuery(document).ready(function($) {
+    function updateAdvNewsMultiSelect($select) {
+        var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+        var label = $select.find('.advnews-multiselect-label');
+        var summary = $select.next('.advnews-selected-summary');
+        var placeholder = $select.data('placeholder') || '';
+        var singular = $select.data('selected-singular') || 'selected';
+        var plural = $select.data('selected-plural') || 'selected';
+        var names = checked.map(function() {
+            return $.trim($(this).closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text());
+        }).get();
+
+        if (!checked.length) {
+            label.text(placeholder);
+            summary.empty();
+            return;
+        }
+
+        if (checked.length === 1) {
+            label.text(names[0]);
+        } else {
+            label.text(checked.length + ' ' + plural);
+        }
+
+        summary.text(names.join(', '));
+    }
+
+    $('.advnews-multiselect').each(function() {
+        updateAdvNewsMultiSelect($(this));
+    });
+
+    $(document).on('click', '.advnews-multiselect-toggle', function(e) {
+        e.preventDefault();
+        var $select = $(this).closest('.advnews-multiselect');
+        $('.advnews-multiselect').not($select).removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        $select.toggleClass('is-open');
+        $(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
+    });
+
+    $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
+        updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.advnews-multiselect').length) {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
+
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape') {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
 
     function filterTemplatesByCategory() {
         $('#template_id').find('option').show();
@@ -358,6 +425,9 @@ jQuery(document).ready(function($) {
         $('input[name="category_ids[]"]').prop('checked', false);
         categoryIds.forEach(function(categoryId) {
             $('input[name="category_ids[]"][value="' + categoryId + '"]').prop('checked', true);
+        });
+        $('.advnews-multiselect').each(function() {
+            updateAdvNewsMultiSelect($(this));
         });
         updateRecipientCount();
     }
@@ -477,10 +547,18 @@ jQuery(document).ready(function($) {
         var name = $('#campaign_name').val();
         var subject = $('#subject').val();
         var categories = $('input[name="category_ids[]"]:checked').length;
+        var submitter = e.originalEvent && e.originalEvent.submitter ? e.originalEvent.submitter : document.activeElement;
+        var isSchedule = submitter && submitter.name === 'schedule_campaign';
 
         if (!name || !subject || categories === 0) {
             e.preventDefault();
             alert('<?php _e('Please fill in all required fields and select at least one category.', 'advnews-manager'); ?>');
+            return false;
+        }
+
+        if (isSchedule && !$('#scheduled_for').val()) {
+            e.preventDefault();
+            alert('<?php _e('Select a date and time before scheduling this campaign.', 'advnews-manager'); ?>');
             return false;
         }
     });
@@ -501,6 +579,11 @@ jQuery(document).ready(function($) {
     float: none;
     margin: 0;
 }
+#publishing-action {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
 .advnews-datetimepicker {
     width: 100%;
     max-width: 250px;
@@ -511,5 +594,111 @@ jQuery(document).ready(function($) {
 .advnews-datetimepicker::-webkit-calendar-picker-indicator {
     cursor: pointer;
     padding: 5px;
+}
+.advnews-multiselect {
+    position: relative;
+    max-width: 420px;
+}
+.advnews-multiselect-toggle {
+    width: 100%;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    color: #2c3338;
+    cursor: pointer;
+    text-align: left;
+}
+.advnews-multiselect-toggle:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 2px solid transparent;
+}
+.advnews-multiselect-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.advnews-multiselect-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+.advnews-multiselect.is-open .advnews-multiselect-menu {
+    display: block;
+}
+.advnews-multiselect-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.advnews-multiselect-option:hover {
+    background: #f0f6fc;
+}
+.advnews-multiselect-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.advnews-multiselect-check {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    background: #fff;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check {
+    border-color: #2271b1;
+    background: #2271b1;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check::after {
+    content: "";
+    display: block;
+    width: 4px;
+    height: 8px;
+    margin: 1px 0 0 5px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.advnews-category-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+}
+.advnews-multiselect-text {
+    line-height: 1.3;
+}
+.advnews-multiselect-empty {
+    margin: 6px;
+}
+.advnews-selected-summary {
+    max-width: 420px;
+    margin-top: 6px;
+    color: #50575e;
+    font-size: 12px;
+    line-height: 1.4;
 }
 </style>

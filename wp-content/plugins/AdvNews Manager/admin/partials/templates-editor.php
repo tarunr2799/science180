@@ -85,26 +85,33 @@ $categories = $category_class->get_all_categories();
                                     <label><?php _e('Categories', 'advnews-manager'); ?></label>
                                 </th>
                                 <td>
-                                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+                                    <div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('Select categories', 'advnews-manager'); ?>" data-selected-singular="<?php esc_attr_e('category selected', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('categories selected', 'advnews-manager'); ?>">
+                                        <button type="button" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="advnews-multiselect-label"><?php _e('Select categories', 'advnews-manager'); ?></span>
+                                            <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+                                        </button>
+                                        <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
                                         <?php if (empty($categories)): ?>
-                                            <p class="description"><?php _e('No categories found. Please create categories first.', 'advnews-manager'); ?></p>
+                                            <p class="advnews-multiselect-empty"><?php _e('No categories found. Please create categories first.', 'advnews-manager'); ?></p>
                                         <?php else: ?>
                                             <?php foreach ($categories as $category): ?>
-                                                <div style="margin-bottom: 8px;">
-                                                    <label style="display: flex; align-items: center; cursor: pointer;">
-                                                        <input type="checkbox"
-                                                               name="template_categories[]"
-                                                               value="<?php echo esc_attr($category->id); ?>"
-                                                               <?php echo in_array($category->id, $template_categories) ? 'checked' : ''; ?>
-                                                               style="margin-right: 8px;">
-                                                        <span style="display: inline-block; width: 12px; height: 12px; background-color: <?php echo esc_attr($category->color); ?>; border-radius: 3px; margin-right: 8px;"></span>
-                                                        <?php echo esc_html($category->name); ?>
-                                                    </label>
-                                                </div>
+                                                <label class="advnews-multiselect-option">
+                                                    <input type="checkbox"
+                                                           name="template_categories[]"
+                                                           value="<?php echo esc_attr($category->id); ?>"
+                                                           <?php echo in_array($category->id, $template_categories) ? 'checked' : ''; ?>>
+                                                    <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                                    <span class="advnews-category-swatch" style="background-color: <?php echo esc_attr($category->color); ?>;" aria-hidden="true"></span>
+                                                    <span class="advnews-multiselect-text"><?php echo esc_html($category->name); ?></span>
+                                                </label>
                                             <?php endforeach; ?>
                                         <?php endif; ?>
+                                        </div>
                                     </div>
-                                    <p class="description"><?php _e('Select one or more categories this template should be available for.', 'advnews-manager'); ?></p>
+                                    <?php if (!empty($categories)): ?>
+                                        <div class="advnews-selected-summary" aria-live="polite"></div>
+                                    <?php endif; ?>
+                                    <p class="description"><?php _e('Click one or more categories. These categories preselect campaign recipients but do not limit future campaign choices.', 'advnews-manager'); ?></p>
                                 </td>
                             </tr>
                             <tr>
@@ -411,20 +418,174 @@ $categories = $category_class->get_all_categories();
     padding: 15px 10px;
 }
 
-/* Category checkboxes */
-input[type="checkbox"] {
-    margin-right: 8px;
-}
-
 /* Spinner positioning */
 .spinner {
     float: none;
     margin: 0 5px;
 }
+.advnews-multiselect {
+    position: relative;
+    max-width: 420px;
+}
+.advnews-multiselect-toggle {
+    width: 100%;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    color: #2c3338;
+    cursor: pointer;
+    text-align: left;
+}
+.advnews-multiselect-toggle:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 2px solid transparent;
+}
+.advnews-multiselect-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.advnews-multiselect-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+.advnews-multiselect.is-open .advnews-multiselect-menu {
+    display: block;
+}
+.advnews-multiselect-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.advnews-multiselect-option:hover {
+    background: #f0f6fc;
+}
+.advnews-multiselect-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.advnews-multiselect-check {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    background: #fff;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check {
+    border-color: #2271b1;
+    background: #2271b1;
+}
+.advnews-multiselect-option input:checked + .advnews-multiselect-check::after {
+    content: "";
+    display: block;
+    width: 4px;
+    height: 8px;
+    margin: 1px 0 0 5px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.advnews-category-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+}
+.advnews-multiselect-text {
+    line-height: 1.3;
+}
+.advnews-multiselect-empty {
+    margin: 6px;
+}
+.advnews-selected-summary {
+    max-width: 420px;
+    margin-top: 6px;
+    color: #50575e;
+    font-size: 12px;
+    line-height: 1.4;
+}
 </style>
 
 <script>
 jQuery(document).ready(function($) {
+    function updateAdvNewsMultiSelect($select) {
+        var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+        var label = $select.find('.advnews-multiselect-label');
+        var summary = $select.next('.advnews-selected-summary');
+        var placeholder = $select.data('placeholder') || '';
+        var plural = $select.data('selected-plural') || 'selected';
+        var names = checked.map(function() {
+            return $.trim($(this).closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text());
+        }).get();
+
+        if (!checked.length) {
+            label.text(placeholder);
+            summary.empty();
+            return;
+        }
+
+        if (checked.length === 1) {
+            label.text(names[0]);
+        } else {
+            label.text(checked.length + ' ' + plural);
+        }
+
+        summary.text(names.join(', '));
+    }
+
+    $('.advnews-multiselect').each(function() {
+        updateAdvNewsMultiSelect($(this));
+    });
+
+    $(document).on('click', '.advnews-multiselect-toggle', function(e) {
+        e.preventDefault();
+        var $select = $(this).closest('.advnews-multiselect');
+        $('.advnews-multiselect').not($select).removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        $select.toggleClass('is-open');
+        $(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
+    });
+
+    $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
+        updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.advnews-multiselect').length) {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
+
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape') {
+            $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+        }
+    });
+
     // Tab switching
     $('.tab-button').on('click', function() {
         var tab = $(this).data('tab');

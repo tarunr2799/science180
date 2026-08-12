@@ -2014,11 +2014,32 @@ class AdvNews_Admin
                     <p><?php _e('No categories found. Create your first category to start organizing your subscribers.', 'advnews-manager'); ?></p>
                 </div>
             <?php else: ?>
+                <div class="advnews-category-filter-bar">
+                    <div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('Filter categories', 'advnews-manager'); ?>" data-selected-singular="<?php esc_attr_e('category selected', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('categories selected', 'advnews-manager'); ?>">
+                        <button type="button" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="advnews-multiselect-label"><?php _e('Filter categories', 'advnews-manager'); ?></span>
+                            <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+                        </button>
+                        <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                            <?php foreach ($categories as $category): ?>
+                                <label class="advnews-multiselect-option">
+                                    <input type="checkbox" class="advnews-category-filter-option" value="<?php echo esc_attr($category->id); ?>">
+                                    <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                    <span class="advnews-category-swatch" style="background-color: <?php echo esc_attr($category->color); ?>;" aria-hidden="true"></span>
+                                    <span class="advnews-multiselect-text"><?php echo esc_html($category->name); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <input type="search" class="regular-text advnews-category-search" placeholder="<?php esc_attr_e('Search categories...', 'advnews-manager'); ?>">
+                    <button type="button" class="button advnews-clear-category-filter"><?php _e('Clear Filters', 'advnews-manager'); ?></button>
+                    <span class="advnews-category-filter-count" aria-live="polite"></span>
+                </div>
                 <div class="advnews-categories-grid">
                     <?php foreach ($categories as $category):
                         $stats = $category_class->get_category_stats($category->id);
                         ?>
-                        <div class="advnews-category-card" style="border-top: 4px solid <?php echo esc_attr($category->color); ?>;">
+                        <div class="advnews-category-card" data-category-id="<?php echo esc_attr($category->id); ?>" data-category-name="<?php echo esc_attr(strtolower($category->name)); ?>" style="border-top: 4px solid <?php echo esc_attr($category->color); ?>;">
                             <div class="category-header">
                                 <h3><?php echo esc_html($category->name); ?></h3>
                                 <span class="category-color" style="background-color: <?php echo esc_attr($category->color); ?>;"></span>
@@ -2060,7 +2081,204 @@ class AdvNews_Admin
                 </div>
             <?php endif; ?>
         </div>
+        <script>
+            jQuery(document).ready(function($) {
+                function updateAdvNewsMultiSelect($select) {
+                    var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+                    var label = $select.find('.advnews-multiselect-label');
+                    var placeholder = $select.data('placeholder') || '';
+                    var plural = $select.data('selected-plural') || 'selected';
+                    var names = checked.map(function() {
+                        return $.trim($(this).closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text());
+                    }).get();
+
+                    if (!checked.length) {
+                        label.text(placeholder);
+                    } else if (checked.length === 1) {
+                        label.text(names[0]);
+                    } else {
+                        label.text(checked.length + ' ' + plural);
+                    }
+                }
+
+                function filterCategoryCards() {
+                    var selectedIds = $('.advnews-category-filter-option:checked').map(function() {
+                        return $(this).val();
+                    }).get();
+                    var search = $.trim($('.advnews-category-search').val()).toLowerCase();
+                    var visibleCount = 0;
+
+                    $('.advnews-category-card').each(function() {
+                        var $card = $(this);
+                        var idMatches = selectedIds.length === 0 || selectedIds.indexOf(String($card.data('category-id'))) !== -1;
+                        var nameMatches = search === '' || String($card.data('category-name')).indexOf(search) !== -1;
+                        var showCard = idMatches && nameMatches;
+                        $card.toggle(showCard);
+                        if (showCard) {
+                            visibleCount++;
+                        }
+                    });
+
+                    $('.advnews-category-filter-count').text(
+                        visibleCount + ' <?php echo esc_js(__('shown', 'advnews-manager')); ?>'
+                    );
+                }
+
+                $('.advnews-multiselect').each(function() {
+                    updateAdvNewsMultiSelect($(this));
+                });
+                filterCategoryCards();
+
+                $(document).on('click', '.advnews-multiselect-toggle', function(e) {
+                    e.preventDefault();
+                    var $select = $(this).closest('.advnews-multiselect');
+                    $('.advnews-multiselect').not($select).removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+                    $select.toggleClass('is-open');
+                    $(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
+                });
+
+                $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
+                    updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+                    filterCategoryCards();
+                });
+
+                $('.advnews-category-search').on('input', filterCategoryCards);
+
+                $('.advnews-clear-category-filter').on('click', function() {
+                    $('.advnews-category-filter-option').prop('checked', false);
+                    $('.advnews-category-search').val('');
+                    $('.advnews-multiselect').each(function() {
+                        updateAdvNewsMultiSelect($(this));
+                    });
+                    filterCategoryCards();
+                });
+
+                $(document).on('click', function(e) {
+                    if (!$(e.target).closest('.advnews-multiselect').length) {
+                        $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+                    }
+                });
+
+                $(document).on('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
+                    }
+                });
+            });
+        </script>
         <style>
+            .advnews-category-filter-bar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-top: 16px;
+                padding: 12px;
+                background: #fff;
+                border: 1px solid #ccd0d4;
+                border-radius: 4px;
+            }
+            .advnews-category-filter-count {
+                color: #50575e;
+                font-size: 12px;
+            }
+            .advnews-multiselect {
+                position: relative;
+                width: 320px;
+                max-width: 100%;
+            }
+            .advnews-multiselect-toggle {
+                width: 100%;
+                min-height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 0 10px;
+                border: 1px solid #8c8f94;
+                border-radius: 4px;
+                background: #fff;
+                color: #2c3338;
+                cursor: pointer;
+                text-align: left;
+            }
+            .advnews-multiselect-toggle:focus {
+                border-color: #2271b1;
+                box-shadow: 0 0 0 1px #2271b1;
+                outline: 2px solid transparent;
+            }
+            .advnews-multiselect-label {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .advnews-multiselect-menu {
+                display: none;
+                position: absolute;
+                z-index: 1000;
+                top: calc(100% + 4px);
+                left: 0;
+                right: 0;
+                max-height: 240px;
+                overflow-y: auto;
+                padding: 6px;
+                border: 1px solid #8c8f94;
+                border-radius: 4px;
+                background: #fff;
+                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+            }
+            .advnews-multiselect.is-open .advnews-multiselect-menu {
+                display: block;
+            }
+            .advnews-multiselect-option {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 30px;
+                padding: 5px 6px;
+                border-radius: 3px;
+                cursor: pointer;
+            }
+            .advnews-multiselect-option:hover {
+                background: #f0f6fc;
+            }
+            .advnews-multiselect-option input {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+            .advnews-multiselect-check {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #8c8f94;
+                border-radius: 3px;
+                background: #fff;
+                box-sizing: border-box;
+                flex: 0 0 auto;
+            }
+            .advnews-multiselect-option input:checked + .advnews-multiselect-check {
+                border-color: #2271b1;
+                background: #2271b1;
+            }
+            .advnews-multiselect-option input:checked + .advnews-multiselect-check::after {
+                content: "";
+                display: block;
+                width: 4px;
+                height: 8px;
+                margin: 1px 0 0 5px;
+                border: solid #fff;
+                border-width: 0 2px 2px 0;
+                transform: rotate(45deg);
+            }
+            .advnews-category-swatch {
+                width: 12px;
+                height: 12px;
+                border-radius: 3px;
+                flex: 0 0 auto;
+            }
+            .advnews-multiselect-text {
+                line-height: 1.3;
+            }
             .advnews-categories-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -2135,6 +2353,12 @@ class AdvNews_Admin
                 background: #d63638;
                 color: #fff;
                 border-color: #d63638;
+            }
+            @media screen and (max-width: 782px) {
+                .advnews-category-filter-bar .regular-text,
+                .advnews-category-filter-bar .advnews-multiselect {
+                    width: 100%;
+                }
             }
         </style>
         <?php
@@ -3735,6 +3959,13 @@ border-radius: 4px;
             // FORCE IMMEDIATE SEND: Clear future schedule and let send_campaign() handle status
             $data['scheduled_for'] = null;
             $data['status'] = ($existing_campaign && $existing_campaign->status === 'sent') ? 'sent' : 'draft';
+        } elseif (isset($_POST['schedule_campaign'])) {
+            if (empty($_POST['scheduled_for'])) {
+                wp_die(__('Select a date and time before scheduling this campaign.', 'advnews-manager'));
+            }
+            $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
+            $data['scheduled_for'] = get_gmt_from_date($raw_time);
+            $data['status'] = 'scheduled';
         } elseif (!empty($_POST['scheduled_for'])) {
             // Normalize input format (replace T with space) and convert to GMT for storage
             $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
@@ -3753,13 +3984,13 @@ border-radius: 4px;
                 error_log('AdvNews: Updating campaign ' . $campaign_id);
             }
             $result = $campaign_class->update_campaign($campaign_id, $data);
-            $message = 'campaign_updated';
+            $message = isset($_POST['schedule_campaign']) ? 'campaign_scheduled' : 'campaign_updated';
         } else {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('AdvNews: Creating new campaign');
             }
             $result = $campaign_class->create_campaign($data);
-            $message = 'campaign_saved';
+            $message = isset($_POST['schedule_campaign']) ? 'campaign_scheduled' : 'campaign_saved';
         }
 
         if (is_wp_error($result)) {
