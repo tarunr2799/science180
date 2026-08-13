@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) exit;
 $campaign_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $campaign_class = new AdvNews_Campaign();
 $campaign = $campaign_id ? $campaign_class->get_campaign($campaign_id) : null;
+$can_add_manual_recipient = $campaign && in_array($campaign->status, array('sent', 'sending', 'scheduled', 'paused'), true);
 global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
 // Get all categories for checkboxes
@@ -336,6 +337,28 @@ if (isset($_GET['message'])) {
                         </div>
                     </div>
 
+                    <?php if ($can_add_manual_recipient): ?>
+                        <!-- Manual Recipient Queue Box -->
+                        <div class="postbox">
+                            <h2 class="hndle"><?php _e('Add Recipient to Queue', 'advnews-manager'); ?></h2>
+                            <div class="inside">
+                                <p>
+                                    <input type="email"
+                                           id="edit-recipient-email"
+                                           class="widefat"
+                                           placeholder="<?php esc_attr_e('subscriber@example.com', 'advnews-manager'); ?>">
+                                </p>
+                                <button type="button" class="button button-secondary button-block" id="add-recipient-to-campaign">
+                                    <?php _e('Add to Queue', 'advnews-manager'); ?>
+                                </button>
+                                <p class="description">
+                                    <?php _e('Adds an existing active subscriber to this campaign queue and respects cooldown settings.', 'advnews-manager'); ?>
+                                </p>
+                                <div id="edit-add-recipient-result" style="display:none; margin-top:10px;"></div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
                     <!-- Recipient Estimate Box -->
                     <div class="postbox">
                         <h2 class="hndle"><?php _e('Recipient Estimate', 'advnews-manager'); ?></h2>
@@ -565,6 +588,49 @@ jQuery(document).ready(function($) {
     });
 
     // Send test email code REMOVED as requested
+
+    $('#add-recipient-to-campaign').on('click', function() {
+        var button = $(this);
+        var email = $('#edit-recipient-email').val().trim();
+        var result = $('#edit-add-recipient-result');
+
+        if (!email) {
+            result.removeClass('updated error').addClass('error')
+                .html('<p><?php echo esc_js(__('Please enter a subscriber email address.', 'advnews-manager')); ?></p>')
+                .show();
+            return;
+        }
+
+        button.prop('disabled', true).text('<?php echo esc_js(__('Adding...', 'advnews-manager')); ?>');
+        result.hide();
+
+        $.post(advnews_ajax.ajax_url, {
+            action: 'advnews_add_campaign_recipient',
+            campaign_id: <?php echo intval($campaign_id); ?>,
+            email: email,
+            nonce: advnews_ajax.nonce
+        }, function(response) {
+            if (response.success) {
+                result.removeClass('error').addClass('updated')
+                    .html('<p>' + response.data.message + '</p>')
+                    .show();
+                $('#edit-recipient-email').val('');
+                setTimeout(function() {
+                    location.reload();
+                }, 900);
+            } else {
+                result.removeClass('updated').addClass('error')
+                    .html('<p>' + response.data.message + '</p>')
+                    .show();
+            }
+        }).fail(function() {
+            result.removeClass('updated').addClass('error')
+                .html('<p><?php echo esc_js(__('An error occurred. Please try again.', 'advnews-manager')); ?></p>')
+                .show();
+        }).always(function() {
+            button.prop('disabled', false).text('<?php echo esc_js(__('Add to Queue', 'advnews-manager')); ?>');
+        });
+    });
 
     // Form validation
     $('#campaign-form').on('submit', function(e) {
