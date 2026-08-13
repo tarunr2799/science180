@@ -33,17 +33,36 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
 
                     <tr>
                         <th scope="row">
-                            <label for="export_category"><?php _e('Category:', 'advnews-manager'); ?></label>
+                            <label for="export_category"><?php _e('Categories:', 'advnews-manager'); ?></label>
                         </th>
                         <td>
-                            <select id="export_category" name="category_id">
-                                <option value=""><?php _e('All Categories', 'advnews-manager'); ?></option>
-                                <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo esc_attr($category->id); ?>">
-                                        <?php echo esc_html($category->name); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="advnews-multiselect" data-placeholder="<?php esc_attr_e('All categories', 'advnews-manager'); ?>" data-selected-plural="<?php esc_attr_e('categories selected', 'advnews-manager'); ?>">
+                                <button type="button" id="export_category" class="advnews-multiselect-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="advnews-multiselect-label"><?php _e('All categories', 'advnews-manager'); ?></span>
+                                    <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+                                </button>
+                                <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                                    <?php if (empty($categories)): ?>
+                                        <p><?php _e('No categories found.', 'advnews-manager'); ?></p>
+                                    <?php else: ?>
+                                        <label class="advnews-multiselect-option advnews-multiselect-select-all">
+                                            <input type="checkbox" class="advnews-multiselect-select-all-input">
+                                            <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                            <span class="advnews-multiselect-text"><?php _e('Select all categories', 'advnews-manager'); ?></span>
+                                        </label>
+                                        <?php foreach ($categories as $category): ?>
+                                            <label class="advnews-multiselect-option">
+                                                <input type="checkbox" name="category_ids[]" value="<?php echo esc_attr($category->id); ?>">
+                                                <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                                <span class="advnews-multiselect-text"><?php echo esc_html($category->name); ?></span>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <p class="description">
+                                <?php _e('Leave empty to export subscribers from all categories.', 'advnews-manager'); ?>
+                            </p>
                         </td>
                     </tr>
 
@@ -81,6 +100,11 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
                                     <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
                                 </button>
                                 <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                                    <label class="advnews-multiselect-option advnews-multiselect-select-all">
+                                        <input type="checkbox" class="advnews-multiselect-select-all-input">
+                                        <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                        <span class="advnews-multiselect-text"><?php _e('Select all fields', 'advnews-manager'); ?></span>
+                                    </label>
                                     <label class="advnews-multiselect-option is-disabled">
                                         <input type="checkbox" name="fields[]" value="email" checked disabled>
                                         <span class="advnews-multiselect-check" aria-hidden="true"></span>
@@ -252,11 +276,21 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
 
 <script>
 jQuery(document).ready(function($) {
+    function getAdvNewsMultiSelectOptions($select) {
+        return $select.find('input[type="checkbox"]').not(':disabled').not('.advnews-multiselect-select-all-input');
+    }
+
     function updateAdvNewsMultiSelect($select) {
-        var checked = $select.find('input[type="checkbox"]:checked');
+        var options = getAdvNewsMultiSelectOptions($select);
+        var checked = options.filter(':checked');
         var label = $select.find('.advnews-multiselect-label');
         var placeholder = $select.data('placeholder') || '';
         var plural = $select.data('selected-plural') || 'selected';
+        var selectAll = $select.find('.advnews-multiselect-select-all-input');
+        if (selectAll.length) {
+            selectAll.prop('checked', options.length > 0 && checked.length === options.length);
+            selectAll.prop('indeterminate', checked.length > 0 && checked.length < options.length);
+        }
 
         if (checked.length === 0) {
             label.text(placeholder);
@@ -284,7 +318,11 @@ jQuery(document).ready(function($) {
     });
 
     $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
-        updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+        var $select = $(this).closest('.advnews-multiselect');
+        if ($(this).hasClass('advnews-multiselect-select-all-input')) {
+            getAdvNewsMultiSelectOptions($select).prop('checked', $(this).is(':checked'));
+        }
+        updateAdvNewsMultiSelect($select);
     });
 
     $(document).on('click', function(e) {
@@ -416,6 +454,12 @@ jQuery(document).ready(function($) {
 }
 .advnews-multiselect-option:hover {
     background: #f0f6fc;
+}
+.advnews-multiselect-select-all {
+    border-bottom: 1px solid #dcdcde;
+    font-weight: 600;
+    margin-bottom: 4px;
+    padding-bottom: 8px;
 }
 .advnews-multiselect-option.is-disabled {
     color: #646970;

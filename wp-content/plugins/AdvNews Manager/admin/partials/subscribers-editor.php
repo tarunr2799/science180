@@ -143,9 +143,13 @@ foreach ($subscriber_categories as $cat) {
                                        <a href="<?php echo admin_url('admin.php?page=advnews-categories&action=add'); ?>"><?php _e('Create one now', 'advnews-manager'); ?></a>
                                     </p>
                                 <?php else: ?>
+                                    <label class="advnews-category-select-all">
+                                        <input type="checkbox" id="advnews_select_all_categories">
+                                        <?php _e('Select all categories', 'advnews-manager'); ?>
+                                    </label>
                                     <?php foreach ($categories as $category): ?>
                                         <label style="display: block; margin-bottom: 8px;">
-                                            <input type="checkbox" name="categories[]" value="<?php echo esc_attr($category->id); ?>"
+                                            <input type="checkbox" class="advnews-category-checkbox" name="categories[]" value="<?php echo esc_attr($category->id); ?>"
                                                    <?php checked(in_array($category->id, $subscribed_category_ids)); ?>>
                                             <span style="display: inline-block; width: 12px; height: 12px; background-color: <?php echo esc_attr($category->color); ?>; border-radius: 3px; margin-right: 5px;"></span>
                                             <?php echo esc_html($category->name); ?>
@@ -297,9 +301,38 @@ foreach ($subscriber_categories as $cat) {
     <?php endif; ?>
 </div>
 
+<script>
+jQuery(document).ready(function($) {
+    var selectAll = $('#advnews_select_all_categories');
+    var categoryCheckboxes = $('.advnews-category-checkbox');
+
+    function syncSelectAllCategories() {
+        var checkedCount = categoryCheckboxes.filter(':checked').length;
+        selectAll.prop('checked', categoryCheckboxes.length > 0 && checkedCount === categoryCheckboxes.length);
+        selectAll.prop('indeterminate', checkedCount > 0 && checkedCount < categoryCheckboxes.length);
+    }
+
+    selectAll.on('change', function() {
+        categoryCheckboxes.prop('checked', $(this).is(':checked'));
+        syncSelectAllCategories();
+    });
+
+    categoryCheckboxes.on('change', syncSelectAllCategories);
+    syncSelectAllCategories();
+});
+</script>
+
 <style>
 .required {
     color: #d63638;
+}
+
+.advnews-category-select-all {
+    display: block;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dcdcde;
+    font-weight: 600;
 }
 
 .activity-badge {

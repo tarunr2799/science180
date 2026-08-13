@@ -270,6 +270,7 @@ class AdvNews_Subscriber
         $defaults = array(
             'status' => '',
             'category_id' => null,
+            'category_ids' => array(),
             'search' => '',
             'date_from' => '',
             'date_to' => '',
@@ -286,6 +287,13 @@ class AdvNews_Subscriber
         $where = array('1=1');
         $join = '';
         $group_by = '';
+        $category_ids = array();
+        if (!empty($args['category_ids'])) {
+            $category_ids = is_array($args['category_ids']) ? $args['category_ids'] : array($args['category_ids']);
+        } elseif (!empty($args['category_id'])) {
+            $category_ids = array($args['category_id']);
+        }
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
 
         // Status filter
         if (!empty($args['status'])) {
@@ -293,9 +301,10 @@ class AdvNews_Subscriber
         }
 
         // Category filter
-        if (!empty($args['category_id'])) {
+        if (!empty($category_ids)) {
             $join = "INNER JOIN $table_sub_cats sc ON s.id = sc.subscriber_id";
-            $where[] = $this->wpdb->prepare("sc.category_id = %d", $args['category_id']);
+            $placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+            $where[] = $this->wpdb->prepare("sc.category_id IN ($placeholders)", $category_ids);
             $group_by = "GROUP BY s.id";
         }
 
@@ -341,6 +350,7 @@ class AdvNews_Subscriber
         $defaults = array(
             'status' => '',
             'category_id' => null,
+            'category_ids' => array(),
             'search' => '',
             'date_from' => '',
             'date_to' => ''
@@ -352,6 +362,13 @@ class AdvNews_Subscriber
 
         $where = array('1=1');
         $join = '';
+        $category_ids = array();
+        if (!empty($args['category_ids'])) {
+            $category_ids = is_array($args['category_ids']) ? $args['category_ids'] : array($args['category_ids']);
+        } elseif (!empty($args['category_id'])) {
+            $category_ids = array($args['category_id']);
+        }
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
 
         // Status filter
         if (!empty($args['status'])) {
@@ -359,9 +376,10 @@ class AdvNews_Subscriber
         }
 
         // Category filter
-        if (!empty($args['category_id'])) {
+        if (!empty($category_ids)) {
             $join = "INNER JOIN $table_sub_cats sc ON s.id = sc.subscriber_id";
-            $where[] = $this->wpdb->prepare("sc.category_id = %d", $args['category_id']);
+            $placeholders = implode(',', array_fill(0, count($category_ids), '%d'));
+            $where[] = $this->wpdb->prepare("sc.category_id IN ($placeholders)", $category_ids);
         }
 
         // Search filter
@@ -422,14 +440,14 @@ class AdvNews_Subscriber
      */
     public function add_categories_to_subscriber($subscriber_id, $categories)
     {
-        if (empty($categories)) {
-            return false;
-        }
-
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'subscriber_categories';
 
         // Remove existing categories
         $this->wpdb->delete($table_name, array('subscriber_id' => $subscriber_id));
+
+        if (empty($categories)) {
+            return true;
+        }
 
         // Add new categories
         foreach ($categories as $category) {

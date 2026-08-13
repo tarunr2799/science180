@@ -2636,10 +2636,9 @@ class AdvNews_Admin
             'country' => isset($_POST['country']) ? sanitize_text_field($_POST['country']) : ''
         );
 
-        // Add categories if provided
-        if (isset($_POST['categories']) && is_array($_POST['categories'])) {
-            $data['categories'] = array_map('intval', $_POST['categories']);
-        }
+        $data['categories'] = (isset($_POST['categories']) && is_array($_POST['categories']))
+            ? array_map('intval', $_POST['categories'])
+            : array();
 
         // Add status if editing
         if ($subscriber_id && isset($_POST['status'])) {
@@ -2672,21 +2671,11 @@ class AdvNews_Admin
             wp_die($result->get_error_message());
         }
 
-        if ($redirect_id) {
-            wp_redirect(add_query_arg(array(
-                'page' => 'advnews-subscribers',
-                'action' => 'edit',
-                'id' => $redirect_id,
-                'message' => $message
-            ), admin_url('admin.php')));
-            exit;
-        } else {
-            wp_redirect(add_query_arg(array(
-                'page' => 'advnews-subscribers',
-                'message' => 'error'
-            ), admin_url('admin.php')));
-            exit;
-        }
+        wp_redirect(add_query_arg(array(
+            'page' => 'advnews-subscribers',
+            'message' => $redirect_id ? $message : 'error'
+        ), admin_url('admin.php')));
+        exit;
     }
 
     /**
@@ -4376,7 +4365,12 @@ border-radius: 4px;
         if (isset($_POST['status']) && !empty($_POST['status'])) {
             $args['status'] = sanitize_text_field($_POST['status']);
         }
-        if (isset($_POST['category_id']) && !empty($_POST['category_id'])) {
+        if (isset($_POST['category_ids']) && is_array($_POST['category_ids'])) {
+            $category_ids = array_values(array_unique(array_filter(array_map('intval', $_POST['category_ids']))));
+            if (!empty($category_ids)) {
+                $args['category_ids'] = $category_ids;
+            }
+        } elseif (isset($_POST['category_id']) && !empty($_POST['category_id'])) {
             $args['category_id'] = intval($_POST['category_id']);
         }
         if (isset($_POST['search']) && !empty($_POST['search'])) {
@@ -4683,7 +4677,12 @@ border-radius: 4px;
         if (isset($_POST['status']) && !empty($_POST['status'])) {
             $args['status'] = sanitize_text_field($_POST['status']);
         }
-        if (isset($_POST['category_id']) && !empty($_POST['category_id'])) {
+        if (isset($_POST['category_ids']) && is_array($_POST['category_ids'])) {
+            $category_ids = array_values(array_unique(array_filter(array_map('intval', $_POST['category_ids']))));
+            if (!empty($category_ids)) {
+                $args['category_ids'] = $category_ids;
+            }
+        } elseif (isset($_POST['category_id']) && !empty($_POST['category_id'])) {
             $args['category_id'] = intval($_POST['category_id']);
         }
         if (isset($_POST['search']) && !empty($_POST['search'])) {

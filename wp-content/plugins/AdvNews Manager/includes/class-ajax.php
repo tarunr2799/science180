@@ -375,7 +375,12 @@ class AdvNews_Ajax
         if (isset($_POST['status']) && $_POST['status']) {
             $args['status'] = sanitize_text_field($_POST['status']);
         }
-        if (isset($_POST['category_id']) && $_POST['category_id']) {
+        if (isset($_POST['category_ids']) && is_array($_POST['category_ids'])) {
+            $category_ids = array_values(array_unique(array_filter(array_map('intval', $_POST['category_ids']))));
+            if (!empty($category_ids)) {
+                $args['category_ids'] = $category_ids;
+            }
+        } elseif (isset($_POST['category_id']) && $_POST['category_id']) {
             $args['category_id'] = intval($_POST['category_id']);
         }
         if (isset($_POST['search']) && $_POST['search']) {

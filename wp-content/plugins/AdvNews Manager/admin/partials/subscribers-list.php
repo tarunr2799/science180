@@ -41,6 +41,23 @@ $total_bounced = $subscriber_class->count_subscribers(array('status' => 'bounced
 <?php _e('Export', 'advnews-manager'); ?>
 </a>
 <hr class="wp-header-end">
+<?php if (isset($_GET['message'])): ?>
+<?php
+$message_key = sanitize_text_field(wp_unslash($_GET['message']));
+$messages = array(
+    'created' => __('Subscriber created successfully.', 'advnews-manager'),
+    'updated' => __('Subscriber updated successfully.', 'advnews-manager'),
+    'cooldown_reset' => __('Subscriber cooldown reset successfully.', 'advnews-manager'),
+    'error' => __('Subscriber could not be saved.', 'advnews-manager')
+);
+$notice_class = $message_key === 'error' ? 'notice-error' : 'notice-success';
+?>
+<?php if (isset($messages[$message_key])): ?>
+<div class="notice <?php echo esc_attr($notice_class); ?> is-dismissible">
+<p><?php echo esc_html($messages[$message_key]); ?></p>
+</div>
+<?php endif; ?>
+<?php endif; ?>
 <!-- Summary Cards -->
 <div class="advnews-summary-cards" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
 <div class="summary-card" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 15px; text-align: center;">

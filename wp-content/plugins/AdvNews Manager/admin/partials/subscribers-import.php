@@ -66,6 +66,11 @@ $categories = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table_pr
 <?php if (empty($categories)): ?>
 <p><?php _e('No categories found.', 'advnews-manager'); ?></p>
 <?php else: ?>
+<label class="advnews-multiselect-option advnews-multiselect-select-all">
+<input type="checkbox" class="advnews-multiselect-select-all-input">
+<span class="advnews-multiselect-check" aria-hidden="true"></span>
+<span class="advnews-multiselect-text"><?php _e('Select all categories', 'advnews-manager'); ?></span>
+</label>
 <?php
 foreach ($categories as $category):
 ?>
@@ -97,11 +102,21 @@ foreach ($categories as $category):
 </div>
 <script>
 jQuery(document).ready(function($) {
+function getAdvNewsMultiSelectOptions($select) {
+return $select.find('input[type="checkbox"]').not(':disabled').not('.advnews-multiselect-select-all-input');
+}
+
 function updateAdvNewsMultiSelect($select) {
-var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+var options = getAdvNewsMultiSelectOptions($select);
+var checked = options.filter(':checked');
 var label = $select.find('.advnews-multiselect-label');
 var placeholder = $select.data('placeholder') || '';
 var plural = $select.data('selected-plural') || 'selected';
+var selectAll = $select.find('.advnews-multiselect-select-all-input');
+if (selectAll.length) {
+selectAll.prop('checked', options.length > 0 && checked.length === options.length);
+selectAll.prop('indeterminate', checked.length > 0 && checked.length < options.length);
+}
 
 if (checked.length === 0) {
 label.text(placeholder);
@@ -129,7 +144,11 @@ $(this).attr('aria-expanded', $select.hasClass('is-open') ? 'true' : 'false');
 });
 
 $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
-updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+var $select = $(this).closest('.advnews-multiselect');
+if ($(this).hasClass('advnews-multiselect-select-all-input')) {
+getAdvNewsMultiSelectOptions($select).prop('checked', $(this).is(':checked'));
+}
+updateAdvNewsMultiSelect($select);
 });
 
 $(document).on('click', function(e) {
@@ -279,6 +298,12 @@ cursor: pointer;
 }
 .advnews-multiselect-option:hover {
 background: #f0f6fc;
+}
+.advnews-multiselect-select-all {
+border-bottom: 1px solid #dcdcde;
+font-weight: 600;
+margin-bottom: 4px;
+padding-bottom: 8px;
 }
 .advnews-multiselect-option input {
 position: absolute;
