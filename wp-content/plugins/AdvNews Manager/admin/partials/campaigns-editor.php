@@ -58,6 +58,12 @@ if (isset($_GET['message'])) {
 ?>
 <div class="wrap">
     <h1><?php echo $campaign_id ? __('Edit Campaign', 'advnews-manager') : __('Add New Campaign', 'advnews-manager'); ?></h1>
+    <?php if ($campaign_id): ?>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-campaigns&action=view&id=' . $campaign_id)); ?>" class="page-title-action">
+            <?php _e('View Recipients', 'advnews-manager'); ?>
+        </a>
+        <hr class="wp-header-end">
+    <?php endif; ?>
 
     <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" id="campaign-form">
         <input type="hidden" name="action" value="advnews_save_campaign">
@@ -353,6 +359,11 @@ if (isset($_GET['message'])) {
                                 </button>
                                 <p class="description">
                                     <?php _e('Adds an existing active subscriber to this campaign queue and respects cooldown settings.', 'advnews-manager'); ?>
+                                </p>
+                                <p>
+                                    <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-campaigns&action=view&id=' . $campaign_id)); ?>">
+                                        <?php _e('View all recipients for this campaign', 'advnews-manager'); ?>
+                                    </a>
                                 </p>
                                 <div id="edit-add-recipient-result" style="display:none; margin-top:10px;"></div>
                             </div>

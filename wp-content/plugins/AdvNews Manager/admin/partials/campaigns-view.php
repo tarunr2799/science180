@@ -35,6 +35,11 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
     <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign_id); ?>" class="page-title-action">
         <?php _e('View Full Analytics', 'advnews-manager'); ?>
     </a>
+    <?php if (in_array($campaign->status, array('sent', 'sending', 'scheduled', 'paused'), true)): ?>
+        <a href="#add-recipient-box" class="page-title-action">
+            <?php _e('Add Recipient', 'advnews-manager'); ?>
+        </a>
+    <?php endif; ?>
     <hr class="wp-header-end">
 
     <div class="advnews-campaign-stats-grid">
@@ -194,8 +199,8 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                 </div>
 
                 <?php if (in_array($campaign->status, array('sent', 'sending', 'scheduled', 'paused'), true)): ?>
-                    <div class="postbox">
-                        <h2 class="hndle"><?php _e('Add Recipient', 'advnews-manager'); ?></h2>
+                    <div class="postbox" id="add-recipient-box">
+                        <h2 class="hndle"><?php _e('Add Recipient to Queue', 'advnews-manager'); ?></h2>
                         <div class="inside">
                             <form id="add-recipient-form">
                                 <p>
