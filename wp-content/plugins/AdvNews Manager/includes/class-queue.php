@@ -159,7 +159,13 @@ class AdvNews_Queue
 
         if (empty($queued_emails)) {
             $this->update_campaign_statuses();
-            return array('sent' => 0, 'failed' => 0, 'remaining' => 0, 'on_cooldown' => 0);
+            $remaining = $this->wpdb->get_var("SELECT COUNT(*) FROM $table_logs WHERE status = 'queued'");
+            $on_cooldown = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM $table_logs WHERE status = 'queued' AND send_after IS NOT NULL AND send_after > %s AND send_after != '0000-00-00 00:00:00'",
+                $current_time
+            ));
+
+            return array('sent' => 0, 'failed' => 0, 'remaining' => intval($remaining), 'on_cooldown' => intval($on_cooldown));
         }
 
         $sent = 0;
