@@ -229,7 +229,7 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
 jQuery(document).ready(function($) {
     var previewFrame = document.getElementById('campaign-preview');
     if (previewFrame) {
-        var content = <?php echo wp_json_encode($campaign->content); ?>;
+        var content = <?php echo wp_json_encode($campaign_class->prepare_email_content($campaign->content)); ?>;
         previewFrame.contentDocument.open();
         previewFrame.contentDocument.write(content);
         previewFrame.contentDocument.close();

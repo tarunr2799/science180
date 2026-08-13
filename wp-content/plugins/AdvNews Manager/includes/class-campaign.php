@@ -832,6 +832,75 @@ class AdvNews_Campaign
     }
 
     /**
+     * Prepare saved editor content for HTML email clients.
+     */
+    public function prepare_email_content($content)
+    {
+        $content = trim((string) $content);
+
+        if ($content === '') {
+            return '';
+        }
+
+        $content = str_replace(array("\r\n", "\r"), "\n", $content);
+
+        if ($this->should_autop_email_content($content)) {
+            $content = wpautop($content, true);
+        }
+
+        return $this->apply_email_body_defaults($content);
+    }
+
+    /**
+     * Existing templates may contain inline links/images but only raw line breaks for paragraphs.
+     */
+    private function should_autop_email_content($content)
+    {
+        if (stripos($content, '<html') !== false || stripos($content, '<body') !== false) {
+            return false;
+        }
+
+        if (strpos($content, "\n") !== false) {
+            return true;
+        }
+
+        return !preg_match('/<(p|div|br|h[1-6]|ul|ol|li|table|blockquote|section|article)\b/i', $content);
+    }
+
+    private function apply_email_body_defaults($content)
+    {
+        $content = $this->add_default_inline_style($content, 'p', 'margin:0 0 16px; line-height:1.55;');
+        $content = $this->add_default_inline_style($content, 'ul', 'margin:0 0 16px 24px; padding:0;');
+        $content = $this->add_default_inline_style($content, 'ol', 'margin:0 0 16px 24px; padding:0;');
+        $content = $this->add_default_inline_style($content, 'li', 'margin:0 0 6px;');
+        $content = $this->add_default_inline_style($content, 'table', 'border-collapse:collapse; max-width:100%;');
+        $content = $this->add_default_inline_style($content, 'img', 'max-width:100%; height:auto;');
+
+        if (stripos($content, '<html') !== false || stripos($content, '<body') !== false) {
+            return $content;
+        }
+
+        return '<div style="font-family:Arial, sans-serif; font-size:14px; line-height:1.55; color:#202124;">' . $content . '</div>';
+    }
+
+    private function add_default_inline_style($content, $tag, $default_style)
+    {
+        return preg_replace_callback('/<' . preg_quote($tag, '/') . '(\s[^>]*)?>/i', function ($matches) use ($tag, $default_style) {
+            $attributes = isset($matches[1]) ? $matches[1] : '';
+
+            if (preg_match('/\sstyle\s*=\s*(["\'])(.*?)\1/i', $attributes, $style_match)) {
+                $existing_style = trim($style_match[2]);
+                $merged_style = rtrim($default_style, ';') . '; ' . $existing_style;
+                $attributes = preg_replace('/\sstyle\s*=\s*(["\'])(.*?)\1/i', ' style="' . esc_attr($merged_style) . '"', $attributes, 1);
+            } else {
+                $attributes .= ' style="' . esc_attr($default_style) . '"';
+            }
+
+            return '<' . $tag . $attributes . '>';
+        }, $content);
+    }
+
+    /**
      * Get unsubscribe link
      */
     private function get_unsubscribe_link($email)

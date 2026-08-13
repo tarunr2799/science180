@@ -23,10 +23,9 @@ $sample_data = array(
     'unsubscribe_link' => '#'
 );
 
-$content = $template->content;
-foreach ($sample_data as $tag => $value) {
-    $content = str_replace('[' . $tag . ']', $value, $content);
-}
+$campaign_class = new AdvNews_Campaign();
+$content = $campaign_class->process_merge_tags($template->content, $sample_data);
+$content = $campaign_class->prepare_email_content($content);
 
 $css = $template->css;
 ?>

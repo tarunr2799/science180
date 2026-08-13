@@ -4341,13 +4341,17 @@ border-radius: 4px;
      * Convert Word-generated HTML to email-friendly HTML
      */
     private function convert_word_html_to_email_html($html) {
-        error_log("the convert_word_html_to_email_html method is triggered \n");
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[AdvNews Debug] convert_word_html_to_email_html triggered.');
+        }
         // Only process if there's Word-specific formatting or typical Word span soup
         /* if (!preg_match('/<o:|<w:|<v:|<m:|class\s*=\s*"[^"]*Mso[^"]*"|<span[^>]*style="[^"]*font-family/i', $html)) {
             error_log('[AdvNews Debug] convert_word_html: SKIPPED (No Word-specific tags or font-family spans found).');
             return $html;
         } */
-        error_log('[AdvNews Debug] convert_word_html: Word formatting DETECTED. Processing...');
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[AdvNews Debug] convert_word_html: Processing content.');
+        }
 
         // 1. Remove Office-specific XML namespaces
         $html = preg_replace('/<o:[^>]+>/i', '', $html);
@@ -4374,7 +4378,6 @@ border-radius: 4px;
         // 5. Remove unnecessary divs and spans with Mso classes
         $html = preg_replace('/<div\s+[^>]*class\s*=\s*"[^"]*Mso[^"]*"[^>]*>(.*?)<\/div>/is', '<p style="margin: 0; padding: 0; line-height: 1.6;">$1</p>', $html);
         $html = preg_replace('/<span\s+[^>]*class\s*=\s*"[^"]*Mso[^"]*"[^>]*>(.*?)<\/span>/is', '$1', $html);
-        error_log("this is the full template content just one line before the step 6:  ".$html);
 
         // 6. CRITICAL FIX: Fix "Word Span Soup" and missing line breaks between spans
         // This handles content pasted from Word/LibreOffice where spans are separated
@@ -4440,7 +4443,6 @@ border-radius: 4px;
                 error_log('[AdvNews Debug] Step 6 result snippet near MEDIA CONTACT: ' . $snippet);
             }
         }
-        error_log("this is the full template content just after the step 6:  ".$html);
 
         // 7-15. (Keep the rest of your existing cleanup steps exactly as they are)
         $html = preg_replace('/style\s*=\s*"position:\s*absolute;[^"]*"/i', 'style="position: static;"', $html);

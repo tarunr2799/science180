@@ -207,6 +207,7 @@ class AdvNews_Queue
 
             // Process merge tags for BOTH content and subject
             $content = $campaign_class->process_merge_tags($email->content, $subscriber_data);
+            $content = $campaign_class->prepare_email_content($content);
             $subject = $campaign_class->process_merge_tags($email->subject, $subscriber_data);
 
             // From address fallback chain

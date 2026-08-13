@@ -865,6 +865,7 @@ class AdvNews_Ajax
 
         $campaign_class = new AdvNews_Campaign();
         $content = $campaign_class->process_merge_tags($content, $sample_data);
+        $content = $campaign_class->prepare_email_content($content);
 
         $result = wp_mail($test_email, $subject, $content, $headers);
 
@@ -1199,6 +1200,7 @@ class AdvNews_Ajax
 
         $campaign_class = new AdvNews_Campaign();
         $content = $campaign_class->process_merge_tags($template->content, $sample_data);
+        $content = $campaign_class->prepare_email_content($content);
 
         $html = '<!DOCTYPE html><html><head>';
         $html .= '<meta charset="UTF-8">';
@@ -1221,6 +1223,7 @@ class AdvNews_Ajax
 
         $campaign_class = new AdvNews_Campaign();
         $rendered = $campaign_class->process_merge_tags($content, $test_data);
+        $rendered = $campaign_class->prepare_email_content($rendered);
 
         wp_send_json_success(array(
             'rendered' => $rendered

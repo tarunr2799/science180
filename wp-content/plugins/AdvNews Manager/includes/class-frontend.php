@@ -762,6 +762,7 @@ class AdvNews_Frontend
         );
 
         $content = $campaign_class->process_merge_tags($campaign->content, $subscriber_data);
+        $content = $campaign_class->prepare_email_content($content);
 
         // Remove tracking pixel
         $content = preg_replace('/<img[^>]+src=["\'][^"\']+track_open[^"\']+["\'][^>]*>/i', '', $content);

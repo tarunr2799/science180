@@ -32,6 +32,7 @@ $subscriber_data = array(
 );
 
 $content = $campaign_class->process_merge_tags($campaign->content, $subscriber_data);
+$content = $campaign_class->prepare_email_content($content);
 $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 $current_year = date('Y');
 $unsubscribe_link = add_query_arg(array(
