@@ -1281,6 +1281,18 @@ class AdvNews_Admin
         $option = $args['option'];
         $value = get_option($option, wp_timezone_string());
         $timezones = timezone_identifiers_list();
+        $timestamp = time();
+
+        try {
+            $selected_timezone = new DateTimeZone($value);
+        } catch (Exception $e) {
+            $selected_timezone = wp_timezone();
+        }
+
+        $wordpress_timezone = wp_timezone();
+        $selected_time = wp_date(get_option('time_format'), $timestamp, $selected_timezone);
+        $wordpress_time = wp_date(get_option('time_format'), $timestamp, $wordpress_timezone);
+        $timezone_offsets_match = $selected_timezone->getOffset(new DateTimeImmutable('@' . $timestamp)) === $wordpress_timezone->getOffset(new DateTimeImmutable('@' . $timestamp));
         ?>
         <select id="<?php echo esc_attr($args['label_for']); ?>" name="<?php echo esc_attr($option); ?>">
             <?php foreach ($timezones as $timezone): ?>
@@ -1290,9 +1302,19 @@ class AdvNews_Admin
             <?php endforeach; ?>
         </select>
         <p class="description">
-            <?php _e('Current time in this timezone:', 'advnews-manager'); ?>
-            <strong><?php echo esc_html(current_time('H:i')); ?></strong>
+            <?php _e('Current time in selected AdvNews timezone:', 'advnews-manager'); ?>
+            <strong><?php echo esc_html($selected_time); ?></strong>
         </p>
+        <p class="description">
+            <?php _e('Campaign scheduling uses the WordPress timezone:', 'advnews-manager'); ?>
+            <strong><?php echo esc_html(wp_timezone_string()); ?></strong>
+            (<?php echo esc_html($wordpress_time); ?>)
+        </p>
+        <?php if (!$timezone_offsets_match): ?>
+            <p class="description" style="color:#996800;">
+                <?php _e('This AdvNews timezone is different from the WordPress timezone. Keep them aligned unless reporting should use a different timezone.', 'advnews-manager'); ?>
+            </p>
+        <?php endif; ?>
         <?php
     }
 
