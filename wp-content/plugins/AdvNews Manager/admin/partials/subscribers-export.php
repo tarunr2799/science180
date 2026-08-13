@@ -279,6 +279,9 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
 
 <script>
 jQuery(document).ready(function($) {
+    var previewAjaxUrl = '<?php echo esc_js(admin_url('admin-ajax.php')); ?>';
+    var previewNonce = '<?php echo esc_js(wp_create_nonce('advnews_ajax_nonce')); ?>';
+
     function getAdvNewsMultiSelectOptions($select) {
         return $select.find('input[type="checkbox"]').not(':disabled').not('.advnews-multiselect-select-all-input');
     }
@@ -357,10 +360,10 @@ jQuery(document).ready(function($) {
         button.prop('disabled', true).text('<?php _e('Loading...', 'advnews-manager'); ?>');
 
         var formData = $('#advnews-export-form').serialize();
-        formData += '&action=advnews_preview_export&nonce=' + advnews_ajax.nonce;
+        formData += '&action=advnews_preview_export&nonce=' + encodeURIComponent(previewNonce);
 
         $.ajax({
-            url: advnews_ajax.ajax_url,
+            url: previewAjaxUrl,
             type: 'POST',
             data: formData,
             success: function(response) {
