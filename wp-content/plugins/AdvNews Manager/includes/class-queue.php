@@ -80,11 +80,12 @@ class AdvNews_Queue
         if ($respect_cooldown && !empty($campaign->respect_cooldown) && !empty($subscriber->last_email_sent)) {
             $cooldown_days = intval(get_option('advnews_cooldown_days', 5));
             if ($cooldown_days > 0) {
-                $last_sent_timestamp = strtotime($subscriber->last_email_sent);
-                $cooldown_seconds = $cooldown_days * 24 * 60 * 60;
+                $last_sent_gmt = get_gmt_from_date($subscriber->last_email_sent);
+                $last_sent_timestamp = strtotime($last_sent_gmt);
+                $cooldown_seconds = $cooldown_days * DAY_IN_SECONDS;
                 $send_after_timestamp = $last_sent_timestamp + $cooldown_seconds;
-                if ($send_after_timestamp > time()) {
-                    $send_after = date('Y-m-d H:i:s', $send_after_timestamp);
+                if ($last_sent_timestamp && $send_after_timestamp > current_time('timestamp', true)) {
+                    $send_after = gmdate('Y-m-d H:i:s', $send_after_timestamp);
                     if (defined('WP_DEBUG') && WP_DEBUG) {
                         error_log('[AdvNews Queue] Subscriber ' . $subscriber_id . ' in cooldown. Will send after: ' . $send_after);
                     }
@@ -112,6 +113,8 @@ class AdvNews_Queue
      */
     public function process_queue($batch_size = 50)
     {
+        $batch_size = max(1, min(500, absint($batch_size)));
+
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';

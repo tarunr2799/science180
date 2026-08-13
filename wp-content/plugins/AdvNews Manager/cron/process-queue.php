@@ -44,7 +44,7 @@ class AdvNews_Queue_Processor {
 			}
 
 			// Get batch size from settings
-			$batch_size = get_option('advnews_emails_per_batch', 50);
+			$batch_size = max(1, min(500, absint(get_option('advnews_emails_per_batch', 50))));
 
 			// Check daily limit
 			$max_per_day = get_option('advnews_max_emails_per_day', 0);
@@ -101,7 +101,9 @@ class AdvNews_Queue_Processor {
 				'data' => array(
 					'sent' => $result['sent'],
 					'failed' => $result['failed'],
-					'remaining' => $result['remaining'] ?? 0
+					'remaining' => $result['remaining'] ?? 0,
+					'on_cooldown' => $result['on_cooldown'] ?? 0,
+					'batch_size' => $batch_size
 				)
 			);
 		} catch (Exception $e) {

@@ -1318,14 +1318,6 @@ class AdvNews_Ajax
             error_log('[AdvNews AJAX] Password decryption test: ' . (!empty($decrypted) ? 'SUCCESS (length: ' . strlen($decrypted) . ')' : 'FAILED'));
         }
 
-        // FIXED: Clear cooldown delays for manual processing
-        $queue_class = new AdvNews_Queue();
-        $cleared = $queue_class->clear_cooldown_delays();
-
-        if ($cleared > 0 && defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AdvNews AJAX] Cleared ' . $cleared . ' cooldown delays for manual processing');
-        }
-
         require_once ADVNEWS_PLUGIN_DIR . 'cron/process-queue.php';
         $processor = new AdvNews_Queue_Processor();
         $result = $processor->execute();

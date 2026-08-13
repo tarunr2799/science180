@@ -120,7 +120,7 @@ class AdvNews_Cron
         require_once ADVNEWS_PLUGIN_DIR . 'includes/class-queue.php';
         $queue_class = new AdvNews_Queue();
         // Get batch size from settings
-        $batch_size = get_option('advnews_emails_per_batch', 50);
+        $batch_size = max(1, min(500, absint(get_option('advnews_emails_per_batch', 50))));
         // Process the queue
         $result = $queue_class->process_queue($batch_size);
         // Log the result
