@@ -568,6 +568,13 @@ jQuery(document).ready(function($) {
 
     // Form validation
     $('#campaign-form').on('submit', function(e) {
+        if (typeof tinyMCE !== 'undefined') {
+            var contentEditor = tinyMCE.get('content');
+            if (contentEditor) {
+                contentEditor.save();
+            }
+        }
+
         var name = $('#campaign_name').val();
         var subject = $('#subject').val();
         var categories = $('input[name="category_ids[]"]:checked').length;

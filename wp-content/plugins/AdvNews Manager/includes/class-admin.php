@@ -4363,8 +4363,29 @@ border-radius: 4px;
         $html = preg_replace('/<m:[^>]+>/i', '', $html);
         $html = preg_replace('/<\/m:[^>]+>/i', '', $html);
 
-        // 2. Remove Office-specific attributes
-        $html = preg_replace('/\s+style\s*=\s*"[^"]*mso-[^"]*"/i', '', $html);
+        // 2. Remove only Office-specific style declarations while keeping useful email CSS
+        $html = preg_replace_callback('/\sstyle\s*=\s*(["\'])(.*?)\1/is', function ($matches) {
+            $style = html_entity_decode($matches[2], ENT_QUOTES, get_bloginfo('charset'));
+            $declarations = array_filter(array_map('trim', explode(';', $style)));
+            $kept = array();
+
+            foreach ($declarations as $declaration) {
+                if (strpos($declaration, ':') === false) {
+                    continue;
+                }
+
+                list($property, $value) = array_map('trim', explode(':', $declaration, 2));
+                $property_lc = strtolower($property);
+
+                if (strpos($property_lc, 'mso-') === 0 || in_array($property_lc, array('tab-stops', 'layout-grid-mode'), true)) {
+                    continue;
+                }
+
+                $kept[] = $property . ': ' . $value;
+            }
+
+            return empty($kept) ? '' : ' style="' . esc_attr(implode('; ', $kept)) . '"';
+        }, $html);
         $html = preg_replace('/\s+class\s*=\s*"[^"]*Mso[^"]*"/i', '', $html);
 
         // 3. Convert Word-specific paragraph styles to standard CSS
@@ -4449,7 +4470,10 @@ border-radius: 4px;
         $html = preg_replace('/\s+o:.*?="[^"]*"/i', '', $html);
         $html = preg_replace('/\s+w:.*?="[^"]*"/i', '', $html);
         $html = preg_replace('/\s+v:.*?="[^"]*"/i', '', $html);
-        $html = preg_replace('/font-size:\s*([\d.]+)pt/i', 'font-size: ${1}em', $html);
+        $html = preg_replace_callback('/font-size:\s*([\d.]+)pt/i', function ($matches) {
+            $pixels = round(floatval($matches[1]) * 1.333, 2);
+            return 'font-size: ' . $pixels . 'px';
+        }, $html);
         $html = preg_replace('/<!--.*?-->/s', '', $html);
         $html = preg_replace('/<p\s*[^>]*>\s*<\/p>/i', '', $html);
         $html = preg_replace('/<img\s+[^>]*style\s*=\s*"[^"]*mso-[^"]*"[^>]*>/i', '<img style="max-width: 100%; height: auto;">', $html);

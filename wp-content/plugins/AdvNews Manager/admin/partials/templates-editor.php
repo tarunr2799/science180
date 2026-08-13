@@ -155,7 +155,7 @@ $categories = $category_class->get_all_categories();
                                     <?php
                                     $content = $template ? $template->content : '';
                                     $settings = array(
-                                        'textarea_name' => 'template_html',
+                                        'textarea_name' => 'template_html_visual',
                                         'media_buttons' => true,
                                         'textarea_rows' => 15,
                                         'teeny' => false,
@@ -188,12 +188,13 @@ $categories = $category_class->get_all_categories();
                                     );
                                     wp_editor($content, 'template_content_visual', $settings);
                                     ?>
+                                    <textarea id="template_html_payload" name="template_html" style="display:none;"><?php echo esc_textarea($template ? $template->content : ''); ?></textarea>
                                 </div>
 
                                 <!-- HTML Source Tab -->
                                 <div id="tab-html" class="editor-tab-content">
                                     <textarea id="template_html_source"
-                                              name="template_html"
+                                              name="template_html_source"
                                               class="large-text code"
                                               rows="20"
                                               style="font-family: monospace; width: 100%;"><?php echo esc_textarea($template ? $template->content : ''); ?></textarea>
@@ -589,6 +590,21 @@ jQuery(document).ready(function($) {
     // Tab switching
     $('.tab-button').on('click', function() {
         var tab = $(this).data('tab');
+        var previousTab = $('.tab-button.active').data('tab');
+
+        if (previousTab === 'visual') {
+            var currentVisualContent = $('#template_content_visual').val();
+            if (typeof tinyMCE !== 'undefined') {
+                var currentVisualEditor = tinyMCE.get('template_content_visual');
+                if (currentVisualEditor) {
+                    currentVisualContent = currentVisualEditor.getContent();
+                }
+            }
+            $('#template_html_source').val(currentVisualContent);
+            $('#template_html_payload').val(currentVisualContent);
+        } else if (previousTab === 'html') {
+            $('#template_html_payload').val($('#template_html_source').val());
+        }
 
         // Update active tab button
         $('.tab-button').removeClass('active');
@@ -601,7 +617,14 @@ jQuery(document).ready(function($) {
         // Sync content between tabs
         if (tab === 'html') {
             var visualContent = $('#template_content_visual').val();
+            if (typeof tinyMCE !== 'undefined') {
+                var visualEditor = tinyMCE.get('template_content_visual');
+                if (visualEditor) {
+                    visualContent = visualEditor.getContent();
+                }
+            }
             $('#template_html_source').val(visualContent);
+            $('#template_html_payload').val(visualContent);
         } else if (tab === 'visual') {
             var htmlContent = $('#template_html_source').val();
             if (typeof tinyMCE !== 'undefined') {
@@ -610,6 +633,8 @@ jQuery(document).ready(function($) {
                     editor.setContent(htmlContent);
                 }
             }
+            $('#template_content_visual').val(htmlContent);
+            $('#template_html_payload').val(htmlContent);
         }
     });
 
@@ -680,6 +705,7 @@ jQuery(document).ready(function($) {
                     }
                     if (response.data.content) {
                         $('#template_html_source').val(response.data.content);
+                        $('#template_html_payload').val(response.data.content);
                         if (typeof tinyMCE !== 'undefined') {
                             var editor = tinyMCE.get('template_content_visual');
                             if (editor) {
@@ -742,14 +768,17 @@ jQuery(document).ready(function($) {
             return false;
         }
 
-        // Sync editor content before submit
+        // Sync one authoritative content field before submit.
         var activeTab = $('.tab-button.active').data('tab');
+        var templateHtml = $('#template_html_source').val();
         if (activeTab === 'visual' && typeof tinyMCE !== 'undefined') {
             var editor = tinyMCE.get('template_content_visual');
             if (editor) {
-                $('#template_html_source').val(editor.getContent());
+                templateHtml = editor.getContent();
+                $('#template_html_source').val(templateHtml);
             }
         }
+        $('#template_html_payload').val(templateHtml);
 
         $('#save_template').prop('disabled', true);
         return true;

@@ -31,27 +31,8 @@ class AdvNews_Campaign
         // 3. Sanitize the remaining data (name, subject, etc.)
         $data = AdvNews_Security::sanitize_array($data);
         
-        // 4. CRITICAL FIX: Fix "Word Span Soup" and missing line breaks BEFORE wp_kses
-        // A. Flatten redundant nested spans
-        $content = preg_replace('/<span[^>]*>(\s*<span[^>]*>(?:(?!<span).)*<\/span>\s*)<\/span>/is', '$1', $content);
-
-        // B. Convert ANY whitespace OR WordPress paragraph breaks between spans to <br> tags
-        $content = preg_replace_callback('/(<\/span>)(\s*<\/p>\s*<p>\s*|\s+)(<span)/i', function($matches) {
-            $gap = $matches[2];
-            
-            if (stripos($gap, '</p>') !== false) {
-                error_log('[AdvNews Debug] Campaign Regex MATCHED: Detected </p><p> gap. Injecting <br>.');
-                return $matches[1] . '</p><p><br>' . $matches[3];
-            }
-            
-            $newline_count = substr_count($gap, "\n") + substr_count($gap, "\r");
-            $br_count = ($newline_count >= 2) ? 2 : 1;
-            $br_tags = str_repeat('<br>', $br_count);
-            
-            error_log('[AdvNews Debug] Campaign Regex MATCHED! Injecting ' . $br_count . ' <br> tag(s). Gap hex: ' . bin2hex($gap));
-            
-            return $matches[1] . $br_tags . $matches[3];
-        }, $content);
+        // 4. Fix Word span soup and missing line breaks before wp_kses.
+        $content = $this->normalize_word_span_breaks($content);
 
         // 5. Sanitize content using the EMAIL-SAFE sanitizer (preserves align, bgcolor, etc.)
         $allowed_html = array(
@@ -173,27 +154,8 @@ class AdvNews_Campaign
         // 3. Sanitize the remaining data
         $data = AdvNews_Security::sanitize_array($data);
         
-        // 4. CRITICAL FIX: Fix "Word Span Soup" and missing line breaks BEFORE wp_kses
-        // A. Flatten redundant nested spans
-        $content = preg_replace('/<span[^>]*>(\s*<span[^>]*>(?:(?!<span).)*<\/span>\s*)<\/span>/is', '$1', $content);
-
-        // B. Convert ANY whitespace OR WordPress paragraph breaks between spans to <br> tags
-        $content = preg_replace_callback('/(<\/span>)(\s*<\/p>\s*<p>\s*|\s+)(<span)/i', function($matches) {
-            $gap = $matches[2];
-            
-            if (stripos($gap, '</p>') !== false) {
-                error_log('[AdvNews Debug] Campaign Regex MATCHED: Detected </p><p> gap. Injecting <br>.');
-                return $matches[1] . '</p><p><br>' . $matches[3];
-            }
-            
-            $newline_count = substr_count($gap, "\n") + substr_count($gap, "\r");
-            $br_count = ($newline_count >= 2) ? 2 : 1;
-            $br_tags = str_repeat('<br>', $br_count);
-            
-            error_log('[AdvNews Debug] Campaign Regex MATCHED! Injecting ' . $br_count . ' <br> tag(s). Gap hex: ' . bin2hex($gap));
-            
-            return $matches[1] . $br_tags . $matches[3];
-        }, $content);
+        // 4. Fix Word span soup and missing line breaks before wp_kses.
+        $content = $this->normalize_word_span_breaks($content);
 
         // 5. Sanitize content using the EMAIL-SAFE sanitizer (preserves align, bgcolor, etc.)
         $allowed_html = array(
@@ -297,6 +259,24 @@ class AdvNews_Campaign
                 ));
             }
         }
+    }
+
+    private function normalize_word_span_breaks($content)
+    {
+        $content = preg_replace('/<span[^>]*>(\s*<span[^>]*>(?:(?!<span).)*<\/span>\s*)<\/span>/is', '$1', $content);
+
+        return preg_replace_callback('/(<\/span>)(\s*<\/p>\s*<p[^>]*>\s*|[ \t]*(?:\r\n|\r|\n)+[ \t\r\n]*)(<span)/i', function ($matches) {
+            $gap = $matches[2];
+
+            if (stripos($gap, '</p>') !== false) {
+                return $matches[1] . $gap . $matches[3];
+            }
+
+            $newline_count = substr_count($gap, "\n") + substr_count($gap, "\r");
+            $br_count = $newline_count > 1 ? 2 : 1;
+
+            return $matches[1] . str_repeat('<br>', $br_count) . $matches[3];
+        }, $content);
     }
 
     /**
@@ -860,11 +840,15 @@ class AdvNews_Campaign
             return false;
         }
 
+        if (preg_match('/<(p|div|h[1-6]|table|blockquote|section|article)\b/i', $content)) {
+            return false;
+        }
+
         if (strpos($content, "\n") !== false) {
             return true;
         }
 
-        return !preg_match('/<(p|div|br|h[1-6]|ul|ol|li|table|blockquote|section|article)\b/i', $content);
+        return !preg_match('/<(br|ul|ol|li)\b/i', $content);
     }
 
     private function apply_email_body_defaults($content)
