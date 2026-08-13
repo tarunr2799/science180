@@ -1657,10 +1657,14 @@ class AdvNews_Admin
         ?>
         <div class="queue-status" style="background:#f8f9fa; border:1px solid #ccd0d4; border-radius:4px; padding:20px; margin:20px 0;">
             <h3><?php _e('Current Queue Status', 'advnews-manager'); ?></h3>
-            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:15px 0;">
+            <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:15px 0;">
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#2271b1;"><?php echo esc_html($queue_status['queued']); ?></span>
                     <span style="display:block; font-size:12px; color:#666;"><?php _e('Queued', 'advnews-manager'); ?></span>
+                </div>
+                <div style="text-align:center;">
+                    <span style="font-size:24px; font-weight:600; color:#f0c33c;"><?php echo esc_html($queue_status['on_cooldown']); ?></span>
+                    <span style="display:block; font-size:12px; color:#666;"><?php _e('On Cooldown', 'advnews-manager'); ?></span>
                 </div>
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#f0c33c;"><?php echo esc_html($queue_status['sending']); ?></span>
@@ -1675,8 +1679,24 @@ class AdvNews_Admin
                     <span style="display:block; font-size:12px; color:#666;"><?php _e('Failed', 'advnews-manager'); ?></span>
                 </div>
             </div>
+            <?php if (!empty($queue_status['on_cooldown'])): ?>
+                <p style="margin:8px 0 15px; color:#996800;">
+                    <?php
+                    printf(
+                        esc_html(_n(
+                            '%d queued email is waiting for the cooldown period to expire.',
+                            '%d queued emails are waiting for the cooldown period to expire.',
+                            intval($queue_status['on_cooldown']),
+                            'advnews-manager'
+                        )),
+                        esc_html(number_format_i18n($queue_status['on_cooldown']))
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button type="button" class="button" id="advnews_process_queue_now"><?php _e('Process Queue Now', 'advnews-manager'); ?></button>
+                <button type="button" class="button" id="advnews_clear_cooldown_delays"><?php _e('Clear Cooldown Delays', 'advnews-manager'); ?></button>
                 <button type="button" class="button" id="advnews_clear_stuck_queue"><?php _e('Clear Stuck', 'advnews-manager'); ?></button>
             </div>
         </div>
@@ -3969,7 +3989,11 @@ border-radius: 4px;
                     success: function(response) {
                         console.log('[AdvNews] Process Queue Response:', response);
                         if (response.success) {
-                            alert(response.data.message || 'Queue processed successfully.');
+                            var message = response.data.message || 'Queue processed successfully.';
+                            if (response.data.data && parseInt(response.data.data.on_cooldown, 10) > 0) {
+                                message += '\n' + response.data.data.on_cooldown + ' queued email(s) are still waiting for cooldown.';
+                            }
+                            alert(message);
                             location.reload();
                         } else {
                             alert('Server Error: ' + (response.data.message || 'Unknown error.'));
@@ -3978,6 +4002,47 @@ border-radius: 4px;
                     },
                     error: function(xhr, status, error) {
                         console.error('[AdvNews] Process Queue AJAX Error:', status, error);
+                        console.error('[AdvNews] Server Response:', xhr.responseText);
+                        alert('AJAX Connection Failed. Check browser console (F12) for details.');
+                        button.prop('disabled', false).text(originalText);
+                    }
+                });
+            });
+
+            // Clear cooldown delays
+            $('#advnews_clear_cooldown_delays').on('click', function(e) {
+                e.preventDefault();
+                console.log('[AdvNews] Clear Cooldown button clicked');
+
+                if (!confirm('This will remove cooldown delays from queued emails and allow them to send on the next queue run. Continue?')) {
+                    return;
+                }
+
+                var button = $(this);
+                var originalText = button.text();
+                button.prop('disabled', true).text('Clearing...');
+
+                $.ajax({
+                    url: ajaxUrl,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        action: 'advnews_clear_cooldown_delays',
+                        _wpnonce: securityNonce,
+                        nonce: securityNonce
+                    },
+                    success: function(response) {
+                        console.log('[AdvNews] Clear Cooldown Response:', response);
+                        if (response.success) {
+                            alert(response.data.message || 'Cooldown delays cleared successfully.');
+                            location.reload();
+                        } else {
+                            alert('Server Error: ' + (response.data.message || 'Unknown error.'));
+                            button.prop('disabled', false).text(originalText);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('[AdvNews] Clear Cooldown AJAX Error:', status, error);
                         console.error('[AdvNews] Server Response:', xhr.responseText);
                         alert('AJAX Connection Failed. Check browser console (F12) for details.');
                         button.prop('disabled', false).text(originalText);
