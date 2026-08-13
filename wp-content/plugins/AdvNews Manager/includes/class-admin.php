@@ -2023,6 +2023,11 @@ class AdvNews_Admin
                             <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
                         </button>
                         <div class="advnews-multiselect-menu" role="listbox" aria-multiselectable="true">
+                            <label class="advnews-multiselect-option advnews-multiselect-select-all">
+                                <input type="checkbox" class="advnews-multiselect-select-all-input">
+                                <span class="advnews-multiselect-check" aria-hidden="true"></span>
+                                <span class="advnews-multiselect-text"><?php _e('Select all categories', 'advnews-manager'); ?></span>
+                            </label>
                             <?php foreach ($categories as $category): ?>
                                 <label class="advnews-multiselect-option">
                                     <input type="checkbox" class="advnews-category-filter-option" value="<?php echo esc_attr($category->id); ?>">
@@ -2085,14 +2090,25 @@ class AdvNews_Admin
         </div>
         <script>
             jQuery(document).ready(function($) {
+                function getAdvNewsMultiSelectOptions($select) {
+                    return $select.find('input[type="checkbox"]').not(':disabled').not('.advnews-multiselect-select-all-input');
+                }
+
                 function updateAdvNewsMultiSelect($select) {
-                    var checked = $select.find('input[type="checkbox"]:checked:not(:disabled)');
+                    var options = getAdvNewsMultiSelectOptions($select);
+                    var checked = options.filter(':checked');
                     var label = $select.find('.advnews-multiselect-label');
                     var placeholder = $select.data('placeholder') || '';
                     var plural = $select.data('selected-plural') || 'selected';
+                    var selectAll = $select.find('.advnews-multiselect-select-all-input');
                     var names = checked.map(function() {
                         return $.trim($(this).closest('.advnews-multiselect-option').find('.advnews-multiselect-text').first().text());
                     }).get();
+
+                    if (selectAll.length) {
+                        selectAll.prop('checked', options.length > 0 && checked.length === options.length);
+                        selectAll.prop('indeterminate', checked.length > 0 && checked.length < options.length);
+                    }
 
                     if (!checked.length) {
                         label.text(placeholder);
@@ -2140,7 +2156,11 @@ class AdvNews_Admin
                 });
 
                 $(document).on('change', '.advnews-multiselect input[type="checkbox"]', function() {
-                    updateAdvNewsMultiSelect($(this).closest('.advnews-multiselect'));
+                    var $select = $(this).closest('.advnews-multiselect');
+                    if ($(this).hasClass('advnews-multiselect-select-all-input')) {
+                        getAdvNewsMultiSelectOptions($select).prop('checked', $(this).is(':checked'));
+                    }
+                    updateAdvNewsMultiSelect($select);
                     filterCategoryCards();
                 });
 
@@ -2148,6 +2168,7 @@ class AdvNews_Admin
 
                 $('.advnews-clear-category-filter').on('click', function() {
                     $('.advnews-category-filter-option').prop('checked', false);
+                    $('.advnews-multiselect-select-all-input').prop('checked', false).prop('indeterminate', false);
                     $('.advnews-category-search').val('');
                     $('.advnews-multiselect').each(function() {
                         updateAdvNewsMultiSelect($(this));
@@ -2243,6 +2264,12 @@ class AdvNews_Admin
             }
             .advnews-multiselect-option:hover {
                 background: #f0f6fc;
+            }
+            .advnews-multiselect-select-all {
+                border-bottom: 1px solid #dcdcde;
+                font-weight: 600;
+                margin-bottom: 4px;
+                padding-bottom: 8px;
             }
             .advnews-multiselect-option input {
                 position: absolute;
