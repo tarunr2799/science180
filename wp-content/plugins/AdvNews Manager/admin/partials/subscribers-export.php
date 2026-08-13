@@ -74,6 +74,9 @@ $categories = $this->wpdb->get_results("SELECT * FROM {$this->wpdb->prefix}{$thi
                             <input type="text" id="export_search" name="search"
                                    placeholder="<?php _e('Search by email or name...', 'advnews-manager'); ?>"
                                    class="regular-text">
+                            <p class="description">
+                                <?php _e('Filters subscribers before preview/export by email, name, organization, title, website, description, or country.', 'advnews-manager'); ?>
+                            </p>
                         </td>
                     </tr>
 

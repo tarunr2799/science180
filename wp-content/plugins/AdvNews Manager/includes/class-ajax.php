@@ -194,14 +194,23 @@ class AdvNews_Ajax
      */
     private function verify_nonce()
     {
-        $nonce = isset($_POST['_wpnonce']) ? $_POST['_wpnonce'] :
-            (isset($_POST['nonce']) ? $_POST['nonce'] : null);
-
-        if (!$nonce || !wp_verify_nonce($nonce, 'advnews_ajax_nonce')) {
-            wp_send_json_error(array(
-                'message' => __('Security check failed.', 'advnews-manager')
-            ));
+        $nonce_candidates = array();
+        if (isset($_POST['_wpnonce']) && is_scalar($_POST['_wpnonce'])) {
+            $nonce_candidates[] = sanitize_text_field(wp_unslash($_POST['_wpnonce']));
         }
+        if (isset($_POST['nonce']) && is_scalar($_POST['nonce'])) {
+            $nonce_candidates[] = sanitize_text_field(wp_unslash($_POST['nonce']));
+        }
+
+        foreach (array_unique($nonce_candidates) as $nonce) {
+            if (wp_verify_nonce($nonce, 'advnews_ajax_nonce')) {
+                return;
+            }
+        }
+
+        wp_send_json_error(array(
+            'message' => __('Security check failed.', 'advnews-manager')
+        ));
     }
 
     /**
@@ -2444,14 +2453,29 @@ class AdvNews_Ajax
         $this->check_capability();
 
         $args = array(
-            'status' => isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '',
-            'category_id' => isset($_POST['category_id']) ? intval($_POST['category_id']) : null,
-            'search' => isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '',
-            'date_from' => isset($_POST['date_from']) ? sanitize_text_field($_POST['date_from']) : '',
-            'date_to' => isset($_POST['date_to']) ? sanitize_text_field($_POST['date_to']) : '',
             'limit' => 10,
             'offset' => 0
         );
+        if (isset($_POST['status']) && $_POST['status']) {
+            $args['status'] = sanitize_text_field($_POST['status']);
+        }
+        if (isset($_POST['category_ids']) && is_array($_POST['category_ids'])) {
+            $category_ids = array_values(array_unique(array_filter(array_map('intval', $_POST['category_ids']))));
+            if (!empty($category_ids)) {
+                $args['category_ids'] = $category_ids;
+            }
+        } elseif (isset($_POST['category_id']) && $_POST['category_id']) {
+            $args['category_id'] = intval($_POST['category_id']);
+        }
+        if (isset($_POST['search']) && $_POST['search']) {
+            $args['search'] = sanitize_text_field($_POST['search']);
+        }
+        if (isset($_POST['date_from']) && $_POST['date_from']) {
+            $args['date_from'] = sanitize_text_field($_POST['date_from']);
+        }
+        if (isset($_POST['date_to']) && $_POST['date_to']) {
+            $args['date_to'] = sanitize_text_field($_POST['date_to']);
+        }
 
         $subscriber_class = new AdvNews_Subscriber();
         $subscribers = $subscriber_class->get_all_subscribers($args);
