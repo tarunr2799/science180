@@ -39,7 +39,15 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
     <hr class="wp-header-end">
 
     <?php
-    $campaign_notice_messages = array('bulk_campaigns_deleted', 'bulk_campaigns_none', 'bulk_action_missing');
+    $campaign_notice_messages = array(
+        'campaign_saved',
+        'campaign_updated',
+        'campaign_sent',
+        'campaign_scheduled',
+        'bulk_campaigns_deleted',
+        'bulk_campaigns_none',
+        'bulk_action_missing'
+    );
     ?>
     <?php if (isset($_GET['message']) && in_array(sanitize_key($_GET['message']), $campaign_notice_messages, true)): ?>
         <?php
@@ -50,7 +58,15 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
         <div class="notice <?php echo esc_attr($notice_class); ?> is-dismissible">
             <p>
                 <?php
-                if ($message === 'bulk_campaigns_deleted') {
+                if ($message === 'campaign_saved') {
+                    esc_html_e('Campaign saved successfully.', 'advnews-manager');
+                } elseif ($message === 'campaign_updated') {
+                    esc_html_e('Campaign updated successfully.', 'advnews-manager');
+                } elseif ($message === 'campaign_sent') {
+                    esc_html_e('Campaign queued for sending.', 'advnews-manager');
+                } elseif ($message === 'campaign_scheduled') {
+                    esc_html_e('Campaign scheduled successfully.', 'advnews-manager');
+                } elseif ($message === 'bulk_campaigns_deleted') {
                     printf(
                         esc_html(_n('%s campaign deleted.', '%s campaigns deleted.', $processed, 'advnews-manager')),
                         esc_html(number_format_i18n($processed))

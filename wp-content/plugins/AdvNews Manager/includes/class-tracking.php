@@ -312,15 +312,26 @@ class AdvNews_Tracking
     {
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
-        // Get total sent and opened counts
+        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+
+        // Count opens/clicks from tracking tables so one mutable log status cannot hide prior opens.
         $stats = $this->wpdb->get_row($this->wpdb->prepare(
             "SELECT
-            COUNT(*) as total_sent,
-            SUM(CASE WHEN status = 'opened' THEN 1 ELSE 0 END) as total_opened,
-            SUM(CASE WHEN status = 'clicked' THEN 1 ELSE 0 END) as total_clicked
-            FROM $table_logs
-            WHERE subscriber_id = %d
-            AND status IN ('delivered', 'opened', 'clicked')",
+                COUNT(DISTINCT l.id) as total_sent,
+                COUNT(DISTINCT CASE WHEN l.status = 'opened' OR o.campaign_log_id IS NOT NULL THEN l.id END) as total_opened,
+                COUNT(DISTINCT CASE WHEN l.status = 'clicked' OR c.campaign_log_id IS NOT NULL THEN l.id END) as total_clicked
+            FROM $table_logs l
+            LEFT JOIN $table_opens o
+                ON o.campaign_log_id = l.id
+                AND o.subscriber_id = %d
+            LEFT JOIN $table_clicks c
+                ON c.campaign_log_id = l.id
+                AND c.subscriber_id = %d
+            WHERE l.subscriber_id = %d
+            AND l.status IN ('delivered', 'opened', 'clicked')",
+            $subscriber_id,
+            $subscriber_id,
             $subscriber_id
         ));
         if ($stats && $stats->total_sent > 0) {

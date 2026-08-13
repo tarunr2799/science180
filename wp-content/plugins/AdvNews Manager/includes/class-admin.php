@@ -4284,15 +4284,13 @@ border-radius: 4px;
 
         $redirect_url = add_query_arg(array(
             'page' => 'advnews-campaigns',
-            'action' => 'edit',
-            'id' => $campaign_id,
             'message' => $message
         ), admin_url('admin.php'));
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('AdvNews: Redirecting to: ' . $redirect_url);
         }
-        wp_redirect($redirect_url);
+        wp_safe_redirect($redirect_url);
         exit;
     }
 

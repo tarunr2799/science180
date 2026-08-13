@@ -896,17 +896,28 @@ class AdvNews_Campaign
     {
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
 
         $stats = $this->wpdb->get_row($this->wpdb->prepare(
             "SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-                SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered,
-                SUM(CASE WHEN status = 'opened' THEN 1 ELSE 0 END) as opened,
-                SUM(CASE WHEN status = 'clicked' THEN 1 ELSE 0 END) as clicked,
-                SUM(CASE WHEN status = 'bounced' THEN 1 ELSE 0 END) as bounced,
-                SUM(CASE WHEN status = 'unsubscribed' THEN 1 ELSE 0 END) as unsubscribed
-            FROM $table_logs WHERE campaign_id = %d",
+                COUNT(DISTINCT l.id) as total,
+                COUNT(DISTINCT CASE WHEN l.status = 'sent' THEN l.id END) as sent,
+                COUNT(DISTINCT CASE WHEN l.status IN ('delivered', 'opened', 'clicked') THEN l.id END) as delivered,
+                COUNT(DISTINCT CASE WHEN l.status = 'opened' OR o.campaign_log_id IS NOT NULL THEN l.id END) as opened,
+                COUNT(DISTINCT CASE WHEN l.status = 'clicked' OR c.campaign_log_id IS NOT NULL THEN l.id END) as clicked,
+                COUNT(DISTINCT CASE WHEN l.status = 'bounced' THEN l.id END) as bounced,
+                COUNT(DISTINCT CASE WHEN l.status = 'unsubscribed' THEN l.id END) as unsubscribed
+            FROM $table_logs l
+            LEFT JOIN $table_opens o
+                ON o.campaign_log_id = l.id
+                AND o.campaign_id = %d
+            LEFT JOIN $table_clicks c
+                ON c.campaign_log_id = l.id
+                AND c.campaign_id = %d
+            WHERE l.campaign_id = %d",
+            $campaign_id,
+            $campaign_id,
             $campaign_id
         ));
 
