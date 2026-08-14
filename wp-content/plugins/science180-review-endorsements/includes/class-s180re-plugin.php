@@ -25,6 +25,7 @@ class S180RE_Plugin
         add_filter('query_vars', array($this, 'register_query_vars'));
         add_filter('document_title_parts', array($this, 'detail_title_parts'));
         add_action('template_redirect', array($this, 'handle_verification_and_detail_routes'));
+        add_action('template_redirect', array($this, 'render_shortcode_page_fallback'), 20);
 
         add_shortcode('science180_review_request', array($this, 'render_review_request_shortcode'));
         add_shortcode('science180_endorsement_form', array($this, 'render_endorsement_form_shortcode'));
@@ -815,6 +816,30 @@ class S180RE_Plugin
         if ($endorsement_id > 0) {
             $this->render_endorsement_detail_page($endorsement_id);
         }
+    }
+
+    public function render_shortcode_page_fallback()
+    {
+        if (is_admin() || !is_page()) {
+            return;
+        }
+
+        $review_page_id = (int) get_option('s180re_review_page_id');
+        $endorsement_page_id = (int) get_option('s180re_endorsement_page_id');
+        $is_review_page = ($review_page_id > 0 && is_page($review_page_id)) || is_page('review-copy-request');
+        $is_endorsement_page = ($endorsement_page_id > 0 && is_page($endorsement_page_id)) || is_page('endorsement');
+
+        if (!$is_review_page && !$is_endorsement_page) {
+            return;
+        }
+
+        status_header(200);
+        get_header();
+        echo '<main id="primary" class="site-main s180re-template-main">';
+        echo do_shortcode($is_review_page ? '[science180_review_request]' : "[science180_endorsement_form]\n\n[science180_endorsements]");
+        echo '</main>';
+        get_footer();
+        exit;
     }
 
     private function handle_endorsement_verification()
