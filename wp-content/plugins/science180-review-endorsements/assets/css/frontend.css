@@ -10,7 +10,7 @@
     color: var(--s180re-ink);
     max-width: 1120px;
     margin: 0 auto;
-    padding: 28px 18px;
+    padding: 24px 18px;
     box-sizing: border-box;
 }
 
@@ -34,7 +34,7 @@
 .s180re-link-button,
 .s180re-text-link {
     color: var(--s180re-accent-strong);
-    font-weight: 800;
+    font-weight: 700;
     text-decoration: none;
 }
 
@@ -42,12 +42,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 42px;
+    min-height: 38px;
     border: 1px solid var(--s180re-accent);
     border-radius: 8px;
     background: var(--s180re-accent);
     color: #fff;
-    padding: 10px 14px;
+    padding: 8px 13px;
 }
 
 .s180re-link-button-secondary {
@@ -75,8 +75,8 @@
 .s180re-public-heading h2 {
     margin: 0;
     color: var(--s180re-ink);
-    font-size: clamp(28px, 4vw, 44px);
-    line-height: 1.08;
+    font-size: clamp(24px, 3vw, 36px);
+    line-height: 1.12;
     letter-spacing: 0;
 }
 
@@ -164,11 +164,11 @@
 .s180re-form {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 12px;
     border: 1px solid var(--s180re-line);
     border-radius: 8px;
     background: var(--s180re-panel);
-    padding: 18px;
+    padding: 16px;
 }
 
 .s180re-review-shell .s180re-form {
@@ -236,12 +236,12 @@
 .s180re-field textarea,
 .s180re-form select {
     width: 100%;
-    min-height: 44px;
+    min-height: 40px;
     border: 1px solid #b9c4cc;
     border-radius: 6px;
     background: #fff;
     color: var(--s180re-ink);
-    padding: 10px 11px;
+    padding: 8px 10px;
     font: inherit;
 }
 
@@ -261,14 +261,14 @@
 .s180re-button {
     grid-column: 1 / -1;
     justify-self: start;
-    min-height: 46px;
+    min-height: 42px;
     border: 0;
     border-radius: 8px;
     background: var(--s180re-accent);
     color: #fff;
-    padding: 11px 18px;
+    padding: 10px 16px;
     font: inherit;
-    font-weight: 800;
+    font-weight: 700;
     cursor: pointer;
 }
 
@@ -305,7 +305,7 @@
 
 .s180re-selected-book h2 {
     margin: 0;
-    font-size: 20px;
+    font-size: 18px;
     line-height: 1.2;
     letter-spacing: 0;
 }
@@ -381,7 +381,7 @@
 .s180re-endorsement-quote {
     margin-top: 12px !important;
     color: var(--s180re-ink) !important;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.55;
 }
 
@@ -431,8 +431,8 @@
 
 .s180re-detail h1 {
     margin-top: 0;
-    font-size: clamp(28px, 4vw, 44px);
-    line-height: 1.08;
+    font-size: clamp(24px, 3vw, 36px);
+    line-height: 1.12;
     letter-spacing: 0;
 }
 
@@ -462,8 +462,8 @@
 }
 
 .s180re-detail-copy {
-    font-size: 18px;
-    line-height: 1.7;
+    font-size: 16px;
+    line-height: 1.65;
 }
 
 .s180re-detail-copy p {

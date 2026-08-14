@@ -65,6 +65,75 @@
     margin: 0;
 }
 
+.s180re-filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0 12px;
+}
+
+.s180re-filter-form input[type="search"] {
+    width: min(100%, 360px);
+}
+
+.s180re-admin-table .check-column {
+    width: 3em;
+}
+
+.s180re-row-actions,
+.s180re-row-actions-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.s180re-status-badge,
+.s180re-status-note {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: #f0f0f1;
+    color: #1d2327;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.s180re-status-verified {
+    background: #fff8e5;
+    color: #6f4f00;
+}
+
+.s180re-status-approved {
+    background: #edfaef;
+    color: #075c18;
+}
+
+.s180re-status-rejected {
+    background: #fcf0f1;
+    color: #8a2424;
+}
+
+.s180re-status-pending_verification {
+    background: #eef3fb;
+    color: #1d4f82;
+}
+
+.s180re-delete-button {
+    border-color: #d63638 !important;
+    color: #b32d2e !important;
+}
+
+.s180re-delete-button:hover,
+.s180re-delete-button:focus {
+    border-color: #b32d2e !important;
+    color: #8a2424 !important;
+}
+
 .s180re-admin-photo {
     width: 150px;
     height: 150px;
