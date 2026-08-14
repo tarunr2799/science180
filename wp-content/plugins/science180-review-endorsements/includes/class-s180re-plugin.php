@@ -697,8 +697,6 @@ class S180RE_Plugin
             $this->redirect_back('endorsement_invalid');
         }
 
-        global $wpdb;
-
         $email = $this->clean_email_from_post('email');
         if (!$email) {
             $this->redirect_back('endorsement_invalid_email');
@@ -711,12 +709,8 @@ class S180RE_Plugin
             $organization = trim($first_name . ' ' . $last_name);
         }
 
-        $photo = $this->handle_public_photo_upload();
-        if (is_wp_error($photo)) {
-            $this->redirect_back('endorsement_photo_error');
-        }
-
         $token = $this->generate_token();
+        $token_hash = $this->pending_token_hash($token);
         $now = current_time('mysql');
         $data = array(
             'email' => $email,
@@ -726,29 +720,25 @@ class S180RE_Plugin
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $organization,
             'comment' => $this->post_textarea('comment', true),
-            'photo_id' => isset($photo['id']) ? (int) $photo['id'] : 0,
-            'photo_url' => isset($photo['url']) ? esc_url_raw($photo['url']) : '',
-            'status' => 'pending_verification',
-            'verification_token' => $token,
             'token_expires' => gmdate('Y-m-d H:i:s', time() + WEEK_IN_SECONDS),
-            'slug' => '',
-            'verified_at' => null,
-            'reviewed_at' => null,
             'created_at' => $now,
-            'updated_at' => $now,
         );
 
         if ($this->has_empty_required($data, array('first_name', 'last_name', 'country_origin', 'country_residence', 'organization', 'comment'))) {
             $this->redirect_back('endorsement_missing');
         }
 
-        $inserted = $wpdb->insert(
-            $this->table('endorsements'),
-            $data,
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
-        );
+        $this->cleanup_expired_pending_endorsements();
 
-        if (!$inserted) {
+        $photo = $this->handle_pending_photo_upload($token_hash);
+        if (is_wp_error($photo)) {
+            $this->redirect_back('endorsement_photo_error');
+        }
+
+        $data['photo'] = $photo;
+
+        if (!$this->save_pending_endorsement($token_hash, $data)) {
+            $this->delete_pending_photo($photo);
             $this->redirect_back('endorsement_error');
         }
 
@@ -774,10 +764,10 @@ class S180RE_Plugin
         return true;
     }
 
-    private function handle_public_photo_upload()
+    private function handle_pending_photo_upload($token_hash)
     {
         if (empty($_FILES['photo']) || empty($_FILES['photo']['name'])) {
-            return array('id' => 0, 'url' => '');
+            return array();
         }
 
         $file = $_FILES['photo'];
@@ -785,18 +775,225 @@ class S180RE_Plugin
             return new WP_Error('s180re_file_large', __('Photo is too large.', 'science180-review-endorsements'));
         }
 
-        $allowed = array('image/jpeg', 'image/png', 'image/webp');
-        if (!empty($file['type']) && !in_array($file['type'], $allowed, true)) {
+        $checked = wp_check_filetype_and_ext($file['tmp_name'], $file['name']);
+        $allowed_types = array('image/jpeg', 'image/png', 'image/webp');
+        if (empty($checked['type']) || !in_array($checked['type'], $allowed_types, true)) {
             return new WP_Error('s180re_file_type', __('Photo type is not supported.', 'science180-review-endorsements'));
         }
 
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        require_once ABSPATH . 'wp-admin/includes/media.php';
+        $pending_dir = $this->pending_endorsement_dir();
+        if (!$pending_dir) {
+            return new WP_Error('s180re_pending_dir', __('The pending upload folder is not writable.', 'science180-review-endorsements'));
+        }
+
+        $original_name = sanitize_file_name(wp_basename($file['name']));
+        if ($original_name === '') {
+            $original_name = 'endorsement-photo';
+        }
+
+        $filename = wp_unique_filename($pending_dir, $token_hash . '-' . $original_name);
+        $target = trailingslashit($pending_dir) . $filename;
+
+        if (!is_uploaded_file($file['tmp_name']) || !move_uploaded_file($file['tmp_name'], $target)) {
+            return new WP_Error('s180re_photo_move_failed', __('The photo could not be stored for verification.', 'science180-review-endorsements'));
+        }
+
+        @chmod($target, defined('FS_CHMOD_FILE') ? FS_CHMOD_FILE : 0644);
+
+        return array(
+            'path' => $target,
+            'name' => $original_name,
+            'type' => $checked['type'],
+        );
+    }
+
+    private function pending_token_hash($token)
+    {
+        return hash_hmac('sha256', (string) $token, wp_salt('auth'));
+    }
+
+    private function pending_endorsement_dir()
+    {
+        $upload_dir = wp_upload_dir();
+        if (!empty($upload_dir['error']) || empty($upload_dir['basedir'])) {
+            return '';
+        }
+
+        $dir = trailingslashit($upload_dir['basedir']) . 's180re-pending-endorsements';
+        if (!wp_mkdir_p($dir)) {
+            return '';
+        }
+
+        $index_file = trailingslashit($dir) . 'index.html';
+        if (!file_exists($index_file)) {
+            file_put_contents($index_file, '');
+        }
+
+        $htaccess_file = trailingslashit($dir) . '.htaccess';
+        if (!file_exists($htaccess_file)) {
+            file_put_contents($htaccess_file, "Deny from all\n");
+        }
+
+        return $dir;
+    }
+
+    private function pending_endorsement_path($token_hash)
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', (string) $token_hash)) {
+            return '';
+        }
+
+        $dir = $this->pending_endorsement_dir();
+        if (!$dir) {
+            return '';
+        }
+
+        return trailingslashit($dir) . $token_hash . '.json';
+    }
+
+    private function save_pending_endorsement($token_hash, $data)
+    {
+        $path = $this->pending_endorsement_path($token_hash);
+        if (!$path) {
+            return false;
+        }
+
+        $payload = array(
+            'version' => 1,
+            'token_hash' => $token_hash,
+            'data' => $data,
+        );
+
+        $saved = file_put_contents($path, wp_json_encode($payload), LOCK_EX);
+        if ($saved === false) {
+            return false;
+        }
+
+        @chmod($path, defined('FS_CHMOD_FILE') ? FS_CHMOD_FILE : 0644);
+        return true;
+    }
+
+    private function load_pending_endorsement($token)
+    {
+        $token_hash = $this->pending_token_hash($token);
+        $path = $this->pending_endorsement_path($token_hash);
+        if (!$path || !file_exists($path)) {
+            return null;
+        }
+
+        $payload = json_decode((string) file_get_contents($path), true);
+        if (!is_array($payload) || empty($payload['token_hash']) || empty($payload['data']) || !hash_equals((string) $payload['token_hash'], $token_hash)) {
+            return null;
+        }
+
+        return array(
+            'hash' => $token_hash,
+            'path' => $path,
+            'data' => $payload['data'],
+        );
+    }
+
+    private function cleanup_expired_pending_endorsements()
+    {
+        $dir = $this->pending_endorsement_dir();
+        if (!$dir) {
+            return;
+        }
+
+        $files = glob(trailingslashit($dir) . '*.json');
+        if (!is_array($files)) {
+            return;
+        }
+
+        foreach ($files as $path) {
+            $payload = json_decode((string) file_get_contents($path), true);
+            $expires = isset($payload['data']['token_expires']) ? strtotime($payload['data']['token_expires'] . ' UTC') : 0;
+            if ($expires && $expires >= time()) {
+                continue;
+            }
+
+            $photo = isset($payload['data']['photo']) && is_array($payload['data']['photo']) ? $payload['data']['photo'] : array();
+            $this->delete_pending_photo($photo);
+            @unlink($path);
+        }
+    }
+
+    private function delete_pending_endorsement($pending)
+    {
+        if (!empty($pending['data']['photo']) && is_array($pending['data']['photo'])) {
+            $this->delete_pending_photo($pending['data']['photo']);
+        }
+
+        if (!empty($pending['path'])) {
+            @unlink($pending['path']);
+        }
+    }
+
+    private function delete_pending_photo($photo)
+    {
+        if (empty($photo['path'])) {
+            return;
+        }
+
+        $pending_dir = $this->pending_endorsement_dir();
+        $real_dir = $pending_dir ? realpath($pending_dir) : false;
+        $real_path = realpath($photo['path']);
+        if (!$real_dir || !$real_path || strpos(wp_normalize_path($real_path), trailingslashit(wp_normalize_path($real_dir))) !== 0) {
+            return;
+        }
+
+        @unlink($real_path);
+    }
+
+    private function create_attachment_from_pending_photo($photo)
+    {
+        if (empty($photo['path'])) {
+            return array('id' => 0, 'url' => '');
+        }
+
+        $pending_dir = $this->pending_endorsement_dir();
+        $real_dir = $pending_dir ? realpath($pending_dir) : false;
+        $real_path = realpath($photo['path']);
+        if (!$real_dir || !$real_path || strpos(wp_normalize_path($real_path), trailingslashit(wp_normalize_path($real_dir))) !== 0 || !is_readable($real_path)) {
+            return new WP_Error('s180re_pending_photo_missing', __('The pending photo could not be found.', 'science180-review-endorsements'));
+        }
+
+        $contents = file_get_contents($real_path);
+        if ($contents === false) {
+            return new WP_Error('s180re_pending_photo_read', __('The pending photo could not be read.', 'science180-review-endorsements'));
+        }
+
+        $filename = !empty($photo['name']) ? sanitize_file_name($photo['name']) : wp_basename($real_path);
+        if ($filename === '') {
+            $filename = 'endorsement-photo';
+        }
+
+        $upload = wp_upload_bits($filename, null, $contents);
+        if (!empty($upload['error'])) {
+            return new WP_Error('s180re_photo_publish', $upload['error']);
+        }
+
+        $filetype = wp_check_filetype($upload['file']);
+        $attachment_id = wp_insert_attachment(
+            array(
+                'post_mime_type' => $filetype['type'] ? $filetype['type'] : (isset($photo['type']) ? $photo['type'] : ''),
+                'post_title' => sanitize_text_field(pathinfo($filename, PATHINFO_FILENAME)),
+                'post_content' => '',
+                'post_status' => 'inherit',
+            ),
+            $upload['file']
+        );
+
+        if (is_wp_error($attachment_id)) {
+            @unlink($upload['file']);
+            return $attachment_id;
+        }
+
         require_once ABSPATH . 'wp-admin/includes/image.php';
 
-        $attachment_id = media_handle_upload('photo', 0);
-        if (is_wp_error($attachment_id)) {
-            return $attachment_id;
+        $metadata = wp_generate_attachment_metadata($attachment_id, $upload['file']);
+        if (!is_wp_error($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
         }
 
         return array(
@@ -891,37 +1088,58 @@ class S180RE_Plugin
         global $wpdb;
 
         $token = sanitize_text_field(wp_unslash($_GET['s180re_verify_endorsement']));
-        $table = $this->table('endorsements');
-        $endorsement = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE verification_token = %s AND status = %s",
-                $token,
-                'pending_verification'
-            )
-        );
-
         $target = $this->endorsement_page_url();
-        if (!$endorsement) {
+        $pending = $this->load_pending_endorsement($token);
+        if (!$pending) {
             wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verify_invalid', $target));
             exit;
         }
 
-        if (strtotime($endorsement->token_expires . ' UTC') < time()) {
+        $data = $pending['data'];
+        if (empty($data['token_expires']) || strtotime($data['token_expires'] . ' UTC') < time()) {
+            $this->delete_pending_endorsement($pending);
             wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verify_expired', $target));
             exit;
         }
 
-        $wpdb->update(
+        $photo = $this->create_attachment_from_pending_photo(isset($data['photo']) && is_array($data['photo']) ? $data['photo'] : array());
+        if (is_wp_error($photo)) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_photo_error', $target));
+            exit;
+        }
+
+        $now = current_time('mysql');
+        $table = $this->table('endorsements');
+        $inserted = $wpdb->insert(
             $table,
             array(
+                'email' => sanitize_email($data['email']),
+                'first_name' => sanitize_text_field($data['first_name']),
+                'last_name' => sanitize_text_field($data['last_name']),
+                'country_origin' => sanitize_text_field($data['country_origin']),
+                'country_residence' => sanitize_text_field($data['country_residence']),
+                'organization' => sanitize_text_field($data['organization']),
+                'comment' => sanitize_textarea_field($data['comment']),
+                'photo_id' => isset($photo['id']) ? (int) $photo['id'] : 0,
+                'photo_url' => isset($photo['url']) ? esc_url_raw($photo['url']) : '',
                 'status' => 'verified',
-                'verified_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql'),
+                'verification_token' => $pending['hash'],
+                'token_expires' => $data['token_expires'],
+                'slug' => '',
+                'verified_at' => $now,
+                'reviewed_at' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
             ),
-            array('id' => (int) $endorsement->id),
-            array('%s', '%s', '%s'),
-            array('%d')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
+
+        if (!$inserted) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_error', $target));
+            exit;
+        }
+
+        $this->delete_pending_endorsement($pending);
 
         wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verified', $target));
         exit;
@@ -982,6 +1200,8 @@ class S180RE_Plugin
     public function send_daily_endorsement_notice()
     {
         global $wpdb;
+
+        $this->cleanup_expired_pending_endorsements();
 
         $today = current_time('Y-m-d');
         if (get_option('s180re_last_notice_date') === $today) {
@@ -1213,7 +1433,6 @@ class S180RE_Plugin
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                    <p><code>[science180_review_request]</code></p>
                 </div>
             </div>
         </div>
@@ -1359,7 +1578,6 @@ class S180RE_Plugin
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            <p><code>[science180_endorsement_form]</code> <code>[science180_endorsements]</code></p>
         </div>
         <?php
     }
