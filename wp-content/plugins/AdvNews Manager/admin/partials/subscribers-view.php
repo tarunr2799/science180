@@ -22,19 +22,33 @@ global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
 $table_logs = $wpdb->prefix . $table_prefix . 'campaign_logs';
 $table_campaigns = $wpdb->prefix . $table_prefix . 'campaigns';
+$table_opens = $wpdb->prefix . $table_prefix . 'tracking_opens';
+$table_clicks = $wpdb->prefix . $table_prefix . 'tracking_clicks';
 
 $campaign_stats = $wpdb->get_row($wpdb->prepare(
     "SELECT
-        COUNT(*) as total_sent,
-        SUM(CASE WHEN status IN ('delivered', 'opened', 'clicked') THEN 1 ELSE 0 END) as delivered,
-        SUM(CASE WHEN status = 'opened' THEN 1 ELSE 0 END) as opened,
-        SUM(CASE WHEN status = 'clicked' THEN 1 ELSE 0 END) as clicked,
-        SUM(CASE WHEN status = 'bounced' THEN 1 ELSE 0 END) as bounced,
-        SUM(CASE WHEN status = 'unsubscribed' THEN 1 ELSE 0 END) as unsubscribed
-    FROM $table_logs
-    WHERE subscriber_id = %d",
+        COUNT(DISTINCT l.id) as total_sent,
+        COUNT(DISTINCT CASE WHEN l.status IN ('delivered', 'opened', 'clicked') THEN l.id END) as delivered,
+        COUNT(DISTINCT CASE WHEN l.status = 'opened' OR o.campaign_log_id IS NOT NULL THEN l.id END) as opened,
+        COUNT(DISTINCT CASE WHEN l.status = 'clicked' OR c.campaign_log_id IS NOT NULL THEN l.id END) as clicked,
+        COUNT(DISTINCT CASE WHEN l.status = 'bounced' THEN l.id END) as bounced,
+        COUNT(DISTINCT CASE WHEN l.status = 'unsubscribed' THEN l.id END) as unsubscribed
+    FROM $table_logs l
+    LEFT JOIN $table_opens o
+        ON o.campaign_log_id = l.id
+        AND o.subscriber_id = %d
+    LEFT JOIN $table_clicks c
+        ON c.campaign_log_id = l.id
+        AND c.subscriber_id = %d
+    WHERE l.subscriber_id = %d",
+    $subscriber_id,
+    $subscriber_id,
     $subscriber_id
 ));
+
+$delivered_count = intval($campaign_stats->delivered ?? 0);
+$subscriber_open_rate = $delivered_count > 0 ? round((intval($campaign_stats->opened ?? 0) / $delivered_count) * 100, 2) : 0;
+$subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->clicked ?? 0) / $delivered_count) * 100, 2) : 0;
 ?>
 <div class="wrap advnews-subscriber-view">
     <h1 class="wp-heading-inline">
@@ -162,13 +176,13 @@ $campaign_stats = $wpdb->get_row($wpdb->prepare(
                             </div>
                             <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
                                 <div style="font-size:24px; font-weight:600; color:#2271b1;">
-                                    <?php echo esc_html($subscriber->open_rate ?? 0); ?>%
+                                    <?php echo esc_html($subscriber_open_rate); ?>%
                                 </div>
                                 <div style="font-size:12px; color:#666;"><?php _e('Open Rate', 'advnews-manager'); ?></div>
                             </div>
                             <div style="background:#f0f6fc; padding:15px; border-radius:4px; text-align:center;">
                                 <div style="font-size:24px; font-weight:600; color:#2271b1;">
-                                    <?php echo esc_html($subscriber->click_rate ?? 0); ?>%
+                                    <?php echo esc_html($subscriber_click_rate); ?>%
                                 </div>
                                 <div style="font-size:12px; color:#666;"><?php _e('Click Rate', 'advnews-manager'); ?></div>
                             </div>

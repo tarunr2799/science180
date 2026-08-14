@@ -136,7 +136,7 @@ $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('
                                 <label>
                                     <input type="checkbox" name="advnews_maxmind_auto_update" value="1"
                                     <?php checked($maxmind_auto_update, 1); ?>>
-                                    <?php _e('Automatically update database every 24 hours via Cron', 'advnews-manager'); ?>
+                                    <?php _e('Automatically update database weekly via Cron', 'advnews-manager'); ?>
                                 </label>
                             </div>
 

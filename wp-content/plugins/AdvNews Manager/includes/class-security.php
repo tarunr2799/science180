@@ -209,7 +209,11 @@ class AdvNews_Security
     public static function get_client_ip()
     {
         $ip_address = '';
-        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+        if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $ip_address = $_SERVER['HTTP_CF_CONNECTING_IP'];
+        } elseif (isset($_SERVER['HTTP_X_REAL_IP'])) {
+            $ip_address = $_SERVER['HTTP_X_REAL_IP'];
+        } elseif (isset($_SERVER['HTTP_CLIENT_IP'])) {
             $ip_address = $_SERVER['HTTP_CLIENT_IP'];
         } elseif (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];

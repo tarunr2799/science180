@@ -188,7 +188,17 @@ class AdvNews_Cron
             }
         }
 
-        // 4. Clean up old tracking data
+        // 4. Backfill missing click geolocation for rows created before the IP was cached.
+        if (get_option('advnews_track_geolocation', true)) {
+            require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
+            $tracking_class = new AdvNews_Tracking();
+            $repaired_clicks = $tracking_class->backfill_missing_click_geolocation(array('limit' => 200));
+            if ($repaired_clicks > 0 && defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf('[AdvNews] Backfilled geolocation for %d click tracking rows', $repaired_clicks));
+            }
+        }
+
+        // 5. Clean up old tracking data
         $retention_days = get_option('advnews_tracking_retention_days', 365);
         if ($retention_days > 0) {
             $cutoff_date = date('Y-m-d', strtotime("-$retention_days days"));

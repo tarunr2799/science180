@@ -50,6 +50,37 @@ class AdvNews_Tracking
     }
 
     /**
+     * Convert a geolocation lookup response into tracking table columns.
+     */
+    private function geolocation_to_tracking_data($location)
+    {
+        $location = is_array($location) ? $location : array();
+
+        return array(
+            'country' => $location['country'] ?? '',
+            'country_code' => $location['country_code'] ?? '',
+            'city' => $location['city'] ?? '',
+            'region' => $location['region'] ?? '',
+            'latitude' => $location['latitude'] ?? null,
+            'longitude' => $location['longitude'] ?? null
+        );
+    }
+
+    /**
+     * Only treat real public locations as usable report data.
+     */
+    private function has_reportable_geolocation($location)
+    {
+        $country = isset($location['country']) ? trim((string) $location['country']) : '';
+        $country_code = isset($location['country_code']) ? trim((string) $location['country_code']) : '';
+
+        return $country !== ''
+            && !in_array($country, array('Local', 'Unknown'), true)
+            && $country_code !== ''
+            && $country_code !== 'XX';
+    }
+
+    /**
      * Record email open
      */
     public function record_open($log_id, $campaign_id, $subscriber_id)
@@ -159,26 +190,13 @@ class AdvNews_Tracking
         $latitude = null;
         $longitude = null;
         if (get_option('advnews_track_geolocation', true)) {
-            // Check cache first to avoid blocking
-            $geolocation = $this->get_geolocation()->get_cached_location_from_db($ip_address); // We will add this helper
-            if (!$geolocation) {
-                // If not cached, record open with unknown location and queue lookup
-                $country = $city = $country_code = $region = $timezone = '';
-                $latitude = $longitude = null;
-
-                // Schedule background lookup
-                if (!wp_next_scheduled('advnews_process_geolocation', array($ip_address))) {
-                    wp_schedule_single_event(time(), 'advnews_process_geolocation', array($ip_address));
-                }
-            } else {
-                $country = $geolocation['country'];
-                $city = $geolocation['city'];
-                $country_code = $geolocation['country_code'];
-                $region = $geolocation['region'] ?? '';
-                $latitude = $geolocation['latitude'];
-                $longitude = $geolocation['longitude'];
-                $timezone = $geolocation['timezone'];
-            }
+            $geolocation = $this->get_geolocation()->get_location($ip_address);
+            $country = $geolocation['country'];
+            $city = $geolocation['city'];
+            $country_code = $geolocation['country_code'];
+            $region = $geolocation['region'] ?? '';
+            $latitude = $geolocation['latitude'];
+            $longitude = $geolocation['longitude'];
         }
         // Get subscriber_id from log
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
@@ -239,6 +257,108 @@ class AdvNews_Tracking
             ));
         }
         return $link->original_url;
+    }
+
+    /**
+     * Repair click rows that were saved before geolocation data was available.
+     *
+     * @param array $args Optional filters: campaign_id, subscriber_id, limit.
+     * @return int Number of click rows updated.
+     */
+    public function backfill_missing_click_geolocation($args = array())
+    {
+        if (!get_option('advnews_track_geolocation', true)) {
+            return 0;
+        }
+
+        $args = wp_parse_args($args, array(
+            'campaign_id' => 0,
+            'subscriber_id' => 0,
+            'limit' => 50
+        ));
+
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+        $where = array(
+            "(country IS NULL OR country = '' OR country = 'Unknown' OR country = 'Local' OR country_code IS NULL OR country_code = '' OR country_code = 'XX')",
+            "ip_address IS NOT NULL",
+            "ip_address != ''",
+            "ip_address != '0.0.0.0'"
+        );
+        $params = array();
+
+        if (!empty($args['campaign_id'])) {
+            $where[] = 'campaign_id = %d';
+            $params[] = absint($args['campaign_id']);
+        }
+
+        if (!empty($args['subscriber_id'])) {
+            $where[] = 'subscriber_id = %d';
+            $params[] = absint($args['subscriber_id']);
+        }
+
+        $limit = max(1, min(200, absint($args['limit'])));
+        $params[] = $limit;
+
+        $clicks = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT id, subscriber_id, campaign_id, link_id, ip_address
+            FROM $table_clicks
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY clicked_at DESC
+            LIMIT %d",
+            $params
+        ));
+
+        if (empty($clicks)) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($clicks as $click) {
+            $location = $this->get_geolocation()->get_location($click->ip_address);
+            if (!$this->has_reportable_geolocation($location)) {
+                continue;
+            }
+
+            $location_data = $this->geolocation_to_tracking_data($location);
+            $result = $this->wpdb->update(
+                $table_clicks,
+                $location_data,
+                array('id' => $click->id)
+            );
+
+            if ($result !== false) {
+                $updated++;
+                $this->backfill_activity_log_location($click, $location_data);
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Keep the activity log location aligned with repaired click rows.
+     */
+    private function backfill_activity_log_location($click, $location_data)
+    {
+        $table_activity = $this->wpdb->prefix . $this->table_prefix . 'activity_log';
+
+        $this->wpdb->query($this->wpdb->prepare(
+            "UPDATE $table_activity
+            SET country = %s, country_code = %s, city = %s
+            WHERE activity_type = 'clicked'
+            AND ip_address = %s
+            AND subscriber_id = %d
+            AND campaign_id = %d
+            AND link_id = %d
+            AND (country IS NULL OR country = '' OR country = 'Unknown' OR country = 'Local' OR country_code IS NULL OR country_code = '' OR country_code = 'XX')",
+            $location_data['country'],
+            $location_data['country_code'],
+            $location_data['city'],
+            $click->ip_address,
+            $click->subscriber_id,
+            $click->campaign_id,
+            $click->link_id
+        ));
     }
 
     /**
@@ -428,6 +548,11 @@ class AdvNews_Tracking
      */
     public function get_campaign_analytics($campaign_id)
     {
+        $this->backfill_missing_click_geolocation(array(
+            'campaign_id' => $campaign_id,
+            'limit' => 100
+        ));
+
         $analytics = array(
             'overview' => array(),
             'geographic' => array(),
@@ -511,7 +636,7 @@ class AdvNews_Tracking
                 country,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
-                COUNT(DISTINCT city) as cities_count
+                COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
                 FROM $table_opens
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
@@ -526,7 +651,7 @@ class AdvNews_Tracking
                 country,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
-                COUNT(DISTINCT city) as cities_count
+                COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
                 FROM $table_opens
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
@@ -539,10 +664,10 @@ class AdvNews_Tracking
         // Geographic summary statistics
         $summary = $this->wpdb->get_row($this->wpdb->prepare(
             "SELECT
-            COUNT(DISTINCT country) as total_countries,
-            COUNT(DISTINCT city) as total_cities,
-            COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' THEN country END) as tracked_countries,
-            COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' THEN city END) as tracked_cities
+            COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' AND country != 'Unknown' THEN country END) as total_countries,
+            COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as total_cities,
+            COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' AND country != 'Unknown' THEN country END) as tracked_countries,
+            COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as tracked_cities
             FROM $table_opens
             WHERE campaign_id = %d",
             $campaign_id
@@ -593,7 +718,7 @@ class AdvNews_Tracking
             l.click_count,
             l.unique_click_count,
             COUNT(DISTINCT c.subscriber_id) as clickers,
-            COUNT(DISTINCT c.country) as countries_reached
+            COUNT(DISTINCT CASE WHEN c.country != '' AND c.country != 'Local' AND c.country != 'Unknown' THEN c.country END) as countries_reached
             FROM $table_links l
             LEFT JOIN $table_clicks c ON l.id = c.link_id AND c.campaign_id = %d
             WHERE l.campaign_id = %d
@@ -609,7 +734,7 @@ class AdvNews_Tracking
             DATE(opened_at) as date,
             HOUR(opened_at) as hour,
             COUNT(*) as opens,
-            COUNT(DISTINCT country) as countries
+            COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' AND country != 'Unknown' THEN country END) as countries
             FROM $table_opens
             WHERE campaign_id = %d
             GROUP BY DATE(opened_at), HOUR(opened_at)
@@ -629,6 +754,11 @@ class AdvNews_Tracking
      */
     public function get_subscriber_activity($subscriber_id, $limit = 50)
     {
+        $this->backfill_missing_click_geolocation(array(
+            'subscriber_id' => $subscriber_id,
+            'limit' => $limit
+        ));
+
         $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
         $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
@@ -710,6 +840,8 @@ class AdvNews_Tracking
      */
     public function get_system_analytics($period = '30days')
     {
+        $this->backfill_missing_click_geolocation(array('limit' => 100));
+
         $analytics = array(
             'campaigns' => array(),
             'subscribers' => array(),
