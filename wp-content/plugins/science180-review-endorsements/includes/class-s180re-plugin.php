@@ -372,6 +372,10 @@ class S180RE_Plugin
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Professional reviewer request', 'science180-review-endorsements'); ?></p>
                 <h1><?php esc_html_e("Review Copy Request for Dr. Nathanael-Israel Israel's Book(s)", 'science180-review-endorsements'); ?></h1>
+                <div class="s180re-page-actions">
+                    <a class="s180re-link-button s180re-link-button-secondary" href="<?php echo esc_url($this->endorsement_page_url()); ?>"><?php esc_html_e('View approved endorsements', 'science180-review-endorsements'); ?></a>
+                    <a class="s180re-link-button" href="<?php echo esc_url($this->endorsement_page_url()); ?>#s180re-endorsement-form"><?php esc_html_e('Share an endorsement', 'science180-review-endorsements'); ?></a>
+                </div>
             </div>
 
             <?php if (empty($books)) : ?>
@@ -394,7 +398,7 @@ class S180RE_Plugin
                 </div>
 
                 <div class="s180re-form-layout">
-                    <form class="s180re-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <form class="s180re-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-s180re-review-form>
                         <input type="hidden" name="action" value="s180re_review_request">
                         <input type="hidden" name="form_started" value="<?php echo esc_attr(time()); ?>">
                         <input type="text" name="company_website" value="" class="s180re-hp" tabindex="-1" autocomplete="off">
@@ -506,10 +510,14 @@ class S180RE_Plugin
         $this->render_public_notice('endorsement');
         $this->render_endorsement_code_form();
         ?>
-        <section class="s180re-shell s180re-endorsement-form-shell">
+        <section id="s180re-endorsement-form" class="s180re-shell s180re-endorsement-form-shell">
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-review-endorsements'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-review-endorsements'); ?></h1>
+                <div class="s180re-page-actions">
+                    <a class="s180re-link-button s180re-link-button-secondary" href="<?php echo esc_url($this->review_request_page_url()); ?>"><?php esc_html_e('Request a review copy', 'science180-review-endorsements'); ?></a>
+                    <a class="s180re-link-button" href="#s180re-approved-endorsements"><?php esc_html_e('View approved endorsements', 'science180-review-endorsements'); ?></a>
+                </div>
             </div>
 
             <form class="s180re-form s180re-form-compact" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -624,10 +632,10 @@ class S180RE_Plugin
 
         ob_start();
         ?>
-        <section class="s180re-shell s180re-listing-shell">
+        <section id="s180re-approved-endorsements" class="s180re-shell s180re-listing-shell">
             <div class="s180re-public-heading">
-                <p class="s180re-eyebrow"><?php esc_html_e('Approved endorsements', 'science180-review-endorsements'); ?></p>
-                <h2><?php esc_html_e('Endorsement', 'science180-review-endorsements'); ?></h2>
+                <p class="s180re-eyebrow"><?php esc_html_e('Public proof', 'science180-review-endorsements'); ?></p>
+                <h2><?php esc_html_e('Approved Endorsements', 'science180-review-endorsements'); ?></h2>
             </div>
 
             <?php if (empty($items)) : ?>
@@ -638,10 +646,15 @@ class S180RE_Plugin
                         <article class="s180re-endorsement-item">
                             <?php if (!empty($item->photo_url)) : ?>
                                 <img class="s180re-endorsement-photo" src="<?php echo esc_url($item->photo_url); ?>" alt="<?php echo esc_attr($this->endorsement_person_name($item)); ?>">
+                            <?php else : ?>
+                                <span class="s180re-endorsement-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($item)); ?></span>
                             <?php endif; ?>
-                            <div>
-                                <h3><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></h3>
-                                <p><?php echo esc_html(wp_trim_words($item->comment, 34)); ?></p>
+                            <div class="s180re-endorsement-body">
+                                <p class="s180re-card-kicker"><?php esc_html_e('Endorsement', 'science180-review-endorsements'); ?></p>
+                                <h3><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_person_name($item)); ?></a></h3>
+                                <p class="s180re-endorsement-meta"><?php echo esc_html($this->endorsement_card_meta($item)); ?></p>
+                                <p class="s180re-endorsement-quote"><?php echo esc_html(wp_trim_words($item->comment, 34)); ?></p>
+                                <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php esc_html_e('View full endorsement', 'science180-review-endorsements'); ?></a>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -1150,6 +1163,13 @@ class S180RE_Plugin
 
     private function render_block_theme_shortcode_page($shortcode)
     {
+        $this->render_block_theme_page(function () use ($shortcode) {
+            $this->render_shortcode_page_main($shortcode);
+        });
+    }
+
+    private function render_block_theme_page($render_main)
+    {
         ?><!doctype html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -1166,7 +1186,7 @@ class S180RE_Plugin
         block_template_part('header');
     }
 
-    $this->render_shortcode_page_main($shortcode);
+    call_user_func($render_main);
 
     if (function_exists('block_template_part')) {
         block_template_part('footer');
@@ -1324,33 +1344,59 @@ class S180RE_Plugin
             $wp_query->set_404();
             status_header(404);
             nocache_headers();
-            get_header();
-            echo '<main class="s180re-shell"><div class="s180re-message s180re-message-warning">' . esc_html__('Endorsement not found.', 'science180-review-endorsements') . '</div></main>';
-            get_footer();
+            $render_not_found = function () {
+                echo '<main class="s180re-shell"><div class="s180re-message s180re-message-warning">' . esc_html__('Endorsement not found.', 'science180-review-endorsements') . '</div></main>';
+            };
+
+            if (function_exists('wp_is_block_theme') && wp_is_block_theme()) {
+                $this->render_block_theme_page($render_not_found);
+            } else {
+                get_header();
+                call_user_func($render_not_found);
+                get_footer();
+            }
             exit;
         }
 
         status_header(200);
-        get_header();
+        $render_detail = function () use ($endorsement) {
+            $this->render_endorsement_detail_main($endorsement);
+        };
+
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme()) {
+            $this->render_block_theme_page($render_detail);
+        } else {
+            get_header();
+            call_user_func($render_detail);
+            get_footer();
+        }
+        exit;
+    }
+
+    private function render_endorsement_detail_main($endorsement)
+    {
         ?>
         <main class="s180re-shell s180re-detail-shell">
             <article class="s180re-detail">
-                <p class="s180re-eyebrow"><?php esc_html_e('Endorsement', 'science180-review-endorsements'); ?></p>
-                <h1><?php echo esc_html($this->endorsement_public_title($endorsement)); ?></h1>
+                <div class="s180re-public-heading">
+                    <p class="s180re-eyebrow"><?php esc_html_e('Endorsement', 'science180-review-endorsements'); ?></p>
+                    <h1><?php echo esc_html($this->endorsement_person_name($endorsement)); ?></h1>
+                    <p class="s180re-detail-meta"><?php echo esc_html($this->endorsement_card_meta($endorsement)); ?></p>
+                </div>
                 <div class="s180re-detail-grid">
                     <?php if (!empty($endorsement->photo_url)) : ?>
                         <img class="s180re-detail-photo" src="<?php echo esc_url($endorsement->photo_url); ?>" alt="<?php echo esc_attr($this->endorsement_person_name($endorsement)); ?>">
+                    <?php else : ?>
+                        <span class="s180re-detail-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($endorsement)); ?></span>
                     <?php endif; ?>
                     <div class="s180re-detail-copy">
                         <p><?php echo nl2br(esc_html($endorsement->comment)); ?></p>
-                        <p class="s180re-detail-meta"><?php echo esc_html($endorsement->organization); ?></p>
+                        <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_page_url()); ?>#s180re-approved-endorsements"><?php esc_html_e('Back to approved endorsements', 'science180-review-endorsements'); ?></a>
                     </div>
                 </div>
             </article>
         </main>
         <?php
-        get_footer();
-        exit;
     }
 
     public function send_daily_endorsement_notice()
@@ -2126,6 +2172,41 @@ class S180RE_Plugin
         return trim($endorsement->first_name . ' ' . $endorsement->last_name);
     }
 
+    private function endorsement_initials($endorsement)
+    {
+        $name = $this->endorsement_person_name($endorsement);
+        $parts = preg_split('/\s+/', trim($name));
+        $initials = '';
+
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            $initials .= strtoupper(substr($part, 0, 1));
+            if (strlen($initials) >= 2) {
+                break;
+            }
+        }
+
+        return $initials !== '' ? $initials : 'S';
+    }
+
+    private function endorsement_card_meta($endorsement)
+    {
+        $parts = array();
+
+        if (!empty($endorsement->country_origin)) {
+            $parts[] = sprintf(__('From %s', 'science180-review-endorsements'), $endorsement->country_origin);
+        }
+
+        if (!empty($endorsement->organization)) {
+            $parts[] = $endorsement->organization;
+        }
+
+        return implode(' | ', $parts);
+    }
+
     private function endorsement_public_title($endorsement)
     {
         return sprintf(
@@ -2139,6 +2220,19 @@ class S180RE_Plugin
     {
         $slug = $endorsement->slug ? $endorsement->slug : sanitize_title($this->endorsement_public_title($endorsement));
         return home_url('/endorsement/' . (int) $endorsement->id . '/' . $slug . '/');
+    }
+
+    private function review_request_page_url()
+    {
+        $page_id = (int) get_option('s180re_review_page_id');
+        if ($page_id) {
+            $url = get_permalink($page_id);
+            if ($url) {
+                return $url;
+            }
+        }
+
+        return home_url('/review-copy-request/');
     }
 
     private function endorsement_page_url()

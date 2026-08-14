@@ -24,6 +24,44 @@
     margin-bottom: 20px;
 }
 
+.s180re-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.s180re-link-button,
+.s180re-text-link {
+    color: var(--s180re-accent-strong);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.s180re-link-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border: 1px solid var(--s180re-accent);
+    border-radius: 8px;
+    background: var(--s180re-accent);
+    color: #fff;
+    padding: 10px 14px;
+}
+
+.s180re-link-button-secondary {
+    background: #fff;
+    color: var(--s180re-accent-strong);
+}
+
+.s180re-link-button:hover,
+.s180re-link-button:focus,
+.s180re-text-link:hover,
+.s180re-text-link:focus {
+    text-decoration: underline;
+}
+
 .s180re-eyebrow {
     margin: 0 0 8px;
     color: var(--s180re-accent-strong);
@@ -131,6 +169,10 @@
     border-radius: 8px;
     background: var(--s180re-panel);
     padding: 18px;
+}
+
+.s180re-review-shell .s180re-form {
+    scroll-margin-top: 96px;
 }
 
 .s180re-form-compact {
@@ -283,31 +325,64 @@
 
 .s180re-endorsement-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
 }
 
 .s180re-endorsement-item {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr);
-    gap: 14px;
+    gap: 16px;
     align-items: start;
     border: 1px solid var(--s180re-line);
     border-radius: 8px;
-    padding: 14px;
+    padding: 18px;
     background: #fff;
+    box-shadow: 0 8px 24px rgba(23, 33, 43, 0.06);
 }
 
 .s180re-endorsement-item h3 {
-    margin: 0 0 8px;
-    font-size: 18px;
+    margin: 0 0 6px;
+    font-size: 20px;
     line-height: 1.2;
     letter-spacing: 0;
+}
+
+.s180re-endorsement-item h3 a {
+    color: var(--s180re-ink);
+    text-decoration: none;
+}
+
+.s180re-endorsement-item h3 a:hover,
+.s180re-endorsement-item h3 a:focus {
+    color: var(--s180re-accent-strong);
+    text-decoration: underline;
 }
 
 .s180re-endorsement-item p {
     margin: 0;
     color: var(--s180re-muted);
+}
+
+.s180re-card-kicker {
+    margin-bottom: 4px !important;
+    color: var(--s180re-gold) !important;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.s180re-endorsement-meta {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.s180re-endorsement-quote {
+    margin-top: 12px !important;
+    color: var(--s180re-ink) !important;
+    font-size: 16px;
+    line-height: 1.55;
 }
 
 .s180re-endorsement-photo,
@@ -317,6 +392,19 @@
     border-radius: 8px;
     object-fit: cover;
     background: #eef2f5;
+}
+
+.s180re-endorsement-avatar,
+.s180re-detail-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    background: #123c44;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
 }
 
 .s180re-pagination {
@@ -348,6 +436,10 @@
     letter-spacing: 0;
 }
 
+.s180re-detail-shell {
+    max-width: 980px;
+}
+
 .s180re-detail-grid {
     display: grid;
     grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
@@ -361,9 +453,22 @@
     aspect-ratio: 1;
 }
 
+.s180re-detail-avatar {
+    width: 100%;
+    height: auto;
+    min-height: 160px;
+    aspect-ratio: 1;
+    font-size: 42px;
+}
+
 .s180re-detail-copy {
     font-size: 18px;
     line-height: 1.7;
+}
+
+.s180re-detail-copy p {
+    margin-top: 0;
+    color: var(--s180re-ink);
 }
 
 .s180re-detail-meta {
@@ -390,6 +495,11 @@
     .s180re-book-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .s180re-page-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 440px) {
@@ -404,5 +514,15 @@
 
     .s180re-endorsement-item {
         grid-template-columns: 1fr;
+    }
+
+    .s180re-endorsement-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .s180re-endorsement-avatar,
+    .s180re-endorsement-photo {
+        width: 64px;
+        height: 64px;
     }
 }

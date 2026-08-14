@@ -41,11 +41,32 @@
         }
     }
 
+    function scrollToReviewForm(shell) {
+        var form = shell.querySelector('[data-s180re-review-form]');
+        if (!form) {
+            return;
+        }
+
+        window.requestAnimationFrame(function () {
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            var select = shell.querySelector('[data-s180re-book-select]');
+            if (select && typeof select.focus === 'function') {
+                try {
+                    select.focus({ preventScroll: true });
+                } catch (error) {
+                    select.focus();
+                }
+            }
+        });
+    }
+
     ready(function () {
         document.querySelectorAll('[data-s180re-review]').forEach(function (shell) {
             shell.querySelectorAll('.s180re-book-choice input[type="radio"]').forEach(function (input) {
                 input.addEventListener('change', function () {
                     setSelected(shell, input.value, input.getAttribute('data-title'), input.getAttribute('data-cover'));
+                    scrollToReviewForm(shell);
                 });
             });
 
