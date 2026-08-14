@@ -2,21 +2,6 @@
 // admin/partials/subscribers-import.php
 if (!defined('ABSPATH')) exit;
 ?>
-<?php
-// At top of subscribers-import.php, after security check
-$admin = new AdvNews_Admin();
-$server_issues = $admin->check_import_requirements();
-if (!empty($server_issues)): ?>
-<div class="notice notice-warning">
-<p><strong><?php _e('Server Configuration Warning:', 'advnews-manager'); ?></strong></p>
-<ul>
-<?php foreach ($server_issues as $issue): ?>
-<li><?php echo esc_html($issue); ?></li>
-<?php endforeach; ?>
-</ul>
-<p><em><?php _e('These settings may cause import failures. Contact your host to adjust PHP-FPM/memory settings, or use smaller CSV files.', 'advnews-manager'); ?></em></p>
-</div>
-<?php endif; ?>
 <div class="wrap">
 <h1><?php _e('Import Subscribers', 'advnews-manager'); ?></h1>
 <div class="postbox">

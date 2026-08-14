@@ -954,7 +954,7 @@ class AdvNews_Subscriber
             return new WP_Error('xlsx_sheet_missing', __('Could not read the first worksheet from the Excel file.', 'advnews-manager'));
         }
 
-        $xml = simplexml_load_string($sheet_xml, 'SimpleXMLElement', LIBXML_NONET);
+        $xml = $this->parse_xlsx_xml($sheet_xml);
         if (!$xml) {
             return new WP_Error('xlsx_xml_invalid', __('The Excel worksheet XML could not be parsed.', 'advnews-manager'));
         }
@@ -1013,8 +1013,8 @@ class AdvNews_Subscriber
             return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_sheet_missing', __('No worksheet was found in the Excel file.', 'advnews-manager'));
         }
 
-        $workbook = simplexml_load_string($workbook_xml, 'SimpleXMLElement', LIBXML_NONET);
-        $rels = simplexml_load_string($rels_xml, 'SimpleXMLElement', LIBXML_NONET);
+        $workbook = $this->parse_xlsx_xml($workbook_xml);
+        $rels = $this->parse_xlsx_xml($rels_xml);
         if (!$workbook || !$rels) {
             return $zip->locateName($fallback) !== false ? $fallback : new WP_Error('xlsx_workbook_invalid', __('The Excel workbook structure could not be parsed.', 'advnews-manager'));
         }
@@ -1063,9 +1063,14 @@ class AdvNews_Subscriber
             return array();
         }
 
-        $xml = simplexml_load_string($shared_xml, 'SimpleXMLElement', LIBXML_NONET);
+        $xml = $this->parse_xlsx_xml($shared_xml);
         if (!$xml) {
-            return new WP_Error('xlsx_shared_strings_invalid', __('The Excel shared strings table could not be parsed.', 'advnews-manager'));
+            $strings = $this->read_xlsx_shared_strings_fallback($shared_xml);
+            if ($strings !== false) {
+                return $strings;
+            }
+
+            return new WP_Error('xlsx_shared_strings_invalid', __('The Excel shared strings table could not be parsed. Please save the file again as .xlsx or CSV and retry.', 'advnews-manager'));
         }
 
         $xml->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
@@ -1079,6 +1084,60 @@ class AdvNews_Subscriber
             if ($text_nodes) {
                 foreach ($text_nodes as $text_node) {
                     $value .= (string) $text_node;
+                }
+            }
+            $strings[] = $value;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * Parse XML from an .xlsx archive without leaking libxml warnings into admin output.
+     */
+    private function parse_xlsx_xml($xml_string)
+    {
+        if (!is_string($xml_string) || $xml_string === '') {
+            return false;
+        }
+
+        $xml_string = $this->sanitize_xlsx_xml_string($xml_string);
+        $previous = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+        $xml = simplexml_load_string($xml_string, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOCDATA);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $xml ? $xml : false;
+    }
+
+    /**
+     * Remove bytes that are illegal in XML 1.0 but sometimes appear in exported spreadsheets.
+     */
+    private function sanitize_xlsx_xml_string($xml_string)
+    {
+        $xml_string = preg_replace('/^\xEF\xBB\xBF/', '', $xml_string);
+        $cleaned = @preg_replace('/[^\x09\x0A\x0D\x20-\x{D7FF}\x{E000}-\x{FFFD}]/u', '', $xml_string);
+
+        return is_string($cleaned) ? $cleaned : $xml_string;
+    }
+
+    /**
+     * Best-effort reader for shared strings when SimpleXML rejects otherwise usable workbook XML.
+     */
+    private function read_xlsx_shared_strings_fallback($shared_xml)
+    {
+        $shared_xml = $this->sanitize_xlsx_xml_string($shared_xml);
+        if (!preg_match_all('/<si\b[^>]*>(.*?)<\/si>/is', $shared_xml, $items)) {
+            return false;
+        }
+
+        $strings = array();
+        foreach ($items[1] as $item_xml) {
+            $value = '';
+            if (preg_match_all('/<t\b[^>]*>(.*?)<\/t>/is', $item_xml, $text_matches)) {
+                foreach ($text_matches[1] as $text_part) {
+                    $value .= html_entity_decode(strip_tags($text_part), ENT_QUOTES | ENT_XML1, 'UTF-8');
                 }
             }
             $strings[] = $value;
