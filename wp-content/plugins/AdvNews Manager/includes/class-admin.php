@@ -4954,7 +4954,20 @@ border-radius: 4px;
     {
         // Check for messages
         if (isset($_GET['message'])) {
-            $this->show_message_notice(sanitize_text_field($_GET['message']));
+            $message = sanitize_key($_GET['message']);
+            $campaign_messages = array(
+                'campaign_saved',
+                'campaign_updated',
+                'campaign_sent',
+                'campaign_scheduled',
+                'bulk_campaigns_deleted',
+                'bulk_campaigns_none',
+                'bulk_action_missing'
+            );
+
+            if (!(isset($_GET['page']) && $_GET['page'] === 'advnews-campaigns' && in_array($message, $campaign_messages, true))) {
+                $this->show_message_notice($message);
+            }
         }
 
         // Check for required settings

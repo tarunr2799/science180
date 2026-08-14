@@ -990,8 +990,7 @@ class AdvNews_Campaign
             'bounce_count' => $stats->bounced,
             'unsubscribe_count' => $stats->unsubscribed,
             'open_rate' => round($open_rate, 2),
-            'click_rate' => round($click_rate, 2),
-            'status' => 'sent'  // FIXED: Always set to 'sent' when stats are updated
+            'click_rate' => round($click_rate, 2)
         );
 
         $campaign = $this->get_campaign($campaign_id);

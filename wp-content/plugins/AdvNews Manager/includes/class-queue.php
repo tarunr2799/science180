@@ -412,7 +412,7 @@ class AdvNews_Queue
         $campaigns = $this->wpdb->get_results(
             "SELECT c.id, c.total_recipients, c.status
             FROM $table_campaigns c
-            WHERE c.status IN ('sending', 'scheduled', 'paused')"
+            WHERE c.status = 'sending'"
         );
 
         foreach ($campaigns as $campaign) {
