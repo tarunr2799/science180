@@ -16,6 +16,48 @@
     line-height: 1.55;
 }
 
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child {
+    padding-block: 8px;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child > .wp-block-group {
+    padding-block: 0;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-group.alignwide.is-layout-flex {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: clamp(18px, 3vw, 34px);
+    min-height: 88px;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-image {
+    flex: 0 0 auto;
+    width: 165px !important;
+    max-width: 28vw;
+    margin: 0 !important;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-image img {
+    display: block;
+    width: 165px !important;
+    max-width: 100%;
+    height: auto !important;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-navigation {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-navigation__container {
+    gap: 10px 20px;
+    justify-content: flex-start;
+}
+
 .s180re-shell *,
 .s180re-shell *::before,
 .s180re-shell *::after {
@@ -484,6 +526,22 @@
 }
 
 @media (max-width: 760px) {
+    body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-group.alignwide.is-layout-flex {
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 72px;
+    }
+
+    body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-image,
+    body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-image img {
+        width: 132px !important;
+        max-width: 45vw;
+    }
+
+    body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-navigation {
+        flex: 0 1 auto;
+    }
+
     .s180re-form-layout,
     .s180re-detail-grid {
         grid-template-columns: 1fr;

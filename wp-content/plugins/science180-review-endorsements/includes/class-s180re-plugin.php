@@ -1463,6 +1463,40 @@ class S180RE_Plugin
         );
     }
 
+    private function send_review_request_status_email($request, $status)
+    {
+        $status_label = $this->review_request_status_label($status);
+        $first_name = !empty($request->first_name) ? $request->first_name : __('there', 'science180-review-endorsements');
+        $subject = sprintf('Your Science180 review copy request is %s', strtolower($status_label));
+        $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-review-endorsements'), esc_html($first_name)) . '</p>';
+
+        if ($status === 'qualified') {
+            $subject = 'Your Science180 review copy request was approved';
+            $message .= '<p>' . esc_html__('Your review copy request has been approved.', 'science180-review-endorsements') . '</p>';
+        } elseif ($status === 'declined') {
+            $subject = 'Your Science180 review copy request was reviewed';
+            $message .= '<p>' . esc_html__('Thank you for your interest. After review, your request was not approved at this time.', 'science180-review-endorsements') . '</p>';
+        } elseif ($status === 'sent') {
+            $subject = 'Your Science180 review copy has been sent';
+            $message .= '<p>' . esc_html__('Your review copy has been marked as sent.', 'science180-review-endorsements') . '</p>';
+        } else {
+            $message .= '<p>' . sprintf(esc_html__('Your review copy request status is now: %s.', 'science180-review-endorsements'), esc_html($status_label)) . '</p>';
+        }
+
+        if (!empty($request->book_title)) {
+            $message .= '<p><strong>' . esc_html__('Book:', 'science180-review-endorsements') . '</strong> ' . esc_html($request->book_title) . '</p>';
+        }
+
+        $message .= '<p>' . esc_html__('Thank you for your interest in Science180.', 'science180-review-endorsements') . '</p>';
+
+        $sent = wp_mail($request->email, $subject, $message, $this->mail_headers());
+        if (!$sent) {
+            $this->log_mail_failure('review request status', $request->email);
+        }
+
+        return $sent;
+    }
+
     private function send_endorsement_verification_email($email, $first_name, $token)
     {
         $verification_url = add_query_arg('s180re_verify_endorsement', rawurlencode($token), $this->endorsement_page_url());
@@ -1525,7 +1559,12 @@ class S180RE_Plugin
             $message .= '<p>' . esc_html__('Thank you for taking the time to submit an endorsement. After review, it was not approved for publication.', 'science180-review-endorsements') . '</p>';
         }
 
-        wp_mail($endorsement->email, $subject, $message, $this->mail_headers());
+        $sent = wp_mail($endorsement->email, $subject, $message, $this->mail_headers());
+        if (!$sent) {
+            $this->log_mail_failure('endorsement moderation result', $endorsement->email);
+        }
+
+        return $sent;
     }
 
     private function mail_headers($reply_to_email = '', $reply_to_name = '')
@@ -1703,7 +1742,7 @@ class S180RE_Plugin
                             <td><?php echo esc_html($item->created_at); ?></td>
                             <td><?php echo esc_html($item->book_title); ?></td>
                             <td><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
-                            <td><?php echo esc_html(ucwords(str_replace('_', ' ', $item->status))); ?></td>
+                            <td><?php echo esc_html($this->review_request_status_label($item->status)); ?></td>
                             <td>
                                 <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180re-review-requests&view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-review-endorsements'); ?></a>
                             </td>
@@ -1741,7 +1780,7 @@ class S180RE_Plugin
                         <label><?php esc_html_e('Status', 'science180-review-endorsements'); ?></label>
                         <select name="status">
                             <?php foreach (array('new', 'reviewing', 'qualified', 'sent', 'declined') as $status) : ?>
-                                <option value="<?php echo esc_attr($status); ?>" <?php selected($item->status, $status); ?>><?php echo esc_html(ucwords(str_replace('_', ' ', $status))); ?></option>
+                                <option value="<?php echo esc_attr($status); ?>" <?php selected($item->status, $status); ?>><?php echo esc_html($this->review_request_status_label($status)); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <button class="button button-primary" type="submit"><?php esc_html_e('Update', 'science180-review-endorsements'); ?></button>
@@ -2100,8 +2139,20 @@ class S180RE_Plugin
             $status = 'new';
         }
 
+        $request = $this->get_review_request($request_id);
+        if (!$request) {
+            $this->admin_redirect('s180re-review-requests', 'request_missing');
+        }
+
         $wpdb->update($this->table('review_requests'), array('status' => $status, 'updated_at' => current_time('mysql')), array('id' => $request_id), array('%s', '%s'), array('%d'));
-        wp_safe_redirect(admin_url('admin.php?page=s180re-review-requests&view=' . $request_id . '&s180re_admin_status=request_updated'));
+
+        $notice = 'request_updated';
+        if ($request->status !== $status && in_array($status, array('reviewing', 'qualified', 'sent', 'declined'), true)) {
+            $updated_request = $this->get_review_request($request_id);
+            $notice = $updated_request && $this->send_review_request_status_email($updated_request, $status) ? 'request_updated_notified' : 'request_updated_email_failed';
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=s180re-review-requests&view=' . $request_id . '&s180re_admin_status=' . rawurlencode($notice)));
         exit;
     }
 
@@ -2118,6 +2169,10 @@ class S180RE_Plugin
         $result = $this->update_endorsement_moderation($endorsement_id, $moderation, true);
         if (is_wp_error($result)) {
             $this->admin_redirect('s180re-endorsements', $result->get_error_code());
+        }
+
+        if (!empty($result['status_changed']) && empty($result['email_sent'])) {
+            $this->admin_redirect('s180re-endorsements', 'endorsement_email_failed');
         }
 
         $this->admin_redirect('s180re-endorsements', $moderation === 'approved' ? 'endorsement_approved' : 'endorsement_rejected');
@@ -2230,12 +2285,17 @@ class S180RE_Plugin
             return new WP_Error('endorsement_invalid');
         }
 
+        $status_changed = $endorsement->status !== $moderation;
+        $email_sent = true;
         $refreshed = $this->get_endorsement($endorsement_id);
-        if ($notify && $refreshed && $endorsement->status !== $moderation) {
-            $this->send_moderation_result_email($refreshed, $moderation);
+        if ($notify && $refreshed && $status_changed) {
+            $email_sent = $this->send_moderation_result_email($refreshed, $moderation);
         }
 
-        return true;
+        return array(
+            'email_sent' => $email_sent,
+            'status_changed' => $status_changed,
+        );
     }
 
     private function delete_endorsement($endorsement_id)
@@ -2356,8 +2416,12 @@ class S180RE_Plugin
             'book_saved' => __('Book saved.', 'science180-review-endorsements'),
             'book_missing' => __('Book title is required.', 'science180-review-endorsements'),
             'request_updated' => __('Request status updated.', 'science180-review-endorsements'),
+            'request_updated_notified' => __('Request status updated and the applicant was notified.', 'science180-review-endorsements'),
+            'request_updated_email_failed' => __('Request status updated, but the applicant email could not be sent.', 'science180-review-endorsements'),
+            'request_missing' => __('Review copy request not found.', 'science180-review-endorsements'),
             'endorsement_approved' => __('Endorsement approved and the submitter was notified.', 'science180-review-endorsements'),
             'endorsement_rejected' => __('Endorsement rejected and the submitter was notified.', 'science180-review-endorsements'),
+            'endorsement_email_failed' => __('Endorsement status updated, but the submitter email could not be sent.', 'science180-review-endorsements'),
             'endorsement_deleted' => __('Endorsement deleted.', 'science180-review-endorsements'),
             'endorsements_deleted' => __('Selected endorsements deleted.', 'science180-review-endorsements'),
             'endorsements_updated' => __('Selected endorsements updated.', 'science180-review-endorsements'),
@@ -2368,7 +2432,7 @@ class S180RE_Plugin
         );
 
         if (isset($messages[$status])) {
-            $notice_class = in_array($status, array('book_missing', 'endorsement_invalid', 'endorsement_missing', 'endorsement_none_selected'), true) ? 'notice-warning' : 'notice-success';
+            $notice_class = in_array($status, array('book_missing', 'request_missing', 'request_updated_email_failed', 'endorsement_email_failed', 'endorsement_invalid', 'endorsement_missing', 'endorsement_none_selected'), true) ? 'notice-warning' : 'notice-success';
             echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($messages[$status]) . '</p></div>';
         }
     }
@@ -2389,6 +2453,13 @@ class S180RE_Plugin
         global $wpdb;
         $table = $this->table('books');
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $book_id));
+    }
+
+    private function get_review_request($request_id)
+    {
+        global $wpdb;
+        $table = $this->table('review_requests');
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $request_id));
     }
 
     private function get_endorsement($endorsement_id)
@@ -2518,6 +2589,20 @@ class S180RE_Plugin
             'created_at' => 'Submitted at',
             'status' => 'Status',
         );
+    }
+
+    private function review_request_status_label($status)
+    {
+        $labels = array(
+            'new' => __('New', 'science180-review-endorsements'),
+            'reviewing' => __('Reviewing', 'science180-review-endorsements'),
+            'qualified' => __('Approved', 'science180-review-endorsements'),
+            'sent' => __('Sent', 'science180-review-endorsements'),
+            'declined' => __('Rejected', 'science180-review-endorsements'),
+        );
+
+        $status = sanitize_key($status);
+        return isset($labels[$status]) ? $labels[$status] : ucwords(str_replace('_', ' ', $status));
     }
 
     private function format_mailing_address($data)

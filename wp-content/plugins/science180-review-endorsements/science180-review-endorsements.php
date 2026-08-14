@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Science180 Review Requests and Endorsements
  * Description: Book review copy requests, email-verified endorsements, moderation, public endorsement pages, and admin book cover management for Science180.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Science180
  * Text Domain: science180-review-endorsements
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('S180RE_VERSION', '1.0.4');
+define('S180RE_VERSION', '1.0.5');
 define('S180RE_PLUGIN_FILE', __FILE__);
 define('S180RE_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('S180RE_PLUGIN_URL', plugin_dir_url(__FILE__));
