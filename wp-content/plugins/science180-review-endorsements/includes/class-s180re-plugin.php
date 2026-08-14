@@ -35,6 +35,8 @@ class S180RE_Plugin
         add_action('admin_post_s180re_review_request', array($this, 'handle_review_request_submission'));
         add_action('admin_post_nopriv_s180re_endorsement_submit', array($this, 'handle_endorsement_submission'));
         add_action('admin_post_s180re_endorsement_submit', array($this, 'handle_endorsement_submission'));
+        add_action('admin_post_nopriv_s180re_endorsement_verify_code', array($this, 'handle_endorsement_code_verification'));
+        add_action('admin_post_s180re_endorsement_verify_code', array($this, 'handle_endorsement_code_verification'));
 
         add_action('admin_post_s180re_save_book', array($this, 'handle_save_book'));
         add_action('admin_post_s180re_toggle_book', array($this, 'handle_toggle_book'));
@@ -502,6 +504,7 @@ class S180RE_Plugin
     {
         ob_start();
         $this->render_public_notice('endorsement');
+        $this->render_endorsement_code_form();
         ?>
         <section class="s180re-shell s180re-endorsement-form-shell">
             <div class="s180re-public-heading">
@@ -553,6 +556,49 @@ class S180RE_Plugin
         </section>
         <?php
         return ob_get_clean();
+    }
+
+    private function render_endorsement_code_form()
+    {
+        if (!$this->should_show_endorsement_code_form()) {
+            return;
+        }
+        ?>
+        <section class="s180re-shell s180re-code-shell">
+            <div class="s180re-public-heading">
+                <p class="s180re-eyebrow"><?php esc_html_e('Email verification', 'science180-review-endorsements'); ?></p>
+                <h2><?php esc_html_e('Verify Your Endorsement', 'science180-review-endorsements'); ?></h2>
+            </div>
+            <form class="s180re-form s180re-form-compact s180re-code-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="s180re_endorsement_verify_code">
+                <?php wp_nonce_field('s180re_endorsement_verify_code', 's180re_nonce'); ?>
+
+                <div class="s180re-field">
+                    <label for="s180re-code-email"><?php esc_html_e('Email', 'science180-review-endorsements'); ?> <span>*</span></label>
+                    <input id="s180re-code-email" type="email" name="email" required autocomplete="email">
+                </div>
+                <div class="s180re-field">
+                    <label for="s180re-code-value"><?php esc_html_e('Verification code', 'science180-review-endorsements'); ?> <span>*</span></label>
+                    <input id="s180re-code-value" type="text" name="verification_code" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
+                </div>
+
+                <button class="s180re-button" type="submit"><?php esc_html_e('Verify Endorsement', 'science180-review-endorsements'); ?></button>
+            </form>
+        </section>
+        <?php
+    }
+
+    private function should_show_endorsement_code_form()
+    {
+        if (empty($_GET['s180re_status'])) {
+            return false;
+        }
+
+        return in_array(
+            sanitize_key($_GET['s180re_status']),
+            array('endorsement_check_email', 'endorsement_code_invalid', 'endorsement_verify_expired'),
+            true
+        );
     }
 
     public function render_endorsements_shortcode($atts)
@@ -711,6 +757,7 @@ class S180RE_Plugin
 
         $token = $this->generate_token();
         $token_hash = $this->pending_token_hash($token);
+        $verification_code = $this->generate_verification_code();
         $now = current_time('mysql');
         $data = array(
             'email' => $email,
@@ -720,6 +767,7 @@ class S180RE_Plugin
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $organization,
             'comment' => $this->post_textarea('comment', true),
+            'verification_code_hash' => $this->verification_code_hash($verification_code),
             'token_expires' => gmdate('Y-m-d H:i:s', time() + WEEK_IN_SECONDS),
             'created_at' => $now,
         );
@@ -742,7 +790,7 @@ class S180RE_Plugin
             $this->redirect_back('endorsement_error');
         }
 
-        if (!$this->send_endorsement_verification_email($email, $first_name, $token)) {
+        if (!$this->send_endorsement_verification_email($email, $first_name, $verification_code)) {
             $this->delete_pending_endorsement(array(
                 'path' => $this->pending_endorsement_path($token_hash),
                 'data' => $data,
@@ -898,6 +946,47 @@ class S180RE_Plugin
             'path' => $path,
             'data' => $payload['data'],
         );
+    }
+
+    private function load_pending_endorsement_by_code($email, $code)
+    {
+        $email = strtolower(sanitize_email($email));
+        $code_hash = $this->verification_code_hash($code);
+        if (!$email || !$code_hash) {
+            return null;
+        }
+
+        $dir = $this->pending_endorsement_dir();
+        if (!$dir) {
+            return null;
+        }
+
+        $files = glob(trailingslashit($dir) . '*.json');
+        if (!is_array($files)) {
+            return null;
+        }
+
+        foreach ($files as $path) {
+            $payload = json_decode((string) file_get_contents($path), true);
+            if (!is_array($payload) || empty($payload['token_hash']) || empty($payload['data']) || !is_array($payload['data'])) {
+                continue;
+            }
+
+            $data = $payload['data'];
+            $pending_email = isset($data['email']) ? strtolower(sanitize_email($data['email'])) : '';
+            $pending_code_hash = isset($data['verification_code_hash']) ? (string) $data['verification_code_hash'] : '';
+            if ($pending_email !== $email || !$pending_code_hash || !hash_equals($pending_code_hash, $code_hash)) {
+                continue;
+            }
+
+            return array(
+                'hash' => (string) $payload['token_hash'],
+                'path' => $path,
+                'data' => $data,
+            );
+        }
+
+        return null;
     }
 
     private function cleanup_expired_pending_endorsements()
@@ -1109,10 +1198,72 @@ class S180RE_Plugin
             exit;
         }
 
-        $photo = $this->create_attachment_from_pending_photo(isset($data['photo']) && is_array($data['photo']) ? $data['photo'] : array());
-        if (is_wp_error($photo)) {
+        $result = $this->save_verified_endorsement($pending);
+        if (is_wp_error($result) && $result->get_error_code() === 's180re_photo_error') {
             wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_photo_error', $target));
             exit;
+        }
+
+        if (is_wp_error($result)) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_error', $target));
+            exit;
+        }
+
+        wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verified', $target));
+        exit;
+    }
+
+    public function handle_endorsement_code_verification()
+    {
+        if (!$this->public_form_is_valid('s180re_endorsement_verify_code')) {
+            $this->redirect_back('endorsement_code_invalid');
+        }
+
+        $target = $this->endorsement_page_url();
+        $email = $this->clean_email_from_post('email');
+        $code = isset($_POST['verification_code']) ? preg_replace('/\D+/', '', sanitize_text_field(wp_unslash($_POST['verification_code']))) : '';
+        if (!$email || strlen($code) !== 6) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_code_invalid', $target));
+            exit;
+        }
+
+        $this->cleanup_expired_pending_endorsements();
+        $pending = $this->load_pending_endorsement_by_code($email, $code);
+        if (!$pending) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_code_invalid', $target));
+            exit;
+        }
+
+        $data = $pending['data'];
+        if (empty($data['token_expires']) || strtotime($data['token_expires'] . ' UTC') < time()) {
+            $this->delete_pending_endorsement($pending);
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verify_expired', $target));
+            exit;
+        }
+
+        $result = $this->save_verified_endorsement($pending);
+        if (is_wp_error($result) && $result->get_error_code() === 's180re_photo_error') {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_photo_error', $target));
+            exit;
+        }
+
+        if (is_wp_error($result)) {
+            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_error', $target));
+            exit;
+        }
+
+        wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verified', $target));
+        exit;
+    }
+
+    private function save_verified_endorsement($pending)
+    {
+        global $wpdb;
+
+        $data = $pending['data'];
+        $photo = $this->create_attachment_from_pending_photo(isset($data['photo']) && is_array($data['photo']) ? $data['photo'] : array());
+        if (is_wp_error($photo)) {
+            return new WP_Error('s180re_photo_error', $photo->get_error_message());
         }
 
         $now = current_time('mysql');
@@ -1142,14 +1293,12 @@ class S180RE_Plugin
         );
 
         if (!$inserted) {
-            wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_error', $target));
-            exit;
+            return new WP_Error('s180re_save_error', 'Endorsement could not be saved.');
         }
 
         $this->delete_pending_endorsement($pending);
 
-        wp_safe_redirect(add_query_arg('s180re_status', 'endorsement_verified', $target));
-        exit;
+        return true;
     }
 
     public function detail_title_parts($parts)
@@ -1274,21 +1423,22 @@ class S180RE_Plugin
         );
     }
 
-    private function send_endorsement_verification_email($email, $first_name, $token)
+    private function send_endorsement_verification_email($email, $first_name, $verification_code)
     {
-        $url = add_query_arg('s180re_verify_endorsement', rawurlencode($token), home_url('/'));
         $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-review-endorsements'), esc_html($first_name)) . '</p>';
         $message .= '<p>' . esc_html__('Please verify your email address before your endorsement is sent for review.', 'science180-review-endorsements') . '</p>';
-        $message .= '<p><a href="' . esc_url($url) . '">' . esc_html__('Verify my endorsement', 'science180-review-endorsements') . '</a></p>';
+        $message .= '<p>' . esc_html__('Your verification code is:', 'science180-review-endorsements') . '</p>';
+        $message .= '<p style="font-size:24px;font-weight:700;letter-spacing:3px;">' . esc_html($verification_code) . '</p>';
+        $message .= '<p>' . esc_html__('Enter this code on the endorsement page to finish your submission.', 'science180-review-endorsements') . '</p>';
         $message .= '<p>' . esc_html__('If you did not submit this endorsement, you can ignore this message.', 'science180-review-endorsements') . '</p>';
 
         $sent = wp_mail($email, 'Verify your Science180 endorsement', $message, $this->mail_headers());
         if (!$sent) {
             $this->log_mail_failure('endorsement verification', $email);
             $plain_message = sprintf(
-                "Hello %s,\n\nPlease verify your email address before your endorsement is sent for review.\n\nVerify your endorsement:\n%s\n\nIf you did not submit this endorsement, you can ignore this message.",
+                "Hello %s,\n\nPlease verify your email address before your endorsement is sent for review.\n\nYour verification code is: %s\n\nEnter this code on the endorsement page to finish your submission.\n\nIf you did not submit this endorsement, you can ignore this message.",
                 wp_strip_all_tags((string) $first_name),
-                esc_url_raw($url)
+                $verification_code
             );
             $sent = wp_mail(
                 $email,
@@ -1879,9 +2029,10 @@ class S180RE_Plugin
             'review_invalid_email' => array('warning', __('Please enter a valid email address.', 'science180-review-endorsements')),
             'review_missing' => array('warning', __('Please complete all required fields.', 'science180-review-endorsements')),
             'review_error' => array('warning', __('The request could not be saved. Please try again.', 'science180-review-endorsements')),
-            'endorsement_check_email' => array('success', __('Please check your email and click the verification link. Your endorsement will be sent for review after verification.', 'science180-review-endorsements')),
+            'endorsement_check_email' => array('success', __('Please check your email for the verification code. Your endorsement will be sent for review after you verify the code.', 'science180-review-endorsements')),
             'endorsement_email_failed' => array('warning', __('The verification email could not be sent. Please try again later or contact the site owner.', 'science180-review-endorsements')),
             'endorsement_verified' => array('success', __('Your email is verified. Your endorsement is now waiting for review.', 'science180-review-endorsements')),
+            'endorsement_code_invalid' => array('warning', __('The verification code is invalid. Please check the email and try again.', 'science180-review-endorsements')),
             'endorsement_verify_invalid' => array('warning', __('This verification link is invalid or already used.', 'science180-review-endorsements')),
             'endorsement_verify_expired' => array('warning', __('This verification link expired. Please submit the endorsement again.', 'science180-review-endorsements')),
             'endorsement_photo_error' => array('warning', __('The photo could not be uploaded. Please use a JPG, PNG, or WebP image under 5 MB.', 'science180-review-endorsements')),
@@ -2110,6 +2261,21 @@ class S180RE_Plugin
     private function generate_token()
     {
         return wp_hash(wp_generate_password(40, false) . microtime(true) . wp_rand());
+    }
+
+    private function generate_verification_code()
+    {
+        return (string) wp_rand(100000, 999999);
+    }
+
+    private function verification_code_hash($code)
+    {
+        $code = preg_replace('/\D+/', '', (string) $code);
+        if (strlen($code) !== 6) {
+            return '';
+        }
+
+        return hash_hmac('sha256', $code, wp_salt('auth'));
     }
 
     private function country_select($name, $id, $selected, $required)
