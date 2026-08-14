@@ -742,7 +742,14 @@ class S180RE_Plugin
             $this->redirect_back('endorsement_error');
         }
 
-        $this->send_endorsement_verification_email($email, $first_name, $token);
+        if (!$this->send_endorsement_verification_email($email, $first_name, $token)) {
+            $this->delete_pending_endorsement(array(
+                'path' => $this->pending_endorsement_path($token_hash),
+                'data' => $data,
+            ));
+            $this->redirect_back('endorsement_email_failed');
+        }
+
         $this->redirect_back('endorsement_check_email');
     }
 
@@ -1275,7 +1282,29 @@ class S180RE_Plugin
         $message .= '<p><a href="' . esc_url($url) . '">' . esc_html__('Verify my endorsement', 'science180-review-endorsements') . '</a></p>';
         $message .= '<p>' . esc_html__('If you did not submit this endorsement, you can ignore this message.', 'science180-review-endorsements') . '</p>';
 
-        wp_mail($email, 'Verify your Science180 endorsement', $message, $this->mail_headers());
+        $sent = wp_mail($email, 'Verify your Science180 endorsement', $message, $this->mail_headers());
+        if (!$sent) {
+            $this->log_mail_failure('endorsement verification', $email);
+        }
+
+        return $sent;
+    }
+
+    private function log_mail_failure($context, $email)
+    {
+        global $phpmailer;
+
+        $message = sprintf(
+            '[Science180 Review Endorsements] Failed to send %s email to %s.',
+            wp_strip_all_tags((string) $context),
+            sanitize_email($email)
+        );
+
+        if (isset($phpmailer) && !empty($phpmailer->ErrorInfo)) {
+            $message .= ' PHPMailer: ' . wp_strip_all_tags($phpmailer->ErrorInfo);
+        }
+
+        error_log($message);
     }
 
     private function send_moderation_result_email($endorsement, $status)
@@ -1836,6 +1865,7 @@ class S180RE_Plugin
             'review_missing' => array('warning', __('Please complete all required fields.', 'science180-review-endorsements')),
             'review_error' => array('warning', __('The request could not be saved. Please try again.', 'science180-review-endorsements')),
             'endorsement_check_email' => array('success', __('Please check your email and click the verification link. Your endorsement will be sent for review after verification.', 'science180-review-endorsements')),
+            'endorsement_email_failed' => array('warning', __('The verification email could not be sent. Please try again later or contact the site owner.', 'science180-review-endorsements')),
             'endorsement_verified' => array('success', __('Your email is verified. Your endorsement is now waiting for review.', 'science180-review-endorsements')),
             'endorsement_verify_invalid' => array('warning', __('This verification link is invalid or already used.', 'science180-review-endorsements')),
             'endorsement_verify_expired' => array('warning', __('This verification link expired. Please submit the endorsement again.', 'science180-review-endorsements')),
