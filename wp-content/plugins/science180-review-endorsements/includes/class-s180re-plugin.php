@@ -1285,6 +1285,21 @@ class S180RE_Plugin
         $sent = wp_mail($email, 'Verify your Science180 endorsement', $message, $this->mail_headers());
         if (!$sent) {
             $this->log_mail_failure('endorsement verification', $email);
+            $plain_message = sprintf(
+                "Hello %s,\n\nPlease verify your email address before your endorsement is sent for review.\n\nVerify your endorsement:\n%s\n\nIf you did not submit this endorsement, you can ignore this message.",
+                wp_strip_all_tags((string) $first_name),
+                esc_url_raw($url)
+            );
+            $sent = wp_mail(
+                $email,
+                'Verify your Science180 endorsement',
+                $plain_message,
+                array('Content-Type: text/plain; charset=UTF-8')
+            );
+
+            if (!$sent) {
+                $this->log_mail_failure('endorsement verification fallback', $email);
+            }
         }
 
         return $sent;
@@ -1325,7 +1340,7 @@ class S180RE_Plugin
 
     private function mail_headers($reply_to_email = '', $reply_to_name = '')
     {
-        $headers = array('Content-Type: text/html; charset=UTF-8');
+        $headers = array('Content-Type: text/html; charset=UTF-8', 'MIME-Version: 1.0');
         $from_email = $this->sender_email();
         $from_name = $this->sender_name();
 
@@ -1396,7 +1411,7 @@ class S180RE_Plugin
             return $email;
         }
 
-        return '"' . $name . '" <' . $email . '>';
+        return $name . ' <' . $email . '>';
     }
 
     public function render_books_page()
