@@ -48,7 +48,8 @@
         }
 
         window.requestAnimationFrame(function () {
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            var targetY = form.getBoundingClientRect().top + window.pageYOffset - 96;
+            window.scrollTo({ top: Math.max(targetY, 0), behavior: 'smooth' });
 
             var select = shell.querySelector('[data-s180re-book-select]');
             if (select && typeof select.focus === 'function') {
