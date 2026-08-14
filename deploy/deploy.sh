@@ -52,4 +52,18 @@ else
   cp -R "$SOURCE_WP_CONTENT/." "$TARGET_WP_CONTENT/"
 fi
 
+PLUGIN_SLUG="science180-review-endorsements"
+WP_PATH="${DEPLOY_PATH%/}"
+
+if command -v wp >/dev/null 2>&1; then
+  echo "Ensuring WordPress plugin is active: $PLUGIN_SLUG"
+  if wp --path="$WP_PATH" plugin is-installed "$PLUGIN_SLUG" >/dev/null 2>&1; then
+    wp --path="$WP_PATH" plugin activate "$PLUGIN_SLUG" >/dev/null
+  else
+    echo "Plugin $PLUGIN_SLUG was not found after deployment; skipping activation."
+  fi
+else
+  echo "WP-CLI not available; activate $PLUGIN_SLUG manually in WordPress admin."
+fi
+
 echo "Deployment complete."
