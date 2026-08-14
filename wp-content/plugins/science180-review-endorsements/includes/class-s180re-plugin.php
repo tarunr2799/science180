@@ -833,13 +833,56 @@ class S180RE_Plugin
             return;
         }
 
+        $shortcode = $is_review_page ? '[science180_review_request]' : "[science180_endorsement_form]\n\n[science180_endorsements]";
+
         status_header(200);
-        get_header();
-        echo '<main id="primary" class="site-main s180re-template-main">';
-        echo do_shortcode($is_review_page ? '[science180_review_request]' : "[science180_endorsement_form]\n\n[science180_endorsements]");
-        echo '</main>';
-        get_footer();
+
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme()) {
+            $this->render_block_theme_shortcode_page($shortcode);
+        } else {
+            get_header();
+            $this->render_shortcode_page_main($shortcode);
+            get_footer();
+        }
+
         exit;
+    }
+
+    private function render_shortcode_page_main($shortcode)
+    {
+        echo '<main id="primary" class="site-main s180re-template-main">';
+        echo do_shortcode($shortcode);
+        echo '</main>';
+    }
+
+    private function render_block_theme_shortcode_page($shortcode)
+    {
+        ?><!doctype html>
+<html <?php language_attributes(); ?>>
+<head>
+    <meta charset="<?php bloginfo('charset'); ?>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?php wp_head(); ?>
+</head>
+<body <?php body_class('s180re-plugin-page'); ?>>
+<?php wp_body_open(); ?>
+<div class="wp-site-blocks">
+    <?php
+    if (function_exists('block_template_part')) {
+        block_template_part('header');
+    }
+
+    $this->render_shortcode_page_main($shortcode);
+
+    if (function_exists('block_template_part')) {
+        block_template_part('footer');
+    }
+    ?>
+</div>
+<?php wp_footer(); ?>
+</body>
+</html>
+        <?php
     }
 
     private function handle_endorsement_verification()
