@@ -438,11 +438,32 @@ class AdvNews_Cron
     }
 
     /**
+     * Correct the known Science180 admin email typo before weekly reports are sent.
+     */
+    private static function normalize_weekly_report_email($email)
+    {
+        $email = sanitize_email($email);
+        if ($email === '') {
+            return $email;
+        }
+
+        if (preg_match('/@science\.net$/i', $email)) {
+            $email = preg_replace('/@science\.net$/i', '@science180.net', $email);
+        }
+
+        return is_email($email) ? $email : '';
+    }
+
+    /**
      * Send weekly reports
      */
     public static function weekly_reports()
     {
-        $admin_email = get_option('admin_email');
+        $admin_email = self::normalize_weekly_report_email(get_option('admin_email'));
+        if ($admin_email === '') {
+            return;
+        }
+
         $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 
         // Get weekly statistics

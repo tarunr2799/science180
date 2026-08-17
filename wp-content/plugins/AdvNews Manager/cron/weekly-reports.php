@@ -18,6 +18,22 @@ class AdvNews_Weekly_Reports {
     }
 
     /**
+     * Correct the known Science180 admin email typo before weekly reports are sent.
+     */
+    private function normalize_weekly_report_email($email) {
+        $email = sanitize_email($email);
+        if ($email === '') {
+            return $email;
+        }
+
+        if (preg_match('/@science\.net$/i', $email)) {
+            $email = preg_replace('/@science\.net$/i', '@science180.net', $email);
+        }
+
+        return is_email($email) ? $email : '';
+    }
+
+    /**
      * Execute weekly report generation
      *
      * @return array Report results
@@ -230,20 +246,24 @@ class AdvNews_Weekly_Reports {
      */
     private function get_report_recipients() {
         $recipients = array();
+        $admin_email = $this->normalize_weekly_report_email(get_option('admin_email'));
 
         // Admin email
-        $recipients[] = array(
-            'email' => get_option('admin_email'),
-            'name' => __('Administrator', 'advnews-manager'),
-            'type' => 'admin'
-        );
+        if ($admin_email !== '') {
+            $recipients[] = array(
+                'email' => $admin_email,
+                'name' => __('Administrator', 'advnews-manager'),
+                'type' => 'admin'
+            );
+        }
 
         // Additional recipients from settings
         $additional = get_option('advnews_report_recipients', array());
         foreach ($additional as $recipient) {
-            if (is_email($recipient['email'])) {
+            $recipient_email = $this->normalize_weekly_report_email($recipient['email'] ?? '');
+            if ($recipient_email !== '') {
                 $recipients[] = array(
-                    'email' => $recipient['email'],
+                    'email' => $recipient_email,
                     'name' => $recipient['name'] ?? '',
                     'type' => 'additional'
                 );
