@@ -264,6 +264,13 @@ class AdvNews_Campaign
     private function normalize_word_span_breaks($content)
     {
         $content = preg_replace('/<span[^>]*>(\s*<span[^>]*>(?:(?!<span).)*<\/span>\s*)<\/span>/is', '$1', $content);
+        $content = preg_replace_callback('/<(h[1-6])([^>]*)>(.*?)<\/\1>/is', function ($matches) {
+            $inner = preg_replace('/(?:\s*[\/\\\\]+\s*\?+\s*){2,}/', ' ', $matches[3]);
+            $inner = preg_replace('/(?:[\/\\\\]{2,}|\?{2,})/', ' ', $inner);
+            $inner = preg_replace('/\s{2,}/', ' ', $inner);
+
+            return '<' . $matches[1] . $matches[2] . '>' . trim($inner) . '</' . $matches[1] . '>';
+        }, $content);
 
         return preg_replace_callback('/(<\/span>)(\s*<\/p>\s*<p[^>]*>\s*|[ \t]*(?:\r\n|\r|\n)+[ \t\r\n]*)(<span)/i', function ($matches) {
             $gap = $matches[2];

@@ -243,7 +243,7 @@ class AdvNews_Geolocation {
      * @return array|false
      */
     private function get_location_from_service($ip) {
-        $service = get_option('advnews_geolocation_service', 'ipapi');
+        $service = get_option('advnews_geolocation_service', 'maxmind');
         $api_key = get_option('advnews_geolocation_api_key', '');
 
         switch ($service) {
@@ -263,7 +263,7 @@ class AdvNews_Geolocation {
                 return $this->get_from_abstract($ip, $api_key);
 
             default:
-                return $this->get_from_ipapi($ip); // Default free service
+                return $this->get_from_maxmind($ip);
         }
     }
 
@@ -279,7 +279,7 @@ class AdvNews_Geolocation {
         $response = wp_remote_get($url, array(
             'timeout' => 5,
             'headers' => array(
-                'User-Agent' => 'AdvNews Manager/' . ADVNEWS_VERSION
+                'User-Agent' => 'Science180 Mail/' . ADVNEWS_VERSION
             )
         ));
 
@@ -427,7 +427,16 @@ class AdvNews_Geolocation {
     private function get_from_maxmind($ip) {
         $db_path = get_option('advnews_maxmind_db_path', '');
         if (empty($db_path) || !file_exists($db_path)) {
-            return $this->get_from_ipapi($ip);
+            $upload_dir = wp_upload_dir();
+            $default_path = $upload_dir['basedir'] . '/advnews-maxmind/GeoLite2-City.mmdb';
+            if (file_exists($default_path)) {
+                $db_path = $default_path;
+                update_option('advnews_maxmind_db_path', $default_path);
+            }
+        }
+
+        if (empty($db_path) || !file_exists($db_path)) {
+            return false;
         }
 
         // Load our self-contained reader
@@ -438,7 +447,7 @@ class AdvNews_Geolocation {
             $record = $reader->get($ip);
 
             if (!$record || !isset($record['country']['iso_code'])) {
-                return $this->get_from_ipapi($ip);
+                return false;
             }
 
             return array(
@@ -454,7 +463,7 @@ class AdvNews_Geolocation {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[AdvNews MaxMind] Error: ' . $e->getMessage());
             }
-            return $this->get_from_ipapi($ip);
+            return false;
         }
     }
 

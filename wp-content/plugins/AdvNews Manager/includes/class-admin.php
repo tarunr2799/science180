@@ -35,6 +35,7 @@ class AdvNews_Admin
         add_action('admin_post_advnews_save_template', array($this, 'handle_save_template'));
         add_action('admin_post_advnews_bulk_campaigns', array($this, 'handle_bulk_campaigns'));
         add_action('admin_post_advnews_bulk_templates', array($this, 'handle_bulk_templates'));
+        add_action('admin_post_advnews_bulk_categories', array($this, 'handle_bulk_categories'));
         add_action('admin_post_advnews_export_subscribers', array($this, 'handle_export_subscribers'));
         add_action('admin_post_advnews_save_category', array($this, 'handle_save_category'));
         add_action('admin_post_advnews_save_subscriber', array($this, 'handle_save_subscriber'));
@@ -55,8 +56,8 @@ class AdvNews_Admin
     {
         // Main menu
         add_menu_page(
-            __('AdvNews Manager', 'advnews-manager'),
-            __('AdvNews', 'advnews-manager'),
+            __('Science180 Mail', 'advnews-manager'),
+            __('Science180 Mail', 'advnews-manager'),
             'manage_options',
             'advnews-manager',
             array($this, 'render_dashboard'),
@@ -451,7 +452,7 @@ class AdvNews_Admin
             array(
                 'label_for' => 'advnews_show_credit_link',
                 'option' => 'advnews_show_credit_link',
-                'label' => __('Show "Powered by AdvNews" link in email footers', 'advnews-manager'),
+                'label' => __('Show "Powered by Science180 Mail" link in email footers', 'advnews-manager'),
                 'default' => 1
             )
         );
@@ -1302,7 +1303,7 @@ class AdvNews_Admin
             <?php endforeach; ?>
         </select>
         <p class="description">
-            <?php _e('Current time in selected AdvNews timezone:', 'advnews-manager'); ?>
+            <?php _e('Current time in selected Science180 Mail timezone:', 'advnews-manager'); ?>
             <strong><?php echo esc_html($selected_time); ?></strong>
         </p>
         <p class="description">
@@ -1312,7 +1313,7 @@ class AdvNews_Admin
         </p>
         <?php if (!$timezone_offsets_match): ?>
             <p class="description" style="color:#996800;">
-                <?php _e('This AdvNews timezone is different from the WordPress timezone. Keep them aligned unless reporting should use a different timezone.', 'advnews-manager'); ?>
+                <?php _e('This Science180 Mail timezone is different from the WordPress timezone. Keep them aligned unless reporting should use a different timezone.', 'advnews-manager'); ?>
             </p>
         <?php endif; ?>
         <?php
@@ -1394,7 +1395,7 @@ class AdvNews_Admin
      */
     public function render_geolocation_service_field($args)
     {
-        $service = get_option($args['option'], 'ipapi');
+        $service = get_option($args['option'], 'maxmind');
         $api_key = get_option($args['option_key'], '');
         $description = isset($args['description']) ? $args['description'] : '';
 
@@ -1648,14 +1649,14 @@ class AdvNews_Admin
         }
 
         // Check if MaxMind is selected but database is missing
-        $geolocation_service = get_option('advnews_geolocation_service', 'ipapi');
+        $geolocation_service = get_option('advnews_geolocation_service', 'maxmind');
         $maxmind_db_path = get_option('advnews_maxmind_db_path', '');
 
         if ($geolocation_service === 'maxmind' && empty($maxmind_db_path)) {
             ?>
             <div class="notice notice-warning is-dismissible">
                 <p>
-                    <strong><?php _e('AdvNews Manager:', 'advnews-manager'); ?></strong>
+                    <strong><?php _e('Science180 Mail:', 'advnews-manager'); ?></strong>
                     <?php _e('MaxMind geolocation is selected but database not found.', 'advnews-manager'); ?>
                     <a href="<?php echo admin_url('admin.php?page=advnews-settings&tab=tracking#maxmind-settings'); ?>">
                         <?php _e('Download database now', 'advnews-manager'); ?>
@@ -2053,6 +2054,11 @@ class AdvNews_Admin
                 <?php _e('Add New Category', 'advnews-manager'); ?>
             </a>
             <hr class="wp-header-end">
+            <?php if (isset($_GET['bulk_message'])): ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php echo esc_html(sprintf(__('%d categories processed. Categories already in use were skipped.', 'advnews-manager'), absint($_GET['bulk_count'] ?? 0))); ?></p>
+                </div>
+            <?php endif; ?>
             <?php if (empty($categories)): ?>
                 <div class="notice notice-info">
                     <p><?php _e('No categories found. Create your first category to start organizing your subscribers.', 'advnews-manager'); ?></p>
@@ -2084,11 +2090,27 @@ class AdvNews_Admin
                     <button type="button" class="button advnews-clear-category-filter"><?php _e('Clear Filters', 'advnews-manager'); ?></button>
                     <span class="advnews-category-filter-count" aria-live="polite"></span>
                 </div>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="advnews-category-bulk-form">
+                    <input type="hidden" name="action" value="advnews_bulk_categories">
+                    <?php wp_nonce_field('advnews_bulk_categories'); ?>
+                    <div class="tablenav top">
+                        <div class="alignleft actions bulkactions">
+                            <select name="bulk_action">
+                                <option value=""><?php _e('Bulk Actions', 'advnews-manager'); ?></option>
+                                <option value="delete"><?php _e('Delete unused categories', 'advnews-manager'); ?></option>
+                            </select>
+                            <button type="submit" class="button action"><?php _e('Apply', 'advnews-manager'); ?></button>
+                        </div>
+                    </div>
                 <div class="advnews-categories-grid">
                     <?php foreach ($categories as $category):
                         $stats = $category_class->get_category_stats($category->id);
                         ?>
                         <div class="advnews-category-card" data-category-id="<?php echo esc_attr($category->id); ?>" data-category-name="<?php echo esc_attr(strtolower($category->name)); ?>" style="border-top: 4px solid <?php echo esc_attr($category->color); ?>;">
+                            <label class="advnews-category-select">
+                                <input type="checkbox" name="category_ids[]" value="<?php echo esc_attr($category->id); ?>" <?php disabled($stats['subscribers'] > 0 || $stats['campaigns'] > 0); ?>>
+                                <span><?php echo ($stats['subscribers'] > 0 || $stats['campaigns'] > 0) ? esc_html__('In use', 'advnews-manager') : esc_html__('Select', 'advnews-manager'); ?></span>
+                            </label>
                             <div class="category-header">
                                 <h3><?php echo esc_html($category->name); ?></h3>
                                 <span class="category-color" style="background-color: <?php echo esc_attr($category->color); ?>;"></span>
@@ -2128,6 +2150,7 @@ class AdvNews_Admin
                         </div>
                     <?php endforeach; ?>
                 </div>
+                </form>
             <?php endif; ?>
         </div>
         <script>
@@ -2229,6 +2252,22 @@ class AdvNews_Admin
                         $('.advnews-multiselect').removeClass('is-open').find('.advnews-multiselect-toggle').attr('aria-expanded', 'false');
                     }
                 });
+
+                $('.advnews-category-bulk-form').on('submit', function(e) {
+                    var action = $(this).find('select[name="bulk_action"]').val();
+                    var checked = $(this).find('input[name="category_ids[]"]:checked').length;
+                    if (!action) {
+                        alert('<?php echo esc_js(__('Please select a bulk action.', 'advnews-manager')); ?>');
+                        e.preventDefault();
+                        return false;
+                    }
+                    if (checked === 0) {
+                        alert('<?php echo esc_js(__('Please select at least one unused category.', 'advnews-manager')); ?>');
+                        e.preventDefault();
+                        return false;
+                    }
+                    return confirm('<?php echo esc_js(__('Delete the selected unused categories?', 'advnews-manager')); ?>');
+                });
             });
         </script>
         <style>
@@ -2246,6 +2285,15 @@ class AdvNews_Admin
             .advnews-category-filter-count {
                 color: #50575e;
                 font-size: 12px;
+            }
+            .advnews-category-select {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                margin-bottom: 8px;
+                color: #50575e;
+                font-size: 12px;
+                font-weight: 600;
             }
             .advnews-multiselect {
                 position: relative;
@@ -2608,6 +2656,38 @@ class AdvNews_Admin
         exit;
     }
 
+    public function handle_bulk_categories()
+    {
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'advnews_bulk_categories')) {
+            wp_die(__('Security check failed.', 'advnews-manager'));
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+
+        $action = isset($_POST['bulk_action']) ? sanitize_key($_POST['bulk_action']) : '';
+        $category_ids = isset($_POST['category_ids']) && is_array($_POST['category_ids']) ? array_values(array_unique(array_map('intval', $_POST['category_ids']))) : array();
+        $processed = 0;
+
+        if ($action === 'delete' && !empty($category_ids)) {
+            $category_class = new AdvNews_Category();
+            foreach ($category_ids as $category_id) {
+                $result = $category_class->delete_category($category_id);
+                if (!is_wp_error($result) && $result) {
+                    $processed++;
+                }
+            }
+        }
+
+        wp_safe_redirect(add_query_arg(array(
+            'page' => 'advnews-categories',
+            'bulk_message' => 'processed',
+            'bulk_count' => $processed
+        ), admin_url('admin.php')));
+        exit;
+    }
+
     /**
      * Handle admin actions
      */
@@ -2814,7 +2894,7 @@ class AdvNews_Admin
             wp_die(__('Subscriber not found.', 'advnews-manager'));
         }
 
-        $result = $subscriber_class->unsubscribe($subscriber->email, __('Unsubscribed by admin', 'advnews-manager'));
+        $result = $subscriber_class->unsubscribe($subscriber->email, __('Unsubscribed by admin', 'advnews-manager'), false);
         if (is_wp_error($result)) {
             wp_die($result->get_error_message());
         }
@@ -2846,7 +2926,7 @@ class AdvNews_Admin
         }
 
         $subscriber_class = new AdvNews_Subscriber();
-        $result = $subscriber_class->resubscribe($subscriber_id);
+        $result = $subscriber_class->resubscribe($subscriber_id, array(), false);
         if (is_wp_error($result)) {
             wp_die($result->get_error_message());
         }
@@ -2910,7 +2990,7 @@ class AdvNews_Admin
                 foreach ($subscriber_ids as $subscriber_id) {
                     $subscriber = $subscriber_class->get_subscriber($subscriber_id);
                     if ($subscriber && $subscriber->status === 'active') {
-                        $subscriber_class->unsubscribe($subscriber->email, __('Unsubscribed via bulk action', 'advnews-manager'));
+                        $subscriber_class->unsubscribe($subscriber->email, __('Unsubscribed via bulk action', 'advnews-manager'), false);
                         $processed++;
                     }
                 }
@@ -2921,7 +3001,7 @@ class AdvNews_Admin
                 foreach ($subscriber_ids as $subscriber_id) {
                     $subscriber = $subscriber_class->get_subscriber($subscriber_id);
                     if ($subscriber && $subscriber->status === 'unsubscribed') {
-                        $subscriber_class->resubscribe($subscriber_id);
+                        $subscriber_class->resubscribe($subscriber_id, array(), false);
                         $processed++;
                     }
                 }
@@ -3111,39 +3191,67 @@ border-radius: 4px;
             }
         }
 
-        if (isset($_POST['send_template_now'])) {
+        if (isset($_POST['send_template_now']) || isset($_POST['schedule_template'])) {
             if (empty($categories)) {
-                wp_die(__('Select at least one template category before sending.', 'advnews-manager'));
+                wp_die(__('Select at least one template category before sending or scheduling.', 'advnews-manager'));
+            }
+
+            $recipient_total = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(DISTINCT sc.subscriber_id)
+                FROM {$wpdb->prefix}{$this->table_prefix}subscriber_categories sc
+                INNER JOIN {$wpdb->prefix}{$this->table_prefix}subscribers s ON s.id = sc.subscriber_id
+                WHERE s.status = 'active'
+                AND sc.category_id IN (" . implode(',', array_fill(0, count($categories), '%d')) . ")",
+                $categories
+            ));
+            if ((int) $recipient_total <= 0) {
+                wp_die(__('No active subscribers were found in the selected template categories.', 'advnews-manager'));
+            }
+
+            $scheduled_for = null;
+            if (isset($_POST['schedule_template'])) {
+                if (empty($_POST['template_scheduled_for'])) {
+                    wp_die(__('Select a schedule date and time before scheduling this template.', 'advnews-manager'));
+                }
+                $raw_time = sanitize_text_field(str_replace('T', ' ', wp_unslash($_POST['template_scheduled_for'])));
+                $scheduled_for = get_gmt_from_date($raw_time);
             }
 
             $campaign_class = new AdvNews_Campaign();
-            $campaign_id = $campaign_class->create_campaign(array(
+            $campaign_data = array(
                 'name' => sprintf('%s - %s', $data['name'], current_time('mysql')),
                 'subject' => $data['subject'],
                 'category_ids' => $categories,
                 'content' => $data['content'],
                 'template_id' => $template_id,
-                'status' => 'draft',
+                'status' => $scheduled_for ? 'scheduled' : 'draft',
+                'scheduled_for' => $scheduled_for,
                 'priority' => 'normal',
                 'track_opens' => 1,
                 'track_clicks' => 1,
                 'respect_cooldown' => 1
-            ));
+            );
+            $campaign_id = $campaign_class->create_campaign($campaign_data);
 
             if (is_wp_error($campaign_id)) {
                 wp_die($campaign_id->get_error_message());
             }
 
-            $send_result = $campaign_class->send_campaign($campaign_id);
-            if (is_wp_error($send_result)) {
-                wp_die($send_result->get_error_message());
+            if ($scheduled_for) {
+                $message = 'campaign_scheduled';
+            } else {
+                $send_result = $campaign_class->send_campaign($campaign_id);
+                if (is_wp_error($send_result)) {
+                    wp_die($send_result->get_error_message());
+                }
+                $message = 'campaign_sent';
             }
 
             wp_redirect(add_query_arg(array(
                 'page' => 'advnews-campaigns',
                 'action' => 'edit',
                 'id' => $campaign_id,
-                'message' => 'campaign_sent'
+                'message' => $message
             ), admin_url('admin.php')));
             exit;
         }
@@ -3430,7 +3538,7 @@ border-radius: 4px;
         $stats = $this->get_dashboard_stats();
         ?>
         <div class="wrap advnews-dashboard">
-            <h1><?php _e('AdvNews Manager Dashboard', 'advnews-manager'); ?></h1>
+            <h1><?php _e('Science180 Mail Dashboard', 'advnews-manager'); ?></h1>
             <div class="advnews-stats-grid">
                 <div class="advnews-stat-card">
                     <h3><?php _e('Total Subscribers', 'advnews-manager'); ?></h3>
@@ -3589,7 +3697,7 @@ border-radius: 4px;
                 <div class="advnews-credit">
                     <p>
                         <?php printf(
-                            __('Powered by %sAdvNews Manager%s - Professional Newsletter System', 'advnews-manager'),
+                            __('Powered by %sScience180 Mail%s - Professional Newsletter System', 'advnews-manager'),
                             '<a href="https://example.com/advnews-manager" target="_blank">',
                             '</a>'
                         ); ?>
@@ -3884,7 +3992,7 @@ border-radius: 4px;
         $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'general';
         ?>
         <div class="wrap">
-            <h1><?php _e('AdvNews Manager Settings', 'advnews-manager'); ?></h1>
+            <h1><?php _e('Science180 Mail Settings', 'advnews-manager'); ?></h1>
             <h2 class="nav-tab-wrapper">
                 <a href="?page=advnews-settings&tab=general" class="nav-tab <?php echo $active_tab == 'general' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('General', 'advnews-manager'); ?>
@@ -4201,6 +4309,34 @@ border-radius: 4px;
         $campaign_class = new AdvNews_Campaign();
         $existing_campaign = $campaign_id ? $campaign_class->get_campaign($campaign_id) : null;
 
+        $is_send_or_schedule = isset($_POST['send_now']) || isset($_POST['schedule_campaign']);
+        if ($is_send_or_schedule) {
+            global $wpdb;
+            $selected_recipient_count = 0;
+            if (!empty($category_ids)) {
+                $selected_recipient_count = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(DISTINCT sc.subscriber_id)
+                    FROM {$wpdb->prefix}{$this->table_prefix}subscriber_categories sc
+                    INNER JOIN {$wpdb->prefix}{$this->table_prefix}subscribers s ON s.id = sc.subscriber_id
+                    WHERE s.status = 'active'
+                    AND sc.category_id IN (" . implode(',', array_fill(0, count($category_ids), '%d')) . ")",
+                    $category_ids
+                ));
+            }
+
+            $manual_recipient_count = 0;
+            if ($campaign_id) {
+                $manual_recipient_count = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}{$this->table_prefix}campaign_logs WHERE campaign_id = %d",
+                    $campaign_id
+                ));
+            }
+
+            if ($selected_recipient_count <= 0 && $manual_recipient_count <= 0) {
+                wp_die(__('Select at least one category with active subscribers or add recipients to the campaign queue before sending or scheduling.', 'advnews-manager'));
+            }
+        }
+
         // Prepare data for Campaign Class (which handles junction table)
         $data = array(
             'name' => sanitize_text_field($_POST['name']),
@@ -4229,11 +4365,13 @@ border-radius: 4px;
             $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
             $data['scheduled_for'] = get_gmt_from_date($raw_time);
             $data['status'] = 'scheduled';
+            $data['sent_at'] = null;
         } elseif (!empty($_POST['scheduled_for'])) {
             // Normalize input format (replace T with space) and convert to GMT for storage
             $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
             $data['scheduled_for'] = get_gmt_from_date($raw_time);
             $data['status'] = 'scheduled';
+            $data['sent_at'] = null;
         } elseif (isset($_POST['status'])) {
             $data['status'] = sanitize_text_field($_POST['status']);
         }
@@ -4264,6 +4402,19 @@ border-radius: 4px;
         }
 
         $campaign_id = $campaign_id ?: $result;
+        if ($data['status'] === 'scheduled') {
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . ADVNEWS_TABLE_PREFIX . 'campaigns',
+                array(
+                    'status' => 'scheduled',
+                    'scheduled_for' => $data['scheduled_for'],
+                    'sent_at' => null,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('id' => $campaign_id)
+            );
+        }
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('AdvNews: Campaign saved with ID: ' . $campaign_id);
         }
@@ -4284,6 +4435,8 @@ border-radius: 4px;
 
         $redirect_url = add_query_arg(array(
             'page' => 'advnews-campaigns',
+            'action' => 'edit',
+            'id' => $campaign_id,
             'message' => $message
         ), admin_url('admin.php'));
 
@@ -4294,6 +4447,17 @@ border-radius: 4px;
         exit;
     }
 
+    private function clean_garbled_heading_markers($html) {
+        return preg_replace_callback('/<(h[1-6])([^>]*)>(.*?)<\/\1>/is', function ($matches) {
+            $inner = $matches[3];
+            $inner = preg_replace('/(?:\s*[\/\\\\]+\s*\?+\s*){2,}/', ' ', $inner);
+            $inner = preg_replace('/(?:[\/\\\\]{2,}|\?{2,})/', ' ', $inner);
+            $inner = preg_replace('/\s{2,}/', ' ', $inner);
+
+            return '<' . $matches[1] . $matches[2] . '>' . trim($inner) . '</' . $matches[1] . '>';
+        }, $html);
+    }
+
     /**
     * Sanitize HTML specifically for Email Campaigns
     * Allows table attributes, inline styles, and common email tags
@@ -4301,6 +4465,7 @@ border-radius: 4px;
     private function sanitize_email_html($html) {
         // Convert Word HTML to email-friendly HTML first
         $html = $this->convert_word_html_to_email_html($html);
+        $html = $this->clean_garbled_heading_markers($html);
         
         // CRITICAL FIX: Wrap consecutive span blocks separated by newlines in <p> tags.
         // This is much more reliable than injecting <br> tags. Email clients natively 
@@ -4334,7 +4499,7 @@ border-radius: 4px;
             'center' => array()
         );
         
-        return wp_kses($html, $allowed_html);
+        return wp_kses($this->clean_garbled_heading_markers($html), $allowed_html);
     }   
 
     /**
@@ -4940,7 +5105,7 @@ border-radius: 4px;
         $screen = get_current_screen();
         if (strpos($screen->id, 'advnews') !== false) {
             $text = sprintf(
-                __('Thank you for using AdvNews Manager. Please <a href="%s" target="_blank">rate it 5 stars</a> on WordPress.org.', 'advnews-manager'),
+                __('Thank you for using Science180 Mail. Please <a href="%s" target="_blank">rate it 5 stars</a> on WordPress.org.', 'advnews-manager'),
                 'https://wordpress.org/support/plugin/advnews-manager/reviews/#new-post'
             );
         }
@@ -4975,7 +5140,7 @@ border-radius: 4px;
             ?>
             <div class="notice notice-warning is-dismissible">
                 <p>
-                    <?php _e('AdvNews Manager: Please configure your email settings.', 'advnews-manager'); ?>
+                    <?php _e('Science180 Mail: Please configure your email settings.', 'advnews-manager'); ?>
                     <a href="<?php echo admin_url('admin.php?page=advnews-settings'); ?>">
                         <?php _e('Go to Settings', 'advnews-manager'); ?>
                     </a>
@@ -4989,7 +5154,7 @@ border-radius: 4px;
             ?>
             <div class="notice notice-info is-dismissible" id="advnews-smtp-test-notice" data-notice="smtp_test">
                 <p>
-                    <?php _e('AdvNews Manager: Please test your SMTP connection to ensure emails can be sent.', 'advnews-manager'); ?>
+                    <?php _e('Science180 Mail: Please test your SMTP connection to ensure emails can be sent.', 'advnews-manager'); ?>
                     <button type="button" id="advnews-test-smtp-notice" class="button button-small">
                         <?php _e('Test Now', 'advnews-manager'); ?>
                     </button>

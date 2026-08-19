@@ -15,7 +15,7 @@ if (!$subscriber) {
 }
 
 $categories = $subscriber_class->get_subscriber_categories($subscriber_id);
-$activity = $tracking_class->get_subscriber_activity($subscriber_id, 20);
+$activity = $tracking_class->get_subscriber_activity($subscriber_id, 100);
 
 // Get campaign statistics for this subscriber
 global $wpdb;
@@ -198,7 +198,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
 
                 <!-- Recent Activity -->
                 <div class="postbox">
-                    <h2 class="hndle"><?php _e('Recent Activity (Last 20)', 'advnews-manager'); ?></h2>
+                    <h2 class="hndle"><?php _e('Recent Activity (Last 100)', 'advnews-manager'); ?></h2>
                     <div class="inside">
                         <?php if (empty($activity)): ?>
                             <p><?php _e('No recent activity.', 'advnews-manager'); ?></p>
@@ -210,6 +210,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                         <th><?php _e('Type', 'advnews-manager'); ?></th>
                                         <th><?php _e('Campaign', 'advnews-manager'); ?></th>
                                         <th><?php _e('Details', 'advnews-manager'); ?></th>
+                                        <th><?php _e('IP / Device', 'advnews-manager'); ?></th>
                                         <th><?php _e('Location', 'advnews-manager'); ?></th>
                                     </tr>
                                 </thead>
@@ -241,8 +242,12 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                                 <?php endif; ?>
                                             </td>
                                             <td>
+                                                <code><?php echo esc_html($item['ip_address'] ?? ''); ?></code>
+                                                <br><small><?php echo esc_html(trim(($item['device'] ?? '') . ' / ' . ($item['browser'] ?? '') . ' / ' . ($item['platform'] ?? ''), ' /')); ?></small>
+                                            </td>
+                                            <td>
                                                 <?php if (!empty($item['location'])): ?>
-                                                    📍 <?php echo esc_html($item['location']); ?>
+                                                    <?php echo esc_html($item['location']); ?>
                                                 <?php else: ?>
                                                     —
                                                 <?php endif; ?>

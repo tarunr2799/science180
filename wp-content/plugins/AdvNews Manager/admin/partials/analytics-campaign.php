@@ -16,6 +16,67 @@ if (!$campaign) {
 
 $analytics = $tracking_class->get_campaign_analytics($campaign_id);
 $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
+
+global $wpdb;
+$table_prefix = ADVNEWS_TABLE_PREFIX;
+$table_logs = $wpdb->prefix . $table_prefix . 'campaign_logs';
+$table_subscribers = $wpdb->prefix . $table_prefix . 'subscribers';
+$table_opens = $wpdb->prefix . $table_prefix . 'tracking_opens';
+$table_clicks = $wpdb->prefix . $table_prefix . 'tracking_clicks';
+$recipient_details = $wpdb->get_results($wpdb->prepare(
+    "SELECT
+        l.id AS log_id,
+        l.subscriber_id,
+        l.email,
+        l.status,
+        l.sent_at,
+        l.delivered_at,
+        l.opened_at,
+        l.clicked_at,
+        s.first_name,
+        s.last_name,
+        (SELECT COUNT(*) FROM $table_opens o WHERE o.campaign_log_id = l.id) AS open_count,
+        (SELECT COUNT(*) FROM $table_clicks c WHERE c.campaign_log_id = l.id) AS click_count,
+        COALESCE(
+            (SELECT c.clicked_at FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.opened_at FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1),
+            l.clicked_at,
+            l.opened_at,
+            l.delivered_at,
+            l.sent_at,
+            l.created_at
+        ) AS latest_activity,
+        COALESCE(
+            (SELECT c.ip_address FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.ip_address FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_ip,
+        COALESCE(
+            (SELECT c.country FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.country FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_country,
+        COALESCE(
+            (SELECT c.city FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.city FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_city,
+        COALESCE(
+            (SELECT c.device_type FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.device_type FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_device,
+        COALESCE(
+            (SELECT c.browser FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.browser FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_browser,
+        COALESCE(
+            (SELECT c.platform FROM $table_clicks c WHERE c.campaign_log_id = l.id ORDER BY c.clicked_at DESC LIMIT 1),
+            (SELECT o.platform FROM $table_opens o WHERE o.campaign_log_id = l.id ORDER BY o.opened_at DESC LIMIT 1)
+        ) AS latest_platform
+    FROM $table_logs l
+    LEFT JOIN $table_subscribers s ON s.id = l.subscriber_id
+    WHERE l.campaign_id = %d
+    ORDER BY click_count DESC, open_count DESC, latest_activity DESC
+    LIMIT 500",
+    $campaign_id
+));
 ?>
 <div class="wrap">
     <h1 class="wp-heading-inline"><?php printf(__('Campaign Analytics: %s', 'advnews-manager'), esc_html($campaign->name)); ?></h1>
@@ -27,6 +88,9 @@ $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
     <nav class="nav-tab-wrapper advnews-analytics-tabs">
         <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign_id . '&tab=overview'); ?>" class="nav-tab <?php echo $tab === 'overview' ? 'nav-tab-active' : ''; ?>">
             <?php _e('Overview', 'advnews-manager'); ?>
+        </a>
+        <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign_id . '&tab=recipients'); ?>" class="nav-tab <?php echo $tab === 'recipients' ? 'nav-tab-active' : ''; ?>">
+            <?php _e('Recipients', 'advnews-manager'); ?>
         </a>
         <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign_id . '&tab=geographic'); ?>" class="nav-tab <?php echo $tab === 'geographic' ? 'nav-tab-active' : ''; ?>">
             <?php _e('Geographic', 'advnews-manager'); ?>
@@ -234,6 +298,58 @@ $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
                     }
                 });
                 </script>
+            <?php break; ?>
+
+        <?php case 'recipients': ?>
+            <div class="analytics-section">
+                <h2><?php _e('Recipient Activity', 'advnews-manager'); ?></h2>
+                <p class="description"><?php _e('Shows delivery and engagement for each campaign recipient. Email addresses link to the subscriber profile.', 'advnews-manager'); ?></p>
+                <table class="wp-list-table widefat striped advnews-recipient-analytics-table">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Recipient', 'advnews-manager'); ?></th>
+                            <th><?php _e('Status', 'advnews-manager'); ?></th>
+                            <th><?php _e('Opens', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clicks', 'advnews-manager'); ?></th>
+                            <th><?php _e('Latest Activity', 'advnews-manager'); ?></th>
+                            <th><?php _e('IP', 'advnews-manager'); ?></th>
+                            <th><?php _e('Location', 'advnews-manager'); ?></th>
+                            <th><?php _e('Device', 'advnews-manager'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recipient_details)): ?>
+                            <tr>
+                                <td colspan="8"><?php _e('No recipient records found for this campaign yet.', 'advnews-manager'); ?></td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($recipient_details as $recipient): ?>
+                                <?php
+                                $subscriber_url = admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $recipient->subscriber_id);
+                                $recipient_name = trim($recipient->first_name . ' ' . $recipient->last_name);
+                                $location = trim(implode(', ', array_filter(array($recipient->latest_city, $recipient->latest_country))));
+                                $device = trim(implode(' / ', array_filter(array($recipient->latest_device, $recipient->latest_browser, $recipient->latest_platform))));
+                                ?>
+                                <tr>
+                                    <td>
+                                        <a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($recipient->email); ?></a>
+                                        <?php if ($recipient_name): ?>
+                                            <br><span class="description"><?php echo esc_html($recipient_name); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo esc_html(ucfirst($recipient->status)); ?></td>
+                                    <td><?php echo esc_html((int) $recipient->open_count); ?></td>
+                                    <td><?php echo esc_html((int) $recipient->click_count); ?></td>
+                                    <td><?php echo $recipient->latest_activity ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($recipient->latest_activity))) : '&mdash;'; ?></td>
+                                    <td><?php echo $recipient->latest_ip ? esc_html($recipient->latest_ip) : '&mdash;'; ?></td>
+                                    <td><?php echo $location ? esc_html($location) : '&mdash;'; ?></td>
+                                    <td><?php echo $device ? esc_html($device) : '&mdash;'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
             <?php break; ?>
 
         <?php case 'geographic': ?>
@@ -681,20 +797,28 @@ $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
                     <h3><?php _e('Click Heatmap', 'advnews-manager'); ?></h3>
                     <div class="email-heatmap">
                         <?php
-                        $email_content = $campaign->content;
                         $max_clicks = !empty($analytics['links']) ? max(array_column($analytics['links'], 'click_count')) : 1;
-                        foreach ($analytics['links'] ?? [] as $link) {
-                            $clicks = $link->click_count;
-                            $intensity = $max_clicks > 0 ? $clicks / $max_clicks : 0;
-                            $color = sprintf('rgba(34, 113, 177, %.2f)', min(0.9, $intensity));
-                            $email_content = str_replace(
-                                $link->original_url,
-                                '<span style="background-color: ' . $color . '; padding: 2px 4px; border-radius: 3px;" title="' . sprintf(__('%d clicks', 'advnews-manager'), $clicks) . '">' . esc_html(wp_trim_words($link->original_url, 10, '...')) . '</span>',
-                                $email_content
-                            );
-                        }
-                        echo wp_kses_post($email_content);
+                        $links = $analytics['links'] ?? array();
                         ?>
+                        <?php if (empty($links)): ?>
+                            <p><?php _e('No tracked links were found for this campaign.', 'advnews-manager'); ?></p>
+                        <?php else: ?>
+                            <ul class="advnews-link-heatmap-list">
+                                <?php foreach ($links as $link): ?>
+                                    <?php
+                                    $clicks = (int) $link->click_count;
+                                    $intensity = $max_clicks > 0 ? $clicks / $max_clicks : 0;
+                                    $color = sprintf('rgba(34, 113, 177, %.2f)', max(0.08, min(0.9, $intensity)));
+                                    ?>
+                                    <li style="background-color: <?php echo esc_attr($color); ?>;">
+                                        <a href="<?php echo esc_url($link->original_url); ?>" target="_blank" rel="noopener noreferrer">
+                                            <?php echo esc_html($link->original_url); ?>
+                                        </a>
+                                        <span><?php echo esc_html(sprintf(_n('%d click', '%d clicks', $clicks, 'advnews-manager'), $clicks)); ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="summary-card">
@@ -1158,6 +1282,29 @@ $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'overview';
     border: 1px solid #e9ecef;
     border-radius: 4px;
     padding: 15px;
+}
+.advnews-link-heatmap-list {
+    margin: 0;
+}
+.advnews-link-heatmap-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 8px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    word-break: break-word;
+}
+.advnews-link-heatmap-list a {
+    color: #0a4b78;
+    font-weight: 600;
+}
+.advnews-link-heatmap-list span {
+    flex: 0 0 auto;
+    color: #1d2327;
+    font-size: 12px;
+    font-weight: 600;
 }
 .timeline-filters {
     margin-bottom: 20px;

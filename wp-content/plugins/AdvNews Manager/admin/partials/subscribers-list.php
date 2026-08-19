@@ -12,7 +12,12 @@ $status = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : '';
 $category_id = isset($_GET['category_id']) ? intval($_GET['category_id']) : 0;
 $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
-$limit = 20;
+$allowed_per_page = array(20, 50, 100, 200);
+$limit = isset($_GET['per_page']) ? intval($_GET['per_page']) : intval(get_user_meta(get_current_user_id(), 'advnews_subscribers_per_page', true));
+if (!in_array($limit, $allowed_per_page, true)) {
+    $limit = 20;
+}
+update_user_meta(get_current_user_id(), 'advnews_subscribers_per_page', $limit);
 $args = array(
 'status' => $status,
 'category_id' => $category_id,
@@ -97,6 +102,13 @@ $notice_class = $message_key === 'error' ? 'notice-error' : 'notice-success';
 </select>
 <input type="text" name="s" placeholder="<?php _e('Search by email, name, or organization', 'advnews-manager'); ?>"
 value="<?php echo esc_attr($search); ?>" style="height: 35px; min-width: 250px;">
+<select name="per_page" style="height: 35px;">
+<?php foreach ($allowed_per_page as $per_page_option): ?>
+<option value="<?php echo esc_attr($per_page_option); ?>" <?php selected($limit, $per_page_option); ?>>
+<?php echo esc_html(sprintf(__('%d per page', 'advnews-manager'), $per_page_option)); ?>
+</option>
+<?php endforeach; ?>
+</select>
 <input type="submit" class="button" value="<?php _e('Filter', 'advnews-manager'); ?>">
 <?php if ($status || $category_id || $search): ?>
 <a href="<?php echo admin_url('admin.php?page=advnews-subscribers'); ?>" class="button">
@@ -331,6 +343,18 @@ padding: 3px 8px;
 border-radius: 3px;
 font-size: 11px;
 font-weight: 600;
+}
+.tablenav-pages,
+.tablenav-pages .page-numbers {
+font-size: 16px;
+line-height: 1.7;
+}
+.tablenav-pages .page-numbers {
+min-width: 34px;
+min-height: 34px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
 }
 
 /* ✅ NEW: Reset Cooldown Link Styles */

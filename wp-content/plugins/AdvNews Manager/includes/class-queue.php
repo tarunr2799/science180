@@ -219,7 +219,10 @@ class AdvNews_Queue
                 $from_email = get_option('admin_email');
             }
             $from_name = !empty($email->from_name) ? $email->from_name : get_option('advnews_smtp_from_name', get_bloginfo('name'));
-            $reply_to = !empty($email->reply_to) ? $email->reply_to : $from_email;
+            $reply_to = !empty($email->reply_to) ? $email->reply_to : get_option('advnews_reply_to', 'contact@science180.com');
+            if (empty($reply_to) || !is_email($reply_to)) {
+                $reply_to = 'contact@science180.com';
+            }
 
             $headers = array(
                 'From: ' . $from_name . ' <' . $from_email . '>',

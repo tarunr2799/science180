@@ -345,7 +345,7 @@ jQuery(document).ready(function($) {
 
     // Optimize tables
     $('#optimize-tables').on('click', function() {
-        if (confirm('<?php _e('This will optimize all AdvNews database tables. Continue?', 'advnews-manager'); ?>')) {
+        if (confirm('<?php _e('This will optimize all Science180 Mail database tables. Continue?', 'advnews-manager'); ?>')) {
             var button = $(this);
             var resultDiv = $('#optimization-result');
 

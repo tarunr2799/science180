@@ -8,7 +8,7 @@ $enable_click_tracking = get_option('advnews_enable_click_tracking', true);
 $track_geolocation = get_option('advnews_track_geolocation', true);
 $track_device = get_option('advnews_track_device', true);
 $anonymize_ip = get_option('advnews_anonymize_ip', false);
-$geolocation_service = get_option('advnews_geolocation_service', 'ipapi'); // Default to ipapi
+$geolocation_service = get_option('advnews_geolocation_service', 'maxmind');
 $geolocation_api_key = get_option('advnews_geolocation_api_key', '');
 $retention_days = get_option('advnews_tracking_retention_days', 365);
 $enable_utm_tracking = get_option('advnews_enable_utm_tracking', false);
@@ -18,6 +18,14 @@ $utm_parameters = get_option('advnews_utm_parameters', 'utm_source,utm_medium,ut
 $maxmind_license_key = get_option('advnews_maxmind_license_key', '');
 $maxmind_auto_update = get_option('advnews_maxmind_auto_update', true);
 $maxmind_db_path = get_option('advnews_maxmind_db_path', '');
+if (empty($maxmind_db_path) || !file_exists($maxmind_db_path)) {
+    $upload_dir = wp_upload_dir();
+    $default_maxmind_db_path = $upload_dir['basedir'] . '/advnews-maxmind/GeoLite2-City.mmdb';
+    if (file_exists($default_maxmind_db_path)) {
+        $maxmind_db_path = $default_maxmind_db_path;
+        update_option('advnews_maxmind_db_path', $default_maxmind_db_path);
+    }
+}
 $db_exists = !empty($maxmind_db_path) && file_exists($maxmind_db_path);
 $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime($maxmind_db_path)) : __('Not downloaded yet', 'advnews-manager');
 ?>

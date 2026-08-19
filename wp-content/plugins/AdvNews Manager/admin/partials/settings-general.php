@@ -82,7 +82,7 @@ if (!defined('ABSPATH')) exit;
             <label>
                 <input type="checkbox" name="advnews_show_credit_link" value="1"
                        <?php checked(get_option('advnews_show_credit_link', true), 1); ?>>
-                <?php _e('Show "Powered by AdvNews" link in email footers', 'advnews-manager'); ?>
+                <?php _e('Show "Powered by Science180 Mail" link in email footers', 'advnews-manager'); ?>
             </label>
         </td>
     </tr>

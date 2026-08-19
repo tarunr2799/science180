@@ -515,7 +515,7 @@ class AdvNews_Cron
         $message .= '<li>' . sprintf(__('Unsubscribed: %d', 'advnews-manager'), $subscriber_stats->unsubscribed ?? 0) . '</li>';
         $message .= '<li>' . sprintf(__('Bounced: %d', 'advnews-manager'), $subscriber_stats->bounced ?? 0) . '</li>';
         $message .= '</ul>';
-        $message .= '<p>' . __('This is an automated weekly report from AdvNews Manager.', 'advnews-manager') . '</p>';
+        $message .= '<p>' . __('This is an automated weekly report from Science180 Mail.', 'advnews-manager') . '</p>';
         $message .= '</body></html>';
 
         // Send email

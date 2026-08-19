@@ -788,22 +788,85 @@ class AdvNews_Ajax
         $this->check_capability();
 
         $campaign_id = isset($_POST['campaign_id']) ? intval($_POST['campaign_id']) : 0;
-        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $raw_emails = isset($_POST['emails']) ? sanitize_textarea_field(wp_unslash($_POST['emails'])) : '';
+        if (empty($raw_emails) && isset($_POST['email'])) {
+            $raw_emails = sanitize_textarea_field(wp_unslash($_POST['email']));
+        }
+        $category_ids = isset($_POST['category_ids']) && is_array($_POST['category_ids']) ? array_values(array_unique(array_map('intval', $_POST['category_ids']))) : array();
 
         if (!$campaign_id) {
             wp_send_json_error(array('message' => __('Invalid campaign ID.', 'advnews-manager')));
         }
 
-        $campaign_class = new AdvNews_Campaign();
-        $result = $campaign_class->add_recipient_to_campaign($campaign_id, $email);
+        if (!empty($_FILES['csv_file']['tmp_name']) && is_uploaded_file($_FILES['csv_file']['tmp_name'])) {
+            $csv_handle = fopen($_FILES['csv_file']['tmp_name'], 'r');
+            if ($csv_handle) {
+                while (($row = fgetcsv($csv_handle)) !== false) {
+                    $raw_emails .= "\n" . implode("\n", $row);
+                }
+                fclose($csv_handle);
+            }
+        }
 
-        if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
+        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $raw_emails, $matches);
+        $emails = array_values(array_unique(array_map('strtolower', $matches[0] ?? array())));
+
+        if (empty($emails)) {
+            wp_send_json_error(array('message' => __('Enter at least one valid email address or upload a CSV file.', 'advnews-manager')));
+        }
+
+        $campaign_class = new AdvNews_Campaign();
+        $subscriber_class = new AdvNews_Subscriber();
+        $added = 0;
+        $created = 0;
+        $skipped = array();
+
+        foreach ($emails as $email) {
+            $subscriber = $subscriber_class->get_subscriber_by_email($email);
+            if (!$subscriber) {
+                $subscriber_id = $subscriber_class->add_subscriber(array(
+                    'email' => $email,
+                    'categories' => $category_ids,
+                    'send_welcome' => false
+                ));
+                if (is_wp_error($subscriber_id)) {
+                    $skipped[] = $email . ' (' . $subscriber_id->get_error_message() . ')';
+                    continue;
+                }
+                $created++;
+            } elseif ($subscriber->status !== 'active') {
+                $skipped[] = $email . ' (' . __('not active', 'advnews-manager') . ')';
+                continue;
+            } elseif (!empty($category_ids)) {
+                $subscriber_class->add_categories_to_subscriber($subscriber->id, $category_ids);
+            }
+
+            $result = $campaign_class->add_recipient_to_campaign($campaign_id, $email);
+            if (is_wp_error($result)) {
+                $skipped[] = $email . ' (' . $result->get_error_message() . ')';
+                continue;
+            }
+            $added++;
+        }
+
+        if ($added === 0) {
+            wp_send_json_error(array(
+                'message' => __('No recipients were added.', 'advnews-manager') . (!empty($skipped) ? ' ' . implode('; ', array_slice($skipped, 0, 5)) : '')
+            ));
         }
 
         wp_send_json_success(array(
-            'message' => __('Recipient added to the campaign queue.', 'advnews-manager'),
-            'data' => $result
+            'message' => sprintf(
+                __('%1$d recipient(s) added to the campaign queue. %2$d new subscriber(s) created.%3$s', 'advnews-manager'),
+                $added,
+                $created,
+                !empty($skipped) ? ' ' . sprintf(__('Skipped: %s', 'advnews-manager'), implode('; ', array_slice($skipped, 0, 5))) : ''
+            ),
+            'data' => array(
+                'added' => $added,
+                'created' => $created,
+                'skipped' => $skipped
+            )
         ));
     }
 
@@ -1724,8 +1787,8 @@ class AdvNews_Ajax
         // Add hook with VERY HIGH priority
         add_action('phpmailer_init', array($this, 'configure_smtp_for_test'), 9999);
 
-        $subject = __('AdvNews SMTP Test', 'advnews-manager');
-        $message = __('This is a test email from AdvNews Manager. If you receive this, your SMTP settings are working correctly.', 'advnews-manager');
+        $subject = __('Science180 Mail SMTP Test', 'advnews-manager');
+        $message = __('This is a test email from Science180 Mail. If you receive this, your SMTP settings are working correctly.', 'advnews-manager');
         $message .= "\n\n" . sprintf(__('Test sent at: %s', 'advnews-manager'), current_time('mysql'));
         $message .= "\n\n" . sprintf(__('SMTP Host: %s', 'advnews-manager'), $smtp_host);
         $message .= "\n" . sprintf(__('SMTP Port: %s', 'advnews-manager'), $smtp_port);

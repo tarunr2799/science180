@@ -160,8 +160,9 @@ $categories = $category_class->get_all_categories();
                                         'textarea_rows' => 15,
                                         'teeny' => false,
                                         'tinymce' => array(
-                                            'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,|,bullist,numlist,|,link,unlink,|,alignleft,aligncenter,alignright,|,forecolor,backcolor,|,code',
-                                            'toolbar2' => 'outdent,indent,|,undo,redo,|,wp_adv',
+                                            'plugins' => 'charmap colorpicker hr lists paste tabfocus textcolor wordpress wpautoresize wpeditimage wplink table',
+                                            'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,|,bullist,numlist,|,link,unlink,|,alignleft,aligncenter,alignright,|,forecolor,backcolor,|,table,|,code',
+                                            'toolbar2' => 'fontselect,fontsizeselect,outdent,indent,|,pastetext,removeformat,|,undo,redo,|,wp_adv',
                                             'extended_valid_elements' => 'br[*],span[*],p[*],div[*],a[*],img[*],table[*],tr[*],td[*],th[*],ul[*],ol[*],li[*]',
                                             'valid_elements' => '*[*]',
                                             'valid_children' => '+body[style],+span[style],+p[style],+div[style],+br',
@@ -234,6 +235,20 @@ $categories = $category_class->get_all_categories();
                                            id="send_template_now"
                                            class="button button-secondary button-large"
                                            value="<?php _e('Send Now', 'advnews-manager'); ?>">
+                                    <input type="submit"
+                                           name="schedule_template"
+                                           id="schedule_template"
+                                           class="button button-secondary button-large"
+                                           value="<?php _e('Schedule', 'advnews-manager'); ?>">
+                                </div>
+                                <div class="misc-pub-section" style="padding-top:12px;">
+                                    <label for="template_scheduled_for"><?php _e('Schedule for:', 'advnews-manager'); ?></label>
+                                    <input type="datetime-local"
+                                           id="template_scheduled_for"
+                                           name="template_scheduled_for"
+                                           class="widefat"
+                                           step="1">
+                                    <p class="description"><?php _e('Used when clicking Schedule.', 'advnews-manager'); ?></p>
                                 </div>
                                 <div class="clear"></div>
                             </div>
@@ -750,6 +765,7 @@ jQuery(document).ready(function($) {
         var subject = $('#template_subject').val().trim();
         var submitter = e.originalEvent && e.originalEvent.submitter ? e.originalEvent.submitter : document.activeElement;
         var isSendNow = submitter && submitter.name === 'send_template_now';
+        var isSchedule = submitter && submitter.name === 'schedule_template';
 
         if (!name || !subject) {
             e.preventDefault();
@@ -757,13 +773,24 @@ jQuery(document).ready(function($) {
             return false;
         }
 
-        if (isSendNow && $('input[name="template_categories[]"]:checked').length === 0) {
+        if ((isSendNow || isSchedule) && $('input[name="template_categories[]"]:checked').length === 0) {
             e.preventDefault();
-            alert('<?php _e('Select at least one category before sending this template.', 'advnews-manager'); ?>');
+            alert('<?php _e('Select at least one category before sending or scheduling this template.', 'advnews-manager'); ?>');
+            return false;
+        }
+
+        if (isSchedule && !$('#template_scheduled_for').val()) {
+            e.preventDefault();
+            alert('<?php _e('Select a schedule date and time before scheduling this template.', 'advnews-manager'); ?>');
             return false;
         }
 
         if (isSendNow && !confirm('<?php _e('Send this template now to active subscribers in the selected categories?', 'advnews-manager'); ?>')) {
+            e.preventDefault();
+            return false;
+        }
+
+        if (isSchedule && !confirm('<?php _e('Schedule this template for active subscribers in the selected categories?', 'advnews-manager'); ?>')) {
             e.preventDefault();
             return false;
         }

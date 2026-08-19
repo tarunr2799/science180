@@ -8,7 +8,7 @@ $system_analytics = $tracking_class->get_system_analytics('30days');
 ?>
 
 <div class="wrap advnews-dashboard">
-    <h1><?php _e('AdvNews Manager Dashboard', 'advnews-manager'); ?></h1>
+    <h1><?php _e('Science180 Mail Dashboard', 'advnews-manager'); ?></h1>
 
     <div class="advnews-stats-grid">
         <div class="advnews-stat-card">

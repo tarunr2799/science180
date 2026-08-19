@@ -15,6 +15,8 @@ if (!$campaign) {
 $stats = $campaign_class->get_campaign_stats($campaign_id);
 $analytics = $tracking_class->get_campaign_analytics($campaign_id);
 $recipients = $campaign_class->get_campaign_recipients($campaign_id, '', 50, 0);
+$category_class = new AdvNews_Category();
+$all_categories = $category_class->get_all_categories();
 
 global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
@@ -136,10 +138,11 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                                         <?php
                                         $name = trim($recipient->first_name . ' ' . $recipient->last_name);
                                         $received_at = $recipient->delivered_at ?: ($recipient->sent_at ?: $recipient->created_at);
+                                        $subscriber_url = admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $recipient->subscriber_id);
                                         ?>
                                         <tr>
-                                            <td><?php echo esc_html($name ?: __('Subscriber', 'advnews-manager')); ?></td>
-                                            <td><?php echo esc_html($recipient->email); ?></td>
+                                            <td><a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($name ?: __('Subscriber', 'advnews-manager')); ?></a></td>
+                                            <td><a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($recipient->email); ?></a></td>
                                             <td><?php echo esc_html(ucfirst($recipient->status)); ?></td>
                                             <td><?php echo $received_at ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($received_at))) : '&mdash;'; ?></td>
                                         </tr>
@@ -204,8 +207,25 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                         <div class="inside">
                             <form id="add-recipient-form">
                                 <p>
-                                    <input type="email" id="recipient-email" class="widefat" placeholder="<?php esc_attr_e('subscriber@example.com', 'advnews-manager'); ?>" required>
+                                    <label for="recipient-emails"><strong><?php _e('Email addresses', 'advnews-manager'); ?></strong></label>
+                                    <textarea id="recipient-emails" class="widefat" rows="5" placeholder="<?php esc_attr_e('One email per line, or separated by commas', 'advnews-manager'); ?>"></textarea>
                                 </p>
+                                <p>
+                                    <label for="recipient-csv"><strong><?php _e('CSV upload', 'advnews-manager'); ?></strong></label>
+                                    <input type="file" id="recipient-csv" accept=".csv,text/csv" class="widefat">
+                                </p>
+                                <?php if (!empty($all_categories)): ?>
+                                <p>
+                                    <strong><?php _e('Assign categories to new subscribers', 'advnews-manager'); ?></strong>
+                                    <span class="description"><?php _e('Optional', 'advnews-manager'); ?></span>
+                                    <?php foreach ($all_categories as $category): ?>
+                                        <label style="display:block;margin-top:6px;">
+                                            <input type="checkbox" name="recipient_category_ids[]" value="<?php echo esc_attr($category->id); ?>">
+                                            <?php echo esc_html($category->name); ?>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </p>
+                                <?php endif; ?>
                                 <button type="submit" class="button button-secondary button-block">
                                     <?php _e('Add to Queue', 'advnews-manager'); ?>
                                 </button>
@@ -316,19 +336,36 @@ jQuery(document).ready(function($) {
 
     $('#add-recipient-form').on('submit', function(e) {
         e.preventDefault();
-        var email = $('#recipient-email').val();
-        $.post(advnews_ajax.ajax_url, {
-            action: 'advnews_add_campaign_recipient',
-            campaign_id: <?php echo $campaign_id; ?>,
-            email: email,
-            nonce: advnews_ajax.nonce
-        }, function(response) {
+        var formData = new FormData();
+        var categoryIds = [];
+        $('input[name="recipient_category_ids[]"]:checked').each(function() {
+            categoryIds.push($(this).val());
+        });
+        formData.append('action', 'advnews_add_campaign_recipient');
+        formData.append('campaign_id', <?php echo $campaign_id; ?>);
+        formData.append('emails', $('#recipient-emails').val());
+        formData.append('nonce', advnews_ajax.nonce);
+        categoryIds.forEach(function(categoryId) {
+            formData.append('category_ids[]', categoryId);
+        });
+        if ($('#recipient-csv')[0] && $('#recipient-csv')[0].files.length) {
+            formData.append('csv_file', $('#recipient-csv')[0].files[0]);
+        }
+        $.ajax({
+            url: advnews_ajax.ajax_url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        }).done(function(response) {
             if (response.success) {
                 alert(response.data.message);
                 location.reload();
             } else {
                 alert(response.data.message);
             }
+        }).fail(function() {
+            alert('<?php echo esc_js(__('Could not add recipients. Please try again.', 'advnews-manager')); ?>');
         });
     });
 

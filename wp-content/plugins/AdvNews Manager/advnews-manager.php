@@ -1,9 +1,9 @@
 <?php
 /**
-* Plugin Name: AdvNews Manager
+* Plugin Name: Science180 Mail
 * Plugin URI: https://example.com/advnews-manager
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.5
+* Version: 1.0.6
 * Author: Your Name
 * Author URI: https://example.com
 * Text Domain: advnews-manager
@@ -17,8 +17,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.5');
-define('ADVNEWS_DB_VERSION', '1.0.7');
+define('ADVNEWS_VERSION', '1.0.6');
+define('ADVNEWS_DB_VERSION', '1.0.8');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ADVNEWS_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -200,6 +200,10 @@ class AdvNews_Manager
             }
         }
 
+        if (wp_next_scheduled('advnews_weekly_reports') && wp_get_schedule('advnews_weekly_reports') !== 'weekly') {
+            wp_clear_scheduled_hook('advnews_weekly_reports');
+        }
+
         if (!wp_next_scheduled('advnews_weekly_reports')) {
             wp_schedule_event(time(), 'weekly', 'advnews_weekly_reports');
             if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -229,12 +233,13 @@ class AdvNews_Manager
         if (version_compare($current_db_version, ADVNEWS_DB_VERSION, '<')) {
             // Run database upgrade
             $this->database->create_tables();
+            $this->apply_science180_option_migrations();
             update_option('advnews_db_version', ADVNEWS_DB_VERSION);
 
             // Log the upgrade
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log(sprintf(
-                    'AdvNews Manager: Database upgraded from %s to %s',
+                    'Science180 Mail: Database upgraded from %s to %s',
                     $current_db_version,
                     ADVNEWS_DB_VERSION
                 ));
@@ -251,6 +256,25 @@ class AdvNews_Manager
         }
     }
 
+    private function apply_science180_option_migrations()
+    {
+        if (get_option('advnews_geolocation_service', 'ipapi') === 'ipapi') {
+            update_option('advnews_geolocation_service', 'maxmind');
+        }
+
+        $reply_to = sanitize_email(get_option('advnews_reply_to', ''));
+        if (!$reply_to || preg_match('/@science\.net$/i', $reply_to)) {
+            update_option('advnews_reply_to', 'contact@science180.com');
+        }
+
+        foreach (array('advnews_from_email', 'advnews_smtp_from_email', 'advnews_smtp_username') as $option) {
+            $email = sanitize_email(get_option($option, ''));
+            if ($email && preg_match('/@science\.net$/i', $email)) {
+                update_option($option, preg_replace('/@science\.net$/i', '@science180.net', $email));
+            }
+        }
+    }
+
     /**
     * Show upgrade notice
     */
@@ -259,7 +283,7 @@ class AdvNews_Manager
         ?>
         <div class="notice notice-success is-dismissible">
             <p>
-                <?php _e('AdvNews Manager database updated successfully.', 'advnews-manager'); ?>
+                <?php _e('Science180 Mail database updated successfully.', 'advnews-manager'); ?>
             </p>
         </div>
         <?php
@@ -514,7 +538,7 @@ class AdvNews_Manager
             'company_name' => get_bloginfo('name'),
             'from_name' => get_bloginfo('name'),
             'from_email' => get_bloginfo('admin_email'),
-            'reply_to' => get_bloginfo('admin_email'),
+            'reply_to' => 'contact@science180.com',
             'timezone' => get_option('timezone_string', 'UTC'),
             'emails_per_batch' => 50,
             'minutes_between_batches' => 20,
@@ -532,7 +556,7 @@ class AdvNews_Manager
             'tracking_retention_days' => 365,
             'enable_utm_tracking' => false,
             'utm_parameters' => 'utm_source,utm_medium,utm_campaign,utm_term,utm_content',
-            'geolocation_service' => 'ipapi',
+            'geolocation_service' => 'maxmind',
             'geolocation_api_key' => '',
             'smtp_host' => '',
             'smtp_port' => 587,

@@ -79,12 +79,14 @@ class AdvNews_Subscriber
         $this->log_activity($subscriber_id, 'subscribed', null, null, $subscriber_data['ip_address']);
 
 		// Send confirmation email if double opt-in is enabled
-		if (get_option('advnews_double_optin')) {
-			$this->send_confirmation_email($subscriber_id);
-		} elseif (get_option('advnews_welcome_email', false)) {
-			// Send welcome email ONLY if enabled in settings
-			$this->send_welcome_email($subscriber_id);
-		}
+        $send_welcome = !array_key_exists('send_welcome', $data) || !empty($data['send_welcome']);
+
+        if (get_option('advnews_double_optin') && $send_welcome) {
+            $this->send_confirmation_email($subscriber_id);
+        } elseif (get_option('advnews_welcome_email', false) && $send_welcome) {
+            // Send welcome email ONLY if enabled in settings
+            $this->send_welcome_email($subscriber_id);
+        }
 
         return $subscriber_id;
     }
@@ -92,7 +94,7 @@ class AdvNews_Subscriber
     /**
      * Unsubscribe a subscriber (MARK as unsubscribed, DO NOT DELETE)
      */
-    public function unsubscribe($email, $reason = '')
+    public function unsubscribe($email, $reason = '', $send_notification = true)
     {
         $email = AdvNews_Security::sanitize_email($email);
 
@@ -124,8 +126,9 @@ class AdvNews_Subscriber
         // Log activity
         $this->log_activity($subscriber->id, 'unsubscribed', null, null, AdvNews_Security::get_client_ip(), array('reason' => $reason));
 
-        // Send unsubscribe confirmation email
-        $this->send_unsubscribe_confirmation($subscriber->id);
+        if ($send_notification) {
+            $this->send_unsubscribe_confirmation($subscriber->id);
+        }
 
         return true;
     }
@@ -133,7 +136,7 @@ class AdvNews_Subscriber
     /**
      * Resubscribe a previously unsubscribed user
      */
-    public function resubscribe($subscriber_id, $data = array())
+    public function resubscribe($subscriber_id, $data = array(), $send_notification = true)
     {
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
         $update_data = array(
@@ -191,8 +194,9 @@ class AdvNews_Subscriber
         // Log activity
         $this->log_activity($subscriber_id, 'subscribed', null, null, AdvNews_Security::get_client_ip());
 
-        // Send welcome back email
-        $this->send_resubscribe_email($subscriber_id);
+        if ($send_notification) {
+            $this->send_resubscribe_email($subscriber_id);
+        }
 
         return true;
     }

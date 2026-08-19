@@ -211,6 +211,9 @@ if (isset($_GET['message'])) {
                                 'media_buttons' => true,
                                 'teeny' => false,
                                 'tinymce' => array(
+                                    'plugins' => 'charmap colorpicker hr lists paste tabfocus textcolor wordpress wpautoresize wpeditimage wplink table',
+                                    'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,|,bullist,numlist,|,link,unlink,|,alignleft,aligncenter,alignright,|,forecolor,backcolor,|,table,|,undo,redo',
+                                    'toolbar2' => 'fontselect,fontsizeselect,outdent,indent,|,pastetext,removeformat,|,wp_adv',
                                     'setup' => 'function(ed) {
                                         ed.on("change", function(e) {
                                             ed.save();
