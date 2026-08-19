@@ -58,6 +58,10 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     justify-content: flex-start;
 }
 
+body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-navigation a[href*="/endorsement"] {
+    display: none;
+}
+
 .s180re-shell *,
 .s180re-shell *::before,
 .s180re-shell *::after {
@@ -149,8 +153,8 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 
 .s180re-book-strip {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
     margin: 22px 0;
 }
 
@@ -197,9 +201,23 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 }
 
 .s180re-book-title {
-    font-size: 14px;
+    color: var(--s180re-ink);
+    font-size: 20px;
     font-weight: 700;
     line-height: 1.25;
+    text-decoration: none;
+}
+
+.s180re-book-title:hover,
+.s180re-book-title:focus {
+    color: var(--s180re-accent-strong);
+    text-decoration: underline;
+}
+
+.s180re-book-note {
+    margin: 12px 0 0;
+    color: #7a287d;
+    font-weight: 700;
 }
 
 .s180re-form-layout {
@@ -336,7 +354,7 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 }
 
 .s180re-selected-cover {
-    width: min(100%, 280px);
+    width: min(100%, 520px);
     aspect-ratio: 2 / 3;
     margin: 0 auto 14px;
     display: grid;
@@ -354,9 +372,20 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 
 .s180re-selected-book h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: 28px;
     line-height: 1.2;
     letter-spacing: 0;
+}
+
+.s180re-selected-description {
+    margin-top: 12px;
+    color: var(--s180re-muted);
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.s180re-selected-description p {
+    margin: 0 0 10px;
 }
 
 .s180re-cover-placeholder {
@@ -372,47 +401,6 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     opacity: 0 !important;
 }
 
-.s180re-endorsement-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 18px;
-}
-
-.s180re-endorsement-item {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-    border: 1px solid var(--s180re-line);
-    border-radius: 8px;
-    padding: 18px;
-    background: #fff;
-    box-shadow: 0 8px 24px rgba(23, 33, 43, 0.06);
-}
-
-.s180re-endorsement-item h3 {
-    margin: 0 0 6px;
-    font-size: 20px;
-    line-height: 1.2;
-    letter-spacing: 0;
-}
-
-.s180re-endorsement-item h3 a {
-    color: var(--s180re-ink);
-    text-decoration: none;
-}
-
-.s180re-endorsement-item h3 a:hover,
-.s180re-endorsement-item h3 a:focus {
-    color: var(--s180re-accent-strong);
-    text-decoration: underline;
-}
-
-.s180re-endorsement-item p {
-    margin: 0;
-    color: var(--s180re-muted);
-}
-
 .s180re-card-kicker {
     margin-bottom: 4px !important;
     color: var(--s180re-gold) !important;
@@ -422,19 +410,6 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     text-transform: uppercase;
 }
 
-.s180re-endorsement-meta {
-    font-size: 14px;
-    font-weight: 700;
-}
-
-.s180re-endorsement-quote {
-    margin-top: 12px !important;
-    color: var(--s180re-ink) !important;
-    font-size: 15px;
-    line-height: 1.55;
-}
-
-.s180re-endorsement-photo,
 .s180re-detail-photo {
     width: 72px;
     height: 72px;
@@ -443,7 +418,6 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     background: #eef2f5;
 }
 
-.s180re-endorsement-avatar,
 .s180re-detail-avatar {
     display: inline-grid;
     place-items: center;
@@ -577,17 +551,4 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
         grid-template-columns: 1fr;
     }
 
-    .s180re-endorsement-item {
-        grid-template-columns: 1fr;
-    }
-
-    .s180re-endorsement-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .s180re-endorsement-avatar,
-    .s180re-endorsement-photo {
-        width: 64px;
-        height: 64px;
-    }
 }

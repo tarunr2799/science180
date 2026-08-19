@@ -3,6 +3,11 @@
     --s180re-admin-soft: #f6f7f7;
 }
 
+#adminmenu .wp-submenu a[href*="s180br"] {
+    font-size: 14px;
+    line-height: 1.45;
+}
+
 .s180re-admin-layout {
     display: grid;
     grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
@@ -35,13 +40,13 @@
 
 .s180re-cover-preview,
 .s180re-table-cover {
-    width: 74px;
+    width: 150px;
 }
 
 .s180re-cover-preview img,
 .s180re-table-cover img {
-    width: 64px;
-    height: 94px;
+    width: 132px;
+    height: 198px;
     object-fit: cover;
     border-radius: 6px;
     border: 1px solid var(--s180re-admin-line);

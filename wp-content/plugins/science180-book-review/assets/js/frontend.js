@@ -7,10 +7,11 @@
         }
     }
 
-    function setSelected(shell, id, title, cover) {
+    function setSelected(shell, id, title, cover, description) {
         var select = shell.querySelector('[data-s180re-book-select]');
         var titleNode = shell.querySelector('[data-s180re-selected-title]');
         var coverNode = shell.querySelector('[data-s180re-selected-cover]');
+        var descriptionNode = shell.querySelector('[data-s180re-selected-description]');
 
         shell.querySelectorAll('.s180re-book-choice').forEach(function (choice) {
             var input = choice.querySelector('input[type="radio"]');
@@ -27,6 +28,10 @@
 
         if (titleNode) {
             titleNode.textContent = title || '';
+        }
+
+        if (descriptionNode) {
+            descriptionNode.textContent = description || '';
         }
 
         if (coverNode && cover) {
@@ -66,7 +71,7 @@
         document.querySelectorAll('[data-s180re-review]').forEach(function (shell) {
             shell.querySelectorAll('.s180re-book-choice input[type="radio"]').forEach(function (input) {
                 input.addEventListener('change', function () {
-                    setSelected(shell, input.value, input.getAttribute('data-title'), input.getAttribute('data-cover'));
+                    setSelected(shell, input.value, input.getAttribute('data-title'), input.getAttribute('data-cover'), input.getAttribute('data-description'));
                     scrollToReviewForm(shell);
                 });
             });
@@ -75,7 +80,7 @@
             if (select) {
                 select.addEventListener('change', function () {
                     var selected = select.options[select.selectedIndex];
-                    setSelected(shell, select.value, selected.getAttribute('data-title') || selected.textContent, selected.getAttribute('data-cover'));
+                    setSelected(shell, select.value, selected.getAttribute('data-title') || selected.textContent, selected.getAttribute('data-cover'), selected.getAttribute('data-description'));
                 });
             }
         });

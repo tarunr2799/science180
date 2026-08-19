@@ -18,10 +18,16 @@ class S180BR_Plugin
 
     private function __construct()
     {
+        add_action('init', array($this, 'maybe_upgrade'), 5);
+        add_action('init', array($this, 'register_rewrites'));
+        add_filter('query_vars', array($this, 'register_query_vars'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
         add_action('admin_menu', array($this, 'register_admin_menu'));
+        add_action('template_redirect', array($this, 'handle_review_verification_route'), 5);
+        add_action('template_redirect', array($this, 'render_book_review_route'), 10);
         add_action('template_redirect', array($this, 'render_shortcode_page_fallback'), 20);
+        add_action('s180br_daily_review_notice', array($this, 'send_daily_review_notice'));
 
         add_shortcode('science180_review_request', array($this, 'render_review_request_shortcode'));
 
@@ -30,7 +36,9 @@ class S180BR_Plugin
 
         add_action('admin_post_s180re_save_book', array($this, 'handle_save_book'));
         add_action('admin_post_s180re_toggle_book', array($this, 'handle_toggle_book'));
+        add_action('admin_post_s180br_delete_book', array($this, 'handle_delete_book'));
         add_action('admin_post_s180re_update_request_status', array($this, 'handle_update_request_status'));
+        add_action('admin_post_s180br_delete_request', array($this, 'handle_delete_request'));
         add_action('admin_post_s180br_save_settings', array($this, 'handle_save_settings'));
     }
 
@@ -40,12 +48,29 @@ class S180BR_Plugin
         self::seed_options();
         self::seed_default_books();
         self::maybe_create_pages();
+        self::register_rewrites_static();
+        self::schedule_daily_notice();
+        update_option('s180br_version', S180BR_VERSION);
         flush_rewrite_rules();
     }
 
     public static function deactivate()
     {
+        wp_clear_scheduled_hook('s180br_daily_review_notice');
         flush_rewrite_rules();
+    }
+
+    public function maybe_upgrade()
+    {
+        if (get_option('s180br_version') === S180BR_VERSION) {
+            return;
+        }
+
+        self::create_tables();
+        self::seed_options();
+        self::maybe_create_pages();
+        self::schedule_daily_notice();
+        update_option('s180br_version', S180BR_VERSION);
     }
 
     private static function create_tables()
@@ -94,6 +119,9 @@ class S180BR_Plugin
             audience text NULL,
             message text NULL,
             status varchar(40) NOT NULL DEFAULT 'new',
+            verification_token varchar(80) DEFAULT '',
+            token_expires datetime DEFAULT NULL,
+            verified_at datetime DEFAULT NULL,
             ip_hash varchar(64) DEFAULT '',
             user_agent varchar(255) DEFAULT '',
             created_at datetime NOT NULL,
@@ -121,9 +149,26 @@ class S180BR_Plugin
 
     private static function seed_options()
     {
-        add_option('s180re_recipient_email', get_option('admin_email'));
+        add_option('s180re_recipient_email', self::normalize_email_domain(get_option('admin_email')));
         add_option('s180re_from_name', get_bloginfo('name'));
         add_option('s180re_from_email', '');
+        add_option('s180br_daily_notice_subject', '[{site_name}] Book review requests waiting for review');
+        add_option('s180br_daily_notice_intro', 'These verified book review copy requests are waiting for approval or rejection.');
+        add_option('s180br_daily_notice_hour', '09:00');
+        add_option('s180br_approval_subject', 'Your Science180 review copy request was approved');
+        add_option('s180br_approval_body', "Hello {full_name},\n\nYour application to get a review copy of the book \"{book_title}\" is APPROVED. You will be receiving the copy of the book very soon.\n\nKind regards,\nScience180 Team");
+        add_option('s180br_verification_subject', 'Verify your Science180 review copy request');
+    }
+
+    private static function normalize_email_domain($email)
+    {
+        $email = sanitize_email($email);
+        if ($email === '') {
+            return '';
+        }
+
+        $email = preg_replace('/@science\.net$/i', '@science180.net', $email);
+        return is_email($email) ? $email : '';
     }
 
     private static function seed_default_books()
@@ -203,7 +248,7 @@ class S180BR_Plugin
     private static function maybe_create_pages()
     {
         self::create_page_if_missing(
-            'review-copy-request',
+            'BookReviewRequest',
             "Review Copy Request for Dr. Nathanael-Israel Israel's Book(s)",
             '[science180_review_request]',
             's180re_review_page_id'
@@ -233,6 +278,58 @@ class S180BR_Plugin
         if (!is_wp_error($page_id) && $page_id) {
             update_option($option_name, $page_id);
         }
+    }
+
+    private static function schedule_daily_notice()
+    {
+        if (wp_next_scheduled('s180br_daily_review_notice')) {
+            return;
+        }
+
+        wp_schedule_event(self::daily_notice_timestamp(), 'daily', 's180br_daily_review_notice');
+    }
+
+    private static function reschedule_daily_notice()
+    {
+        wp_clear_scheduled_hook('s180br_daily_review_notice');
+        wp_schedule_event(self::daily_notice_timestamp(), 'daily', 's180br_daily_review_notice');
+    }
+
+    private static function daily_notice_timestamp()
+    {
+        $time = get_option('s180br_daily_notice_hour', '09:00');
+        if (!preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])$/', (string) $time)) {
+            $time = '09:00';
+        }
+
+        $timezone = wp_timezone();
+        $now = new DateTimeImmutable('now', $timezone);
+        $target = DateTimeImmutable::createFromFormat('Y-m-d H:i', $now->format('Y-m-d') . ' ' . $time, $timezone);
+        if (!$target) {
+            return time() + DAY_IN_SECONDS;
+        }
+
+        if ($target->getTimestamp() <= time()) {
+            $target = $target->modify('+1 day');
+        }
+
+        return $target->getTimestamp();
+    }
+
+    public function register_rewrites()
+    {
+        self::register_rewrites_static();
+    }
+
+    private static function register_rewrites_static()
+    {
+        add_rewrite_rule('^BookReviewRequest/([^/]+)/?$', 'index.php?s180br_book_slug=$matches[1]', 'top');
+    }
+
+    public function register_query_vars($vars)
+    {
+        $vars[] = 's180br_book_slug';
+        return $vars;
     }
 
     public function enqueue_frontend_assets()
@@ -277,9 +374,11 @@ class S180BR_Plugin
         add_submenu_page('s180br-books', __('Settings', 'science180-book-review'), __('Settings', 'science180-book-review'), 'manage_options', 's180br-settings', array($this, 'render_settings_page'));
     }
 
-    public function render_review_request_shortcode()
+    public function render_review_request_shortcode($atts = array())
     {
-        $books = $this->get_books(true);
+        $atts = shortcode_atts(array('book' => ''), (array) $atts, 'science180_review_request');
+        $selected_slug = sanitize_title($atts['book']);
+        $books = $selected_slug ? array_filter(array($this->get_book_by_slug($selected_slug))) : $this->get_books(true);
         $selected = !empty($books) ? $books[0] : null;
 
         ob_start();
@@ -289,10 +388,7 @@ class S180BR_Plugin
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Professional reviewer request', 'science180-book-review'); ?></p>
                 <h1><?php esc_html_e("Review Copy Request for Dr. Nathanael-Israel Israel's Book(s)", 'science180-book-review'); ?></h1>
-                <div class="s180re-page-actions">
-                    <a class="s180re-link-button s180re-link-button-secondary" href="<?php echo esc_url($this->endorsement_page_url()); ?>"><?php esc_html_e('View approved endorsements', 'science180-book-review'); ?></a>
-                    <a class="s180re-link-button" href="<?php echo esc_url($this->endorsement_page_url()); ?>#s180re-endorsement-form"><?php esc_html_e('Share an endorsement', 'science180-book-review'); ?></a>
-                </div>
+                <p class="s180re-book-note"><?php esc_html_e('Please click on the book cover page to see the details', 'science180-book-review'); ?></p>
             </div>
 
             <?php if (empty($books)) : ?>
@@ -301,7 +397,7 @@ class S180BR_Plugin
                 <div class="s180re-book-strip" role="radiogroup" aria-label="<?php esc_attr_e('Choose one book', 'science180-book-review'); ?>">
                     <?php foreach ($books as $index => $book) : ?>
                         <label class="s180re-book-choice<?php echo $index === 0 ? ' is-selected' : ''; ?>">
-                            <input type="radio" name="book_choice_preview" value="<?php echo esc_attr($book->id); ?>" data-cover="<?php echo esc_url($this->book_cover_url($book)); ?>" data-title="<?php echo esc_attr($book->title); ?>" <?php checked($index, 0); ?>>
+                            <input type="radio" name="book_choice_preview" value="<?php echo esc_attr($book->id); ?>" data-cover="<?php echo esc_url($this->book_cover_url($book)); ?>" data-title="<?php echo esc_attr($book->title); ?>" data-description="<?php echo esc_attr($book->description); ?>" <?php checked($index, 0); ?>>
                             <span class="s180re-book-cover-wrap">
                                 <?php if ($this->book_cover_url($book)) : ?>
                                     <img src="<?php echo esc_url($this->book_cover_url($book)); ?>" alt="<?php echo esc_attr($book->title); ?>">
@@ -309,7 +405,7 @@ class S180BR_Plugin
                                     <span class="s180re-cover-placeholder"><?php esc_html_e('Cover', 'science180-book-review'); ?></span>
                                 <?php endif; ?>
                             </span>
-                            <span class="s180re-book-title"><?php echo esc_html($book->title); ?></span>
+                            <a class="s180re-book-title" href="<?php echo esc_url($this->book_review_url($book)); ?>"><?php echo esc_html($book->title); ?></a>
                         </label>
                     <?php endforeach; ?>
                 </div>
@@ -325,7 +421,7 @@ class S180BR_Plugin
                             <label for="s180re-book-id"><?php esc_html_e('Book requested', 'science180-book-review'); ?></label>
                             <select id="s180re-book-id" name="book_id" required data-s180re-book-select>
                                 <?php foreach ($books as $index => $book) : ?>
-                                    <option value="<?php echo esc_attr($book->id); ?>" data-cover="<?php echo esc_url($this->book_cover_url($book)); ?>" data-title="<?php echo esc_attr($book->title); ?>" <?php selected($index, 0); ?>><?php echo esc_html($book->title); ?></option>
+                                    <option value="<?php echo esc_attr($book->id); ?>" data-cover="<?php echo esc_url($this->book_cover_url($book)); ?>" data-title="<?php echo esc_attr($book->title); ?>" data-description="<?php echo esc_attr($book->description); ?>" <?php selected($index, 0); ?>><?php echo esc_html($book->title); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -413,6 +509,7 @@ class S180BR_Plugin
                             <?php endif; ?>
                         </div>
                         <h2 data-s180re-selected-title><?php echo $selected ? esc_html($selected->title) : ''; ?></h2>
+                        <div class="s180re-selected-description" data-s180re-selected-description><?php echo $selected && !empty($selected->description) ? wpautop(esc_html($selected->description)) : ''; ?></div>
                     </aside>
                 </div>
             <?php endif; ?>
@@ -459,7 +556,7 @@ class S180BR_Plugin
             'qualifications' => $this->post_textarea('qualifications', true),
             'audience' => $this->post_textarea('audience', false),
             'message' => $this->post_textarea('message', false),
-            'status' => 'new',
+            'status' => 'pending_verification',
             'ip_hash' => $this->ip_hash(),
             'user_agent' => $this->user_agent(),
             'created_at' => current_time('mysql'),
@@ -483,19 +580,17 @@ class S180BR_Plugin
             $this->redirect_back('review_duplicate');
         }
 
-        $inserted = $wpdb->insert(
-            $this->table('review_requests'),
-            $data,
-            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
-        );
-
-        if (!$inserted) {
+        $token = $this->generate_token();
+        if (!$this->save_pending_review($token, $data)) {
             $this->redirect_back('review_error');
         }
 
-        $request_id = (int) $wpdb->insert_id;
-        $this->send_review_request_email($request_id, $data, $book);
-        $this->redirect_back('review_success');
+        if (!$this->send_review_verification_email($data, $book, $token)) {
+            $this->delete_pending_review($token);
+            $this->redirect_back('review_email_failed');
+        }
+
+        $this->redirect_back('review_check_email');
     }
 
     private function public_form_is_valid($nonce_action)
@@ -523,7 +618,7 @@ class S180BR_Plugin
         }
 
         $review_page_id = (int) get_option('s180re_review_page_id');
-        $is_review_page = ($review_page_id > 0 && is_page($review_page_id)) || is_page('review-copy-request');
+        $is_review_page = ($review_page_id > 0 && is_page($review_page_id)) || is_page('BookReviewRequest');
 
         if (!$is_review_page) {
             return;
@@ -542,6 +637,87 @@ class S180BR_Plugin
         }
 
         exit;
+    }
+
+    public function render_book_review_route()
+    {
+        if (is_admin()) {
+            return;
+        }
+
+        $book_slug = sanitize_title(get_query_var('s180br_book_slug'));
+        if ($book_slug === '') {
+            return;
+        }
+
+        $shortcode = '[science180_review_request book="' . esc_attr($book_slug) . '"]';
+        status_header(200);
+
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme()) {
+            $this->render_block_theme_shortcode_page($shortcode);
+        } else {
+            get_header();
+            $this->render_shortcode_page_main($shortcode);
+            get_footer();
+        }
+
+        exit;
+    }
+
+    public function handle_review_verification_route()
+    {
+        if (empty($_GET['s180br_verify_review'])) {
+            return;
+        }
+
+        $token = sanitize_text_field(wp_unslash($_GET['s180br_verify_review']));
+        $data = $this->load_pending_review($token);
+        if (!$data) {
+            $this->redirect_to_review_page('review_verify_invalid');
+        }
+
+        $book = $this->get_book((int) $data['book_id']);
+        if (!$book || (int) $book->is_active !== 1) {
+            $this->delete_pending_review($token);
+            $this->redirect_to_review_page('review_invalid_book');
+        }
+
+        global $wpdb;
+        $requests_table = $this->table('review_requests');
+        $exists = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$requests_table} WHERE book_id = %d AND email = %s",
+                (int) $data['book_id'],
+                $data['email']
+            )
+        );
+
+        if ($exists > 0) {
+            $this->delete_pending_review($token);
+            $this->redirect_to_review_page('review_duplicate');
+        }
+
+        $now = current_time('mysql');
+        $data['status'] = 'email_verified';
+        $data['verification_token'] = '';
+        $data['token_expires'] = null;
+        $data['verified_at'] = $now;
+        $data['created_at'] = $now;
+        $data['updated_at'] = $now;
+
+        $inserted = $wpdb->insert(
+            $requests_table,
+            $data,
+            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+        );
+
+        $this->delete_pending_review($token);
+
+        if (!$inserted) {
+            $this->redirect_to_review_page('review_error');
+        }
+
+        $this->redirect_to_review_page('review_verified');
     }
 
     private function render_shortcode_page_main($shortcode)
@@ -589,30 +765,61 @@ class S180BR_Plugin
         <?php
     }
 
-    private function send_review_request_email($request_id, $data, $book)
+    private function send_review_verification_email($data, $book, $token)
     {
-        $address = $this->format_mailing_address($data);
-        $raw_rows = '';
-        foreach ($this->review_request_labels() as $key => $label) {
-            if (!isset($data[$key])) {
-                continue;
-            }
-            $raw_rows .= '<tr><th align="left" style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($label) . '</th><td style="padding:8px;border-bottom:1px solid #ddd;">' . nl2br(esc_html($data[$key])) . '</td></tr>';
+        $verify_url = add_query_arg('s180br_verify_review', rawurlencode($token), $this->review_request_page_url());
+        $full_name = trim($data['first_name'] . ' ' . $data['last_name']);
+        $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-book-review'), esc_html($data['first_name'])) . '</p>';
+        $message .= '<p>' . esc_html__('Please verify your email address before we submit your review copy request.', 'science180-book-review') . '</p>';
+        $message .= '<p><a href="' . esc_url($verify_url) . '" style="display:inline-block;background:#0f766e;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none;font-weight:700;">' . esc_html__('Verify My Email', 'science180-book-review') . '</a></p>';
+        $message .= '<p>' . esc_html__('If the button does not work, copy and paste this link into your browser:', 'science180-book-review') . '<br><a href="' . esc_url($verify_url) . '">' . esc_html($verify_url) . '</a></p>';
+        $message .= '<p><strong>' . esc_html__('Book:', 'science180-book-review') . '</strong> ' . esc_html($book->title) . '</p>';
+
+        $sent = wp_mail(
+            $data['email'],
+            get_option('s180br_verification_subject', 'Verify your Science180 review copy request'),
+            $message,
+            $this->mail_headers('', $full_name)
+        );
+
+        if (!$sent) {
+            $this->log_mail_failure('review verification', $data['email']);
         }
 
-        $message = '<h2>Mailing address ready to copy and print</h2>';
-        $message .= '<pre style="font:16px/1.5 monospace;background:#f6f7f7;border:1px solid #ddd;padding:16px;white-space:pre-wrap;">' . esc_html($address) . '</pre>';
-        $message .= '<h2>Raw form data</h2>';
-        $message .= '<table style="border-collapse:collapse;width:100%;">' . $raw_rows . '</table>';
-        $message .= '<p>Request ID: ' . esc_html($request_id) . '</p>';
+        return $sent;
+    }
 
-        $subject = sprintf('Review copy request: %s', $book->title);
-        wp_mail(
-            $this->recipient_email(),
-            $subject,
-            $message,
-            $this->mail_headers($data['email'], trim($data['first_name'] . ' ' . $data['last_name']))
-        );
+    public function send_daily_review_notice()
+    {
+        global $wpdb;
+        $table = $this->table('review_requests');
+        $items = $wpdb->get_results("SELECT * FROM {$table} WHERE status = 'email_verified' ORDER BY created_at ASC LIMIT 200");
+        if (empty($items)) {
+            return;
+        }
+
+        $rows = '';
+        foreach ($items as $item) {
+            $view_url = admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id);
+            $rows .= '<tr>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->created_at) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->book_title) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html(trim($item->first_name . ' ' . $item->last_name)) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->email) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->verified_at ? __('Verified', 'science180-book-review') : __('Not verified', 'science180-book-review')) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;"><a href="' . esc_url($view_url) . '">' . esc_html__('Review request', 'science180-book-review') . '</a></td>';
+            $rows .= '</tr>';
+        }
+
+        $subject = $this->format_template(get_option('s180br_daily_notice_subject', '[{site_name}] Book review requests waiting for review'), array());
+        $intro = $this->format_template(get_option('s180br_daily_notice_intro', 'These verified book review copy requests are waiting for approval or rejection.'), array());
+        $message = '<p>' . nl2br(esc_html($intro)) . '</p>';
+        $message .= '<table style="border-collapse:collapse;width:100%;"><thead><tr><th align="left">Date</th><th align="left">Book</th><th align="left">Applicant</th><th align="left">Email</th><th align="left">Email verification</th><th align="left">Action</th></tr></thead><tbody>' . $rows . '</tbody></table>';
+
+        $sent = wp_mail($this->recipient_email(), $subject, $message, $this->mail_headers());
+        if (!$sent) {
+            $this->log_mail_failure('daily review notice', $this->recipient_email());
+        }
     }
 
     private function send_review_request_status_email($request, $status)
@@ -623,8 +830,9 @@ class S180BR_Plugin
         $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-book-review'), esc_html($first_name)) . '</p>';
 
         if ($status === 'qualified') {
-            $subject = 'Your Science180 review copy request was approved';
-            $message .= '<p>' . esc_html__('Your review copy request has been approved.', 'science180-book-review') . '</p>';
+            $subject = $this->format_template(get_option('s180br_approval_subject', 'Your Science180 review copy request was approved'), (array) $request);
+            $body = $this->format_template(get_option('s180br_approval_body', "Hello {full_name},\n\nYour application to get a review copy of the book \"{book_title}\" is APPROVED. You will be receiving the copy of the book very soon.\n\nKind regards,\nScience180 Team"), (array) $request);
+            $message = wpautop(wp_kses_post($body));
         } elseif ($status === 'declined') {
             $subject = 'Your Science180 review copy request was reviewed';
             $message .= '<p>' . esc_html__('Thank you for your interest. After review, your request was not approved at this time.', 'science180-book-review') . '</p>';
@@ -647,6 +855,19 @@ class S180BR_Plugin
         }
 
         return $sent;
+    }
+
+    private function format_template($template, $data)
+    {
+        $full_name = trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''));
+        $replacements = array(
+            '{site_name}' => get_bloginfo('name'),
+            '{first_name}' => $data['first_name'] ?? '',
+            '{full_name}' => $full_name,
+            '{book_title}' => $data['book_title'] ?? '',
+        );
+
+        return strtr((string) $template, $replacements);
     }
 
     private function mail_headers($reply_to_email = '', $reply_to_name = '')
@@ -676,7 +897,7 @@ class S180BR_Plugin
         );
 
         foreach ($candidates as $candidate) {
-            $candidate = sanitize_email($candidate);
+            $candidate = self::normalize_email_domain($candidate);
             if ($candidate && is_email($candidate)) {
                 return $candidate;
             }
@@ -706,9 +927,9 @@ class S180BR_Plugin
 
     private function recipient_email()
     {
-        $email = sanitize_email(get_option('s180re_recipient_email'));
+        $email = self::normalize_email_domain(get_option('s180re_recipient_email'));
         if (!$email || !is_email($email)) {
-            $email = sanitize_email(get_option('admin_email'));
+            $email = self::normalize_email_domain(get_option('admin_email'));
         }
 
         return $email;
@@ -738,6 +959,14 @@ class S180BR_Plugin
         <div class="wrap s180re-admin">
             <h1><?php esc_html_e('Books for Review Copy Requests', 'science180-book-review'); ?></h1>
             <?php $this->render_admin_notice(); ?>
+            <p class="subsubsub">
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-books')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=email_verified')); ?>"><?php esc_html_e('Needs review', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=qualified')); ?>"><?php esc_html_e('Approved', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=declined')); ?>"><?php esc_html_e('Rejected', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url($this->review_request_page_url()); ?>" target="_blank" rel="noopener"><?php esc_html_e('PUBLIC URL', 'science180-book-review'); ?></a>
+            </p>
+            <br class="clear">
 
             <div class="s180re-admin-layout">
                 <form class="s180re-admin-panel" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -778,11 +1007,13 @@ class S180BR_Plugin
                             <?php foreach ($books as $item) : ?>
                                 <tr>
                                     <td class="s180re-table-cover"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt=""><?php endif; ?></td>
-                                    <td><?php echo esc_html($item->title); ?></td>
+                                    <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->title); ?></a></td>
                                     <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
                                     <td>
+                                        <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180re_toggle_book&book_id=' . (int) $item->id), 's180re_toggle_book')); ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Hide', 'science180-book-review') : esc_html__('Show', 'science180-book-review'); ?></a>
+                                        <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_book&book_id=' . (int) $item->id), 's180br_delete_book')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this book?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -808,11 +1039,69 @@ class S180BR_Plugin
         }
 
         $table = $this->table('review_requests');
-        $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY created_at DESC LIMIT 200");
+        $books = $this->get_books(false);
+        $status = isset($_GET['status']) ? sanitize_key($_GET['status']) : '';
+        $book_id = isset($_GET['book_id']) ? absint($_GET['book_id']) : 0;
+        $date_from = isset($_GET['date_from']) ? sanitize_text_field(wp_unslash($_GET['date_from'])) : '';
+        $date_to = isset($_GET['date_to']) ? sanitize_text_field(wp_unslash($_GET['date_to'])) : '';
+        $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+        $where = array('1=1');
+        $params = array();
+
+        if ($status !== '' && array_key_exists($status, $this->review_request_statuses())) {
+            $where[] = 'status = %s';
+            $params[] = $status;
+        }
+        if ($book_id > 0) {
+            $where[] = 'book_id = %d';
+            $params[] = $book_id;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) {
+            $where[] = 'created_at >= %s';
+            $params[] = $date_from . ' 00:00:00';
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to)) {
+            $where[] = 'created_at <= %s';
+            $params[] = $date_to . ' 23:59:59';
+        }
+        if ($search !== '') {
+            $where[] = '(book_title LIKE %s OR email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR organization LIKE %s)';
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            array_push($params, $like, $like, $like, $like, $like);
+        }
+
+        $sql = "SELECT * FROM {$table} WHERE " . implode(' AND ', $where) . " ORDER BY created_at DESC LIMIT 200";
+        $items = $params ? $wpdb->get_results($wpdb->prepare($sql, $params)) : $wpdb->get_results($sql);
         ?>
         <div class="wrap s180re-admin">
             <h1><?php esc_html_e('Review Copy Requests', 'science180-book-review'); ?></h1>
             <?php $this->render_admin_notice(); ?>
+            <p class="subsubsub">
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a>
+                <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
+                    | <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=' . $status_key)); ?>"><?php echo esc_html($status_label); ?></a>
+                <?php endforeach; ?>
+            </p>
+            <br class="clear">
+            <form class="s180re-filter-form" method="get">
+                <input type="hidden" name="page" value="s180br-review-requests">
+                <input type="search" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, email, book, organization', 'science180-book-review'); ?>">
+                <select name="book_id">
+                    <option value="0"><?php esc_html_e('All books', 'science180-book-review'); ?></option>
+                    <?php foreach ($books as $book) : ?>
+                        <option value="<?php echo esc_attr($book->id); ?>" <?php selected($book_id, (int) $book->id); ?>><?php echo esc_html($book->title); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="status">
+                    <option value=""><?php esc_html_e('All statuses', 'science180-book-review'); ?></option>
+                    <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
+                        <option value="<?php echo esc_attr($status_key); ?>" <?php selected($status, $status_key); ?>><?php echo esc_html($status_label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="date" name="date_from" value="<?php echo esc_attr($date_from); ?>">
+                <input type="date" name="date_to" value="<?php echo esc_attr($date_to); ?>">
+                <button class="button" type="submit"><?php esc_html_e('Filter', 'science180-book-review'); ?></button>
+            </form>
             <table class="widefat striped">
                 <thead><tr><th><?php esc_html_e('Date', 'science180-book-review'); ?></th><th><?php esc_html_e('Book', 'science180-book-review'); ?></th><th><?php esc_html_e('Applicant', 'science180-book-review'); ?></th><th><?php esc_html_e('Status', 'science180-book-review'); ?></th><th><?php esc_html_e('Actions', 'science180-book-review'); ?></th></tr></thead>
                 <tbody>
@@ -822,11 +1111,12 @@ class S180BR_Plugin
                     <?php foreach ($items as $item) : ?>
                         <tr>
                             <td><?php echo esc_html($item->created_at); ?></td>
-                            <td><?php echo esc_html($item->book_title); ?></td>
-                            <td><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
+                            <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->book_title); ?></a></td>
+                            <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id)); ?>"><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?></a><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
                             <td><?php echo esc_html($this->review_request_status_label($item->status)); ?></td>
                             <td>
                                 <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-book-review'); ?></a>
+                                <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -849,11 +1139,16 @@ class S180BR_Plugin
         ?>
         <div class="wrap s180re-admin">
             <h1><?php esc_html_e('Review Copy Request Details', 'science180-book-review'); ?></h1>
-            <p><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('Back to requests', 'science180-book-review'); ?></a></p>
+            <p>
+                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('Back to requests', 'science180-book-review'); ?></a>
+                <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View book public page', 'science180-book-review'); ?></a>
+                <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
+            </p>
 
             <div class="s180re-admin-layout">
                 <div class="s180re-admin-panel">
                     <h2><?php esc_html_e('Clean address', 'science180-book-review'); ?></h2>
+                    <p><strong><?php esc_html_e('Email verification:', 'science180-book-review'); ?></strong> <?php echo $item->verified_at ? esc_html__('Verified', 'science180-book-review') . ' (' . esc_html($item->verified_at) . ')' : esc_html__('Not verified', 'science180-book-review'); ?></p>
                     <pre class="s180re-address-block"><?php echo esc_html($this->format_mailing_address($data)); ?></pre>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <input type="hidden" name="action" value="s180re_update_request_status">
@@ -861,8 +1156,8 @@ class S180BR_Plugin
                         <?php wp_nonce_field('s180re_update_request_status'); ?>
                         <label><?php esc_html_e('Status', 'science180-book-review'); ?></label>
                         <select name="status">
-                            <?php foreach (array('new', 'reviewing', 'qualified', 'sent', 'declined') as $status) : ?>
-                                <option value="<?php echo esc_attr($status); ?>" <?php selected($item->status, $status); ?>><?php echo esc_html($this->review_request_status_label($status)); ?></option>
+                            <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
+                                <option value="<?php echo esc_attr($status_key); ?>" <?php selected($item->status, $status_key); ?>><?php echo esc_html($status_label); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <button class="button button-primary" type="submit"><?php esc_html_e('Update', 'science180-book-review'); ?></button>
@@ -905,7 +1200,32 @@ class S180BR_Plugin
 
                 <label><?php esc_html_e('From email override', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="email" name="from_email" value="<?php echo esc_attr(get_option('s180re_from_email')); ?>" placeholder="<?php echo esc_attr($this->sender_email()); ?>">
-                <p class="description"><?php esc_html_e('Leave empty to use the existing AdvNews SMTP sender or the WordPress admin email. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
+                <p class="description"><?php esc_html_e('Leave empty to use the existing Science180 Mail SMTP sender or the WordPress admin email. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
+
+                <h2><?php esc_html_e('Daily pending-review notice', 'science180-book-review'); ?></h2>
+                <p class="description">
+                    <?php
+                    $next = wp_next_scheduled('s180br_daily_review_notice');
+                    echo $next ? esc_html(sprintf(__('Next scheduled run: %s', 'science180-book-review'), wp_date(get_option('date_format') . ' ' . get_option('time_format'), $next))) : esc_html__('Daily notice is not scheduled yet; it will be scheduled automatically on the next plugin upgrade check.', 'science180-book-review');
+                    ?>
+                </p>
+                <label><?php esc_html_e('Daily notice time', 'science180-book-review'); ?></label>
+                <input type="time" name="daily_notice_hour" value="<?php echo esc_attr(get_option('s180br_daily_notice_hour', '09:00')); ?>">
+                <p class="description"><?php esc_html_e('This uses the WordPress site timezone and sends one daily bulk notice for verified requests waiting for review.', 'science180-book-review'); ?></p>
+
+                <label><?php esc_html_e('Daily notice subject', 'science180-book-review'); ?></label>
+                <input class="large-text" type="text" name="daily_notice_subject" value="<?php echo esc_attr(get_option('s180br_daily_notice_subject')); ?>">
+
+                <label><?php esc_html_e('Daily notice message', 'science180-book-review'); ?></label>
+                <textarea class="large-text" name="daily_notice_intro" rows="4"><?php echo esc_textarea(get_option('s180br_daily_notice_intro')); ?></textarea>
+
+                <h2><?php esc_html_e('Letter sent after approval', 'science180-book-review'); ?></h2>
+                <p class="description"><?php esc_html_e('Available placeholders: {first_name}, {full_name}, {book_title}, {site_name}.', 'science180-book-review'); ?></p>
+                <label><?php esc_html_e('Approval email subject', 'science180-book-review'); ?></label>
+                <input class="large-text" type="text" name="approval_subject" value="<?php echo esc_attr(get_option('s180br_approval_subject')); ?>">
+
+                <label><?php esc_html_e('Approval email body', 'science180-book-review'); ?></label>
+                <textarea class="large-text" name="approval_body" rows="8"><?php echo esc_textarea(get_option('s180br_approval_body')); ?></textarea>
 
                 <p><button type="submit" class="button button-primary"><?php esc_html_e('Save settings', 'science180-book-review'); ?></button></p>
             </form>
@@ -946,6 +1266,18 @@ class S180BR_Plugin
         $this->admin_redirect('s180br-books', 'book_saved');
     }
 
+    public function handle_delete_book()
+    {
+        $this->require_admin_get('s180br_delete_book');
+        global $wpdb;
+        $book_id = isset($_GET['book_id']) ? absint($_GET['book_id']) : 0;
+        if ($book_id > 0) {
+            $wpdb->delete($this->table('books'), array('id' => $book_id), array('%d'));
+        }
+
+        $this->admin_redirect('s180br-books', 'book_deleted');
+    }
+
     public function handle_toggle_book()
     {
         $this->require_admin_get('s180re_toggle_book');
@@ -970,7 +1302,7 @@ class S180BR_Plugin
         global $wpdb;
         $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
         $status = isset($_POST['status']) ? sanitize_key($_POST['status']) : 'new';
-        $allowed = array('new', 'reviewing', 'qualified', 'sent', 'declined');
+        $allowed = array_keys($this->review_request_statuses());
         if (!in_array($status, $allowed, true)) {
             $status = 'new';
         }
@@ -992,16 +1324,41 @@ class S180BR_Plugin
         exit;
     }
 
+    public function handle_delete_request()
+    {
+        $this->require_admin_get('s180br_delete_request');
+        global $wpdb;
+        $request_id = isset($_GET['request_id']) ? absint($_GET['request_id']) : 0;
+        if ($request_id > 0) {
+            $wpdb->delete($this->table('review_requests'), array('id' => $request_id), array('%d'));
+        }
+
+        $this->admin_redirect('s180br-review-requests', 'request_deleted');
+    }
+
     public function handle_save_settings()
     {
         $this->require_admin_post('s180br_save_settings');
-        $recipient = sanitize_email($this->post_raw('recipient_email'));
+        $recipient = self::normalize_email_domain($this->post_raw('recipient_email'));
         if ($recipient && is_email($recipient)) {
             update_option('s180re_recipient_email', $recipient);
         }
         update_option('s180re_from_name', $this->post_text('from_name', false));
-        $from_email = sanitize_email($this->post_raw('from_email'));
+        $from_email = self::normalize_email_domain($this->post_raw('from_email'));
         update_option('s180re_from_email', $from_email && is_email($from_email) ? $from_email : '');
+        $notice_hour = $this->post_text('daily_notice_hour', false);
+        if (!preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])$/', $notice_hour)) {
+            $notice_hour = '09:00';
+        }
+        $previous_notice_hour = get_option('s180br_daily_notice_hour', '09:00');
+        update_option('s180br_daily_notice_hour', $notice_hour);
+        update_option('s180br_daily_notice_subject', $this->post_text('daily_notice_subject', false));
+        update_option('s180br_daily_notice_intro', $this->post_textarea('daily_notice_intro', false));
+        update_option('s180br_approval_subject', $this->post_text('approval_subject', false));
+        update_option('s180br_approval_body', $this->post_textarea('approval_body', false));
+        if ($notice_hour !== $previous_notice_hour || !wp_next_scheduled('s180br_daily_review_notice')) {
+            self::reschedule_daily_notice();
+        }
         $this->admin_redirect('s180br-settings', 'settings_saved');
     }
 
@@ -1040,6 +1397,76 @@ class S180BR_Plugin
         exit;
     }
 
+    private function redirect_to_review_page($status)
+    {
+        wp_safe_redirect(add_query_arg('s180re_status', rawurlencode($status), $this->review_request_page_url()));
+        exit;
+    }
+
+    private function generate_token()
+    {
+        return bin2hex(random_bytes(24));
+    }
+
+    private function pending_token_hash($token)
+    {
+        return hash('sha256', $token . wp_salt('auth'));
+    }
+
+    private function pending_review_dir()
+    {
+        $uploads = wp_upload_dir(null, false);
+        return trailingslashit($uploads['basedir']) . 'science180-review-requests';
+    }
+
+    private function pending_review_path($token)
+    {
+        return trailingslashit($this->pending_review_dir()) . $this->pending_token_hash($token) . '.json';
+    }
+
+    private function save_pending_review($token, $data)
+    {
+        $dir = $this->pending_review_dir();
+        if (!wp_mkdir_p($dir)) {
+            return false;
+        }
+
+        $payload = array(
+            'expires' => time() + DAY_IN_SECONDS,
+            'data' => $data,
+        );
+
+        return (bool) file_put_contents($this->pending_review_path($token), wp_json_encode($payload));
+    }
+
+    private function load_pending_review($token)
+    {
+        $path = $this->pending_review_path($token);
+        if (!is_readable($path)) {
+            return false;
+        }
+
+        $payload = json_decode((string) file_get_contents($path), true);
+        if (!is_array($payload) || empty($payload['data']) || empty($payload['expires'])) {
+            return false;
+        }
+
+        if ((int) $payload['expires'] < time()) {
+            $this->delete_pending_review($token);
+            return false;
+        }
+
+        return is_array($payload['data']) ? $payload['data'] : false;
+    }
+
+    private function delete_pending_review($token)
+    {
+        $path = $this->pending_review_path($token);
+        if (is_file($path)) {
+            wp_delete_file($path);
+        }
+    }
+
     private function render_public_notice($context)
     {
         if (empty($_GET['s180re_status'])) {
@@ -1049,6 +1476,10 @@ class S180BR_Plugin
         $status = sanitize_key($_GET['s180re_status']);
         $messages = array(
             'review_success' => array('success', __('Your review copy request was submitted successfully.', 'science180-book-review')),
+            'review_check_email' => array('success', __('Please, go to your email inbox to verify your email before we can submit your request. This step helps us fight spams and better serve you.', 'science180-book-review')),
+            'review_verified' => array('success', __('Your email has been verified and your review copy request has been submitted for review.', 'science180-book-review')),
+            'review_email_failed' => array('warning', __('The verification email could not be sent. Please try again later or contact the site owner.', 'science180-book-review')),
+            'review_verify_invalid' => array('warning', __('This verification link is invalid or has expired. Please submit the request again.', 'science180-book-review')),
             'review_duplicate' => array('warning', __('This email has already requested this book.', 'science180-book-review')),
             'review_invalid' => array('warning', __('The form could not be submitted. Please try again.', 'science180-book-review')),
             'review_invalid_book' => array('warning', __('Please choose an available book.', 'science180-book-review')),
@@ -1077,11 +1508,13 @@ class S180BR_Plugin
         $status = sanitize_key($_GET['s180re_admin_status']);
         $messages = array(
             'book_saved' => __('Book saved.', 'science180-book-review'),
+            'book_deleted' => __('Book deleted.', 'science180-book-review'),
             'book_missing' => __('Book title is required.', 'science180-book-review'),
             'request_updated' => __('Request status updated.', 'science180-book-review'),
             'request_updated_notified' => __('Request status updated and the applicant was notified.', 'science180-book-review'),
             'request_updated_email_failed' => __('Request status updated, but the applicant email could not be sent.', 'science180-book-review'),
             'request_missing' => __('Review copy request not found.', 'science180-book-review'),
+            'request_deleted' => __('Review copy request deleted.', 'science180-book-review'),
             'settings_saved' => __('Settings saved.', 'science180-book-review'),
         );
 
@@ -1107,6 +1540,13 @@ class S180BR_Plugin
         global $wpdb;
         $table = $this->table('books');
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $book_id));
+    }
+
+    private function get_book_by_slug($slug)
+    {
+        global $wpdb;
+        $table = $this->table('books');
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE slug = %s AND is_active = 1", sanitize_title($slug)));
     }
 
     private function get_review_request($request_id)
@@ -1142,20 +1582,26 @@ class S180BR_Plugin
             }
         }
 
-        return home_url('/review-copy-request/');
+        return home_url('/BookReviewRequest/');
     }
 
-    private function endorsement_page_url()
+    private function book_review_url($book)
     {
-        $page_id = (int) get_option('s180re_endorsement_page_id');
-        if ($page_id) {
-            $url = get_permalink($page_id);
-            if ($url) {
-                return $url;
-            }
+        if (!$book) {
+            return $this->review_request_page_url();
         }
 
-        return home_url('/endorsement/');
+        $slug = '';
+        if (!empty($book->slug)) {
+            $slug = $book->slug;
+        } elseif (!empty($book->book_id)) {
+            $matched = $this->get_book((int) $book->book_id);
+            $slug = $matched ? $matched->slug : '';
+        } elseif (!empty($book->book_title)) {
+            $slug = sanitize_title($book->book_title);
+        }
+
+        return trailingslashit($this->review_request_page_url()) . rawurlencode($slug);
     }
 
     private function review_request_labels()
@@ -1178,20 +1624,27 @@ class S180BR_Plugin
             'qualifications' => 'Professional review qualifications',
             'audience' => 'Audience / review outlet',
             'message' => 'Additional message',
+            'verified_at' => 'Email verified at',
             'created_at' => 'Submitted at',
             'status' => 'Status',
         );
     }
 
-    private function review_request_status_label($status)
+    private function review_request_statuses()
     {
-        $labels = array(
+        return array(
+            'email_verified' => __('Needs review', 'science180-book-review'),
             'new' => __('New', 'science180-book-review'),
             'reviewing' => __('Reviewing', 'science180-book-review'),
-            'qualified' => __('Approved', 'science180-book-review'),
+            'qualified' => __('Accepted', 'science180-book-review'),
             'sent' => __('Sent', 'science180-book-review'),
             'declined' => __('Rejected', 'science180-book-review'),
         );
+    }
+
+    private function review_request_status_label($status)
+    {
+        $labels = $this->review_request_statuses();
 
         $status = sanitize_key($status);
         return isset($labels[$status]) ? $labels[$status] : ucwords(str_replace('_', ' ', $status));
@@ -1260,7 +1713,7 @@ class S180BR_Plugin
 
     private function clean_email_from_post($key)
     {
-        $email = sanitize_email($this->post_raw($key));
+        $email = self::normalize_email_domain($this->post_raw($key));
         return ($email && is_email($email)) ? strtolower($email) : '';
     }
 
