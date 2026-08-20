@@ -36,7 +36,9 @@ wp-config-local.php
 /wp-includes/
 /aios-bootstrap.php
 /php.ini
-/newsletterm/
+/newsletterm/*
+!/newsletterm/news-html/
+!/newsletterm/news-html/**
 
 # Generated uploads, backups, cache, logs
 /wp-content/uploads/
