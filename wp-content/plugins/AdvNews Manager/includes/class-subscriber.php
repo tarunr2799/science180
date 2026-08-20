@@ -1378,8 +1378,67 @@ class AdvNews_Subscriber
 
         $subject = __('Welcome to Our Newsletter!', 'advnews-manager');
         $message = __('Thank you for subscribing to our newsletter!', 'advnews-manager');
+        $headers = array();
 
-        return wp_mail($subscriber->email, $subject, $message);
+        $template = $this->get_active_email_template(get_option('advnews_welcome_template', 0));
+        if ($template && class_exists('AdvNews_Campaign')) {
+            $campaign = new AdvNews_Campaign();
+            $subscriber_data = $this->get_subscriber_merge_data($subscriber);
+
+            $subject = $campaign->process_merge_tags($template->subject, $subscriber_data);
+            $message = $campaign->process_merge_tags($template->content, $subscriber_data);
+            $message = $campaign->prepare_email_content($message);
+            $headers[] = 'Content-Type: text/html; charset=UTF-8';
+        }
+
+        return wp_mail($subscriber->email, $subject, $message, $headers);
+    }
+
+    /**
+     * Get an active email template by ID.
+     */
+    private function get_active_email_template($template_id)
+    {
+        $template_id = intval($template_id);
+        if (!$template_id) {
+            return null;
+        }
+
+        $table_name = $this->wpdb->prefix . $this->table_prefix . 'templates';
+
+        return $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM $table_name WHERE id = %d AND is_active = 1",
+            $template_id
+        ));
+    }
+
+    /**
+     * Build merge-tag data for subscriber emails.
+     */
+    private function get_subscriber_merge_data($subscriber)
+    {
+        $categories = $this->get_subscriber_categories($subscriber->id);
+        $category_names = array();
+
+        foreach ($categories as $category) {
+            $category_names[] = $category->name;
+        }
+
+        return array(
+            'subscriber_id' => $subscriber->id,
+            'email' => $subscriber->email,
+            'first_name' => $subscriber->first_name,
+            'last_name' => $subscriber->last_name,
+            'full_name' => trim($subscriber->first_name . ' ' . $subscriber->last_name),
+            'organization' => $subscriber->organization,
+            'title' => $subscriber->title,
+            'website_url' => $subscriber->website_url,
+            'description' => $subscriber->description,
+            'country' => $subscriber->country,
+            'status' => $subscriber->status,
+            'categories' => implode(', ', $category_names),
+            'subscribed_date' => !empty($subscriber->subscribed_at) ? date_i18n(get_option('date_format'), strtotime($subscriber->subscribed_at)) : ''
+        );
     }
 
     /**
