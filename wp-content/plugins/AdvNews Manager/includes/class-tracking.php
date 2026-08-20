@@ -588,9 +588,9 @@ class AdvNews_Tracking
                 $analytics['overview']['delivery_rate'] = 0;
             }
         }
-        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
-        // Check if country_code column exists
-        $has_country_code = $this->column_exists('tracking_opens', 'country_code');
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+        // Use click rows for geo/device reports because open pixels are often loaded by email-provider proxies.
+        $has_country_code = $this->column_exists('tracking_clicks', 'country_code');
         // Enhanced geographic data with country codes for maps
         if ($has_country_code) {
             $geographic = $this->wpdb->get_results($this->wpdb->prepare(
@@ -600,9 +600,9 @@ class AdvNews_Tracking
                 city,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_opens,
-                COUNT(DISTINCT DATE(opened_at)) as days_active,
-                AVG(HOUR(opened_at)) as avg_hour
-                FROM $table_opens
+                COUNT(DISTINCT DATE(clicked_at)) as days_active,
+                AVG(HOUR(clicked_at)) as avg_hour
+                FROM $table_clicks
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country, country_code, city
@@ -617,9 +617,9 @@ class AdvNews_Tracking
                 city,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_opens,
-                COUNT(DISTINCT DATE(opened_at)) as days_active,
-                AVG(HOUR(opened_at)) as avg_hour
-                FROM $table_opens
+                COUNT(DISTINCT DATE(clicked_at)) as days_active,
+                AVG(HOUR(clicked_at)) as avg_hour
+                FROM $table_clicks
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country, city
@@ -637,7 +637,7 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
-                FROM $table_opens
+                FROM $table_clicks
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country_code, country
@@ -652,7 +652,7 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
-                FROM $table_opens
+                FROM $table_clicks
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country
@@ -668,7 +668,7 @@ class AdvNews_Tracking
             COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as total_cities,
             COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' AND country != 'Unknown' THEN country END) as tracked_countries,
             COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as tracked_cities
-            FROM $table_opens
+            FROM $table_clicks
             WHERE campaign_id = %d",
             $campaign_id
         ));
@@ -683,9 +683,9 @@ class AdvNews_Tracking
             COUNT(DISTINCT subscriber_id) as unique_visitors,
             latitude,
             longitude,
-            MIN(opened_at) as first_open,
-            MAX(opened_at) as last_open
-            FROM $table_opens
+            MIN(clicked_at) as first_open,
+            MAX(clicked_at) as last_open
+            FROM $table_clicks
             WHERE campaign_id = %d
             AND city != '' AND city != 'Local' AND city != 'Unknown'
             AND latitude IS NOT NULL AND longitude IS NOT NULL
@@ -701,7 +701,7 @@ class AdvNews_Tracking
             browser,
             platform,
             COUNT(*) as opens
-            FROM $table_opens
+            FROM $table_clicks
             WHERE campaign_id = %d
             GROUP BY device_type, browser, platform
             ORDER BY opens DESC",
@@ -710,7 +710,6 @@ class AdvNews_Tracking
         $analytics['devices'] = $devices;
         // Link data
         $table_links = $this->wpdb->prefix . $this->table_prefix . 'links';
-        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
         $links = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT
             l.id,
@@ -910,9 +909,9 @@ class AdvNews_Tracking
             'unsubscribed' => 0,
             'bounced' => 0
         );
-        // Check if country_code column exists
-        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
-        $has_country_code = $this->column_exists('tracking_opens', 'country_code');
+        // Use click rows for geographic reports because open pixels are often loaded by email-provider proxies.
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+        $has_country_code = $this->column_exists('tracking_clicks', 'country_code');
         // Geographic distribution for the period
         if ($has_country_code) {
             $geographic = $this->wpdb->get_results($this->wpdb->prepare(
@@ -922,8 +921,8 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT campaign_id) as campaigns
-                FROM $table_opens
-                WHERE opened_at BETWEEN %s AND %s
+                FROM $table_clicks
+                WHERE clicked_at BETWEEN %s AND %s
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country, country_code
                 ORDER BY opens DESC",
@@ -938,8 +937,8 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT campaign_id) as campaigns
-                FROM $table_opens
-                WHERE opened_at BETWEEN %s AND %s
+                FROM $table_clicks
+                WHERE clicked_at BETWEEN %s AND %s
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country
                 ORDER BY opens DESC",
@@ -1014,7 +1013,7 @@ class AdvNews_Tracking
         $output = fopen('php://output', 'w');
         switch ($type) {
             case 'geographic':
-                fputcsv($output, array('Country', 'Country Code', 'City', 'Opens', 'Unique Opens', 'Days Active', 'Avg Hour'));
+                fputcsv($output, array('Country', 'Country Code', 'City', 'Clicks', 'Unique Clickers', 'Days Active', 'Avg Hour'));
                 foreach ($analytics['geographic'] as $row) {
                     fputcsv($output, array(
                         $row->country,
@@ -1028,7 +1027,7 @@ class AdvNews_Tracking
                 }
                 break;
             case 'map':
-                fputcsv($output, array('Country Code', 'Country', 'Opens', 'Unique Visitors', 'Cities'));
+                fputcsv($output, array('Country Code', 'Country', 'Clicks', 'Unique Clickers', 'Cities'));
                 foreach ($analytics['geographic_map'] as $row) {
                     fputcsv($output, array(
                         $row->country_code ?? '',
@@ -1040,7 +1039,7 @@ class AdvNews_Tracking
                 }
                 break;
             case 'cities':
-                fputcsv($output, array('Country', 'City', 'Opens', 'Unique Visitors', 'Latitude', 'Longitude'));
+                fputcsv($output, array('Country', 'City', 'Clicks', 'Unique Clickers', 'Latitude', 'Longitude'));
                 foreach ($analytics['cities'] as $row) {
                     fputcsv($output, array(
                         $row->country,
@@ -1053,7 +1052,7 @@ class AdvNews_Tracking
                 }
                 break;
             case 'devices':
-                $headers = array('Device Type', 'Browser', 'Platform', 'Opens');
+                $headers = array('Device Type', 'Browser', 'Platform', 'Clicks');
                 fputcsv($output, $headers);
                 foreach ($analytics['devices'] as $row) {
                     fputcsv($output, array(

@@ -382,14 +382,14 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                         <div class="geo-icon">👥</div>
                         <div class="geo-content">
                             <div class="geo-value"><?php echo esc_html(array_sum(array_column($analytics['geographic_map'] ?? [], 'unique_visitors'))); ?></div>
-                            <div class="geo-label"><?php _e('Unique Visitors', 'advnews-manager'); ?></div>
+                            <div class="geo-label"><?php _e('Unique Clickers', 'advnews-manager'); ?></div>
                         </div>
                     </div>
                     <div class="geo-summary-card">
                         <div class="geo-icon">📊</div>
                         <div class="geo-content">
                             <div class="geo-value"><?php echo esc_html(array_sum(array_column($analytics['geographic_map'] ?? [], 'opens'))); ?></div>
-                            <div class="geo-label"><?php _e('Total Opens', 'advnews-manager'); ?></div>
+                            <div class="geo-label"><?php _e('Total Clicks', 'advnews-manager'); ?></div>
                         </div>
                     </div>
                 </div>
@@ -404,8 +404,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                     <div class="country-filters">
                         <input type="text" id="country-search" placeholder="<?php _e('Search country...', 'advnews-manager'); ?>" class="regular-text">
                         <select id="country-sort">
-                            <option value="opens-desc"><?php _e('Sort by Opens (High to Low)', 'advnews-manager'); ?></option>
-                            <option value="opens-asc"><?php _e('Sort by Opens (Low to High)', 'advnews-manager'); ?></option>
+                        <option value="opens-desc"><?php _e('Sort by Clicks (High to Low)', 'advnews-manager'); ?></option>
+                        <option value="opens-asc"><?php _e('Sort by Clicks (Low to High)', 'advnews-manager'); ?></option>
                             <option value="country"><?php _e('Sort by Country Name', 'advnews-manager'); ?></option>
                         </select>
                     </div>
@@ -426,11 +426,11 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <div class="country-info">
                                 <h4><?php echo esc_html($country->country); ?></h4>
                                 <div class="country-stats">
-                                    <div class="stat" title="<?php _e('Opens', 'advnews-manager'); ?>">
+                                    <div class="stat" title="<?php _e('Clicks', 'advnews-manager'); ?>">
                                         <span class="stat-icon">👁️</span>
                                         <span class="stat-value"><?php echo esc_html(number_format($country->opens)); ?></span>
                                     </div>
-                                    <div class="stat" title="<?php _e('Unique Visitors', 'advnews-manager'); ?>">
+                                    <div class="stat" title="<?php _e('Unique Clickers', 'advnews-manager'); ?>">
                                         <span class="stat-icon">👤</span>
                                         <span class="stat-value"><?php echo esc_html(number_format($country->unique_visitors)); ?></span>
                                     </div>
@@ -457,10 +457,10 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <tr>
                                 <th><?php _e('City', 'advnews-manager'); ?></th>
                                 <th><?php _e('Country', 'advnews-manager'); ?></th>
-                                <th><?php _e('Opens', 'advnews-manager'); ?></th>
-                                <th><?php _e('Unique Visitors', 'advnews-manager'); ?></th>
-                                <th><?php _e('First Open', 'advnews-manager'); ?></th>
-                                <th><?php _e('Last Open', 'advnews-manager'); ?></th>
+                                <th><?php _e('Clicks', 'advnews-manager'); ?></th>
+                                <th><?php _e('Unique Clickers', 'advnews-manager'); ?></th>
+                                <th><?php _e('First Click', 'advnews-manager'); ?></th>
+                                <th><?php _e('Last Click', 'advnews-manager'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -491,8 +491,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <tr>
                                 <th><?php _e('Country', 'advnews-manager'); ?></th>
                                 <th><?php _e('Code', 'advnews-manager'); ?></th>
-                                <th><?php _e('Opens', 'advnews-manager'); ?></th>
-                                <th><?php _e('Unique Visitors', 'advnews-manager'); ?></th>
+                                <th><?php _e('Clicks', 'advnews-manager'); ?></th>
+                                <th><?php _e('Unique Clickers', 'advnews-manager'); ?></th>
                                 <th><?php _e('Cities', 'advnews-manager'); ?></th>
                                 <th><?php _e('Avg Hour', 'advnews-manager'); ?></th>
                                 <th><?php _e('Days Active', 'advnews-manager'); ?></th>
@@ -501,7 +501,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                         <tbody>
                             <?php if (empty($analytics['geographic'])): ?>
                             <tr>
-                                <td colspan="7"><?php _e('No geographic data available.', 'advnews-manager'); ?></td>
+                                <td colspan="7"><?php _e('No click-based geographic data available.', 'advnews-manager'); ?></td>
                             </tr>
                             <?php else:
                                 $current_country = '';
@@ -565,8 +565,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
 
                             circle.bindPopup(
                                 '<strong>' + country.country + '</strong><br>' +
-                                'Opens: ' + country.opens + '<br>' +
-                                'Visitors: ' + country.unique_visitors + '<br>' +
+                                'Clicks: ' + country.opens + '<br>' +
+                                'Clickers: ' + country.unique_visitors + '<br>' +
                                 'Cities: ' + country.cities_count
                             );
                         }
@@ -675,7 +675,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <th><?php _e('Device Type', 'advnews-manager'); ?></th>
                             <th><?php _e('Browser', 'advnews-manager'); ?></th>
                             <th><?php _e('Platform', 'advnews-manager'); ?></th>
-                            <th><?php _e('Opens', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clicks', 'advnews-manager'); ?></th>
                             <th><?php _e('Percentage', 'advnews-manager'); ?></th>
                         </tr>
                     </thead>
@@ -683,7 +683,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                         <?php
                         $device_total = array_sum(array_column($analytics['devices'] ?? [], 'opens'));
                         if (empty($analytics['devices'])): ?>
-                            <tr><td colspan="5"><?php _e('No device data available.', 'advnews-manager'); ?></td></tr>
+                            <tr><td colspan="5"><?php _e('No click-based device data available.', 'advnews-manager'); ?></td></tr>
                         <?php else:
                             foreach ($analytics['devices'] as $device):
                                 $percentage = $device_total > 0 ? round(($device->opens / $device_total) * 100, 2) : 0;
@@ -772,7 +772,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                     data: {
                         labels: Object.keys(platformData),
                         datasets: [{
-                            label: 'Opens',
+                        label: 'Clicks',
                             data: Object.values(platformData),
                             backgroundColor: '#2271b1'
                         }]

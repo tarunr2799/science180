@@ -44,11 +44,11 @@ switch ($period) {
         $start_date = date('Y-m-d H:i:s', strtotime('-30 days'));
 }
 
-// Top Countries
+// Top Countries from clicks. Open-pixel locations can be email proxy locations.
 $top_countries = $wpdb->get_results($wpdb->prepare(
     "SELECT country, country_code, COUNT(*) as opens, COUNT(DISTINCT subscriber_id) as unique_visitors
-    FROM {$wpdb->prefix}{$table_prefix}tracking_opens
-    WHERE opened_at BETWEEN %s AND %s
+    FROM {$wpdb->prefix}{$table_prefix}tracking_clicks
+    WHERE clicked_at BETWEEN %s AND %s
     AND country != '' AND country != 'Local' AND country != 'Unknown'
     GROUP BY country, country_code
     ORDER BY opens DESC
@@ -57,11 +57,11 @@ $top_countries = $wpdb->get_results($wpdb->prepare(
     $end_date
 ));
 
-// Top Cities
+// Top Cities from clicks. Open-pixel locations can be email proxy locations.
 $top_cities = $wpdb->get_results($wpdb->prepare(
     "SELECT city, country, country_code, COUNT(*) as opens
-    FROM {$wpdb->prefix}{$table_prefix}tracking_opens
-    WHERE opened_at BETWEEN %s AND %s
+    FROM {$wpdb->prefix}{$table_prefix}tracking_clicks
+    WHERE clicked_at BETWEEN %s AND %s
     AND city != '' AND city != 'Local' AND city != 'Unknown'
     GROUP BY city, country, country_code
     ORDER BY opens DESC
@@ -70,11 +70,11 @@ $top_cities = $wpdb->get_results($wpdb->prepare(
     $end_date
 ));
 
-// Device Data
+// Device data from clicks. Open-pixel user agents are often email proxy/scanner agents.
 $device_data = $wpdb->get_results($wpdb->prepare(
     "SELECT device_type, browser, platform, COUNT(*) as opens
-    FROM {$wpdb->prefix}{$table_prefix}tracking_opens
-    WHERE opened_at BETWEEN %s AND %s
+    FROM {$wpdb->prefix}{$table_prefix}tracking_clicks
+    WHERE clicked_at BETWEEN %s AND %s
     AND device_type != ''
     GROUP BY device_type, browser, platform
     ORDER BY opens DESC
@@ -83,7 +83,7 @@ $device_data = $wpdb->get_results($wpdb->prepare(
     $end_date
 ));
 
-// IP Address Data - PRESERVED
+// IP Address Data from clicks for a closer recipient signal than open-pixel proxy IPs.
 $ip_data = $wpdb->get_results($wpdb->prepare(
     "SELECT
     ip_address,
@@ -94,12 +94,12 @@ $ip_data = $wpdb->get_results($wpdb->prepare(
     device_type,
     browser,
     platform,
-    opened_at,
+    clicked_at as event_at,
     campaign_id
-    FROM {$wpdb->prefix}{$table_prefix}tracking_opens
-    WHERE opened_at BETWEEN %s AND %s
+    FROM {$wpdb->prefix}{$table_prefix}tracking_clicks
+    WHERE clicked_at BETWEEN %s AND %s
     AND ip_address != ''
-    ORDER BY opened_at DESC
+    ORDER BY clicked_at DESC
     LIMIT 50",
     $start_date,
     $end_date
@@ -328,8 +328,8 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                     <thead>
                         <tr>
                             <th><?php _e('Country', 'advnews-manager'); ?></th>
-                            <th><?php _e('Opens', 'advnews-manager'); ?></th>
-                            <th><?php _e('Visitors', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clicks', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clickers', 'advnews-manager'); ?></th>
                             <th><?php _e('%', 'advnews-manager'); ?></th>
                         </tr>
                     </thead>
@@ -338,7 +338,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         $total_opens = array_sum(array_column($top_countries, 'opens'));
                         if (empty($top_countries)): ?>
                         <tr>
-                            <td colspan="4"><?php _e('No geographic data available. Enable geolocation tracking in settings.', 'advnews-manager'); ?></td>
+                            <td colspan="4"><?php _e('No click-based geographic data available. Click tracking and geolocation must be enabled.', 'advnews-manager'); ?></td>
                         </tr>
                         <?php else: ?>
                         <?php foreach ($top_countries as $country):
@@ -370,13 +370,13 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         <tr>
                             <th><?php _e('City', 'advnews-manager'); ?></th>
                             <th><?php _e('Country', 'advnews-manager'); ?></th>
-                            <th><?php _e('Opens', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clicks', 'advnews-manager'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($top_cities)): ?>
                         <tr>
-                            <td colspan="3"><?php _e('No city data available.', 'advnews-manager'); ?></td>
+                            <td colspan="3"><?php _e('No click-based city data available.', 'advnews-manager'); ?></td>
                         </tr>
                         <?php else: ?>
                         <?php foreach ($top_cities as $city): ?>
@@ -432,7 +432,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         <th><?php _e('Device Type', 'advnews-manager'); ?></th>
                         <th><?php _e('Browser', 'advnews-manager'); ?></th>
                         <th><?php _e('Platform', 'advnews-manager'); ?></th>
-                        <th><?php _e('Opens', 'advnews-manager'); ?></th>
+                        <th><?php _e('Clicks', 'advnews-manager'); ?></th>
                         <th><?php _e('%', 'advnews-manager'); ?></th>
                     </tr>
                 </thead>
@@ -441,7 +441,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                     $device_total = array_sum(array_column($device_data ?? [], 'opens'));
                     if (empty($device_data)): ?>
                     <tr>
-                        <td colspan="5"><?php _e('No device data available. Enable device tracking in settings.', 'advnews-manager'); ?></td>
+                        <td colspan="5"><?php _e('No click-based device data available. Click tracking must be enabled.', 'advnews-manager'); ?></td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($device_data as $device):
@@ -501,7 +501,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                 <tbody>
                     <?php if (empty($ip_data)): ?>
                     <tr>
-                        <td colspan="7"><?php _e('No IP tracking data available. Ensure tracking is enabled in settings.', 'advnews-manager'); ?></td>
+                        <td colspan="7"><?php _e('No clicked IP tracking data available. Ensure click tracking is enabled in settings.', 'advnews-manager'); ?></td>
                     </tr>
                     <?php else: ?>
                     <?php foreach ($ip_data as $ip_record):
@@ -568,8 +568,8 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                             <?php endif; ?>
                         </td>
                         <td>
-                            <span title="<?php echo esc_attr($ip_record->opened_at); ?>">
-                                <?php echo esc_html(human_time_diff(strtotime($ip_record->opened_at), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?>
+                            <span title="<?php echo esc_attr($ip_record->event_at); ?>">
+                                <?php echo esc_html(human_time_diff(strtotime($ip_record->event_at), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?>
                             </span>
                         </td>
                     </tr>
@@ -581,9 +581,9 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
         <div class="ip-tracking-footer">
             <p class="description">
                 <?php printf(
-                    __('Showing last %d IP addresses. Full data available in database table %s.', 'advnews-manager'),
+                    __('Showing last %d clicked IP addresses. Full data available in database table %s.', 'advnews-manager'),
                     50,
-                    '<code>' . $wpdb->prefix . $table_prefix . 'tracking_opens</code>'
+                    '<code>' . $wpdb->prefix . $table_prefix . 'tracking_clicks</code>'
                 ); ?>
             </p>
             <div class="ip-tracking-pagination">
@@ -961,7 +961,7 @@ jQuery(document).ready(function($) {
                 data: {
                     labels: Object.keys(platformData),
                     datasets: [{
-                        label: 'Opens',
+                        label: 'Clicks',
                         data: Object.values(platformData),
                         backgroundColor: '#2271b1'
                     }]
