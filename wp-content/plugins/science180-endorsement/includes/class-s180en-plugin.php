@@ -183,7 +183,7 @@ class S180EN_Plugin
 
     public function enqueue_frontend_assets()
     {
-        wp_enqueue_style('s180re-frontend', S180EN_PLUGIN_URL . 'assets/css/frontend.css', array(), S180EN_VERSION);
+        wp_enqueue_style('s180en-frontend', S180EN_PLUGIN_URL . 'assets/css/frontend.css', array(), S180EN_VERSION);
     }
 
     public function enqueue_admin_assets($hook)
@@ -192,8 +192,8 @@ class S180EN_Plugin
             return;
         }
 
-        wp_enqueue_style('s180re-admin', S180EN_PLUGIN_URL . 'assets/css/admin.css', array(), S180EN_VERSION);
-        wp_enqueue_script('s180re-admin', S180EN_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), S180EN_VERSION, true);
+        wp_enqueue_style('s180en-admin', S180EN_PLUGIN_URL . 'assets/css/admin.css', array(), S180EN_VERSION);
+        wp_enqueue_script('s180en-admin', S180EN_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), S180EN_VERSION, true);
     }
 
     public function register_admin_menu()

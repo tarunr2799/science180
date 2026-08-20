@@ -436,8 +436,11 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 
 .s180re-endorsement-photo,
 .s180re-detail-photo {
+    display: block;
     width: 72px;
     height: 72px;
+    max-width: 72px;
+    min-width: 72px;
     border-radius: 8px;
     object-fit: cover;
     background: #eef2f5;
