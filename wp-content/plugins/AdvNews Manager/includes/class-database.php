@@ -7,7 +7,7 @@ class AdvNews_Database
     private $table_prefix;
     private $db_version_option = 'advnews_db_version';
     // BUMP VERSION TO FORCE UPGRADE
-    private $current_db_version = '1.0.7';
+    private $current_db_version = '1.0.8';
 
     public function __construct()
     {

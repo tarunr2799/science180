@@ -7,6 +7,13 @@ $campaign = $campaign_id ? $campaign_class->get_campaign($campaign_id) : null;
 $can_add_manual_recipient = $campaign && in_array($campaign->status, array('sent', 'sending', 'scheduled', 'paused'), true);
 global $wpdb;
 $table_prefix = ADVNEWS_TABLE_PREFIX;
+$campaign_existing_queue_count = 0;
+if ($campaign_id) {
+    $campaign_existing_queue_count = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}{$table_prefix}campaign_logs WHERE campaign_id = %d",
+        $campaign_id
+    ));
+}
 // Get all categories for checkboxes
 $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}categories ORDER BY name");
 // Get assigned category IDs for this campaign
@@ -402,6 +409,9 @@ if (isset($_GET['message'])) {
 
 <script>
 jQuery(document).ready(function($) {
+    var latestRecipientCount = <?php echo (int) ($campaign ? $campaign->total_recipients : 0); ?>;
+    var existingQueuedRecipientCount = <?php echo (int) $campaign_existing_queue_count; ?>;
+
     function getAdvNewsMultiSelectOptions($select) {
         return $select.find('input[type="checkbox"]').not(':disabled').not('.advnews-multiselect-select-all-input');
     }
@@ -505,6 +515,7 @@ jQuery(document).ready(function($) {
         }).get();
 
         if (selectedCategories.length === 0) {
+            latestRecipientCount = 0;
             $('#recipient-count-display').html(
                 '<p style="text-align: center; color: #999;"><?php _e('Select categories to see estimated recipients', 'advnews-manager'); ?></p>'
             );
@@ -522,12 +533,14 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
+                    latestRecipientCount = parseInt(response.data.count, 10) || 0;
                     $('#recipient-count-display').html(
                         '<p style="font-size: 24px; font-weight: bold; text-align: center; color: #2271b1;">' +
                         response.data.count +
                         '</p><p style="text-align: center;"><?php _e('active subscribers (unique)', 'advnews-manager'); ?></p>'
                     );
                 } else {
+                     latestRecipientCount = 0;
                      $('#recipient-count-display').html(
                         '<p style="font-size: 18px; font-weight: bold; text-align: center; color: #2271b1;">' +
                         '<?php _e('Multiple Categories Selected', 'advnews-manager'); ?>' +
@@ -536,6 +549,7 @@ jQuery(document).ready(function($) {
                 }
             },
             error: function() {
+                 latestRecipientCount = 0;
                  $('#recipient-count-display').html(
                     '<p style="font-size: 18px; font-weight: bold; text-align: center; color: #2271b1;">' +
                     '<?php _e('Multiple Categories Selected', 'advnews-manager'); ?>' +
@@ -660,6 +674,7 @@ jQuery(document).ready(function($) {
         var categories = $('input[name="category_ids[]"]:checked').length;
         var submitter = e.originalEvent && e.originalEvent.submitter ? e.originalEvent.submitter : document.activeElement;
         var isSchedule = submitter && submitter.name === 'schedule_campaign';
+        var isSendOrSchedule = submitter && (submitter.name === 'send_now' || submitter.name === 'schedule_campaign');
 
         if (!name || !subject || categories === 0) {
             e.preventDefault();
@@ -670,6 +685,12 @@ jQuery(document).ready(function($) {
         if (isSchedule && !$('#scheduled_for').val()) {
             e.preventDefault();
             alert('<?php _e('Select a date and time before scheduling this campaign.', 'advnews-manager'); ?>');
+            return false;
+        }
+
+        if (isSendOrSchedule && latestRecipientCount <= 0 && existingQueuedRecipientCount <= 0) {
+            e.preventDefault();
+            alert('<?php _e('Select at least one category with active subscribers or add recipients to the campaign queue before sending or scheduling.', 'advnews-manager'); ?>');
             return false;
         }
     });

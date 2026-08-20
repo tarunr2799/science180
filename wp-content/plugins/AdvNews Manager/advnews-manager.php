@@ -1,11 +1,11 @@
 <?php
 /**
 * Plugin Name: Science180 Mail
-* Plugin URI: https://example.com/advnews-manager
+* Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
 * Version: 1.0.6
-* Author: Your Name
-* Author URI: https://example.com
+* Author: Science180
+* Author URI: https://science180.net/
 * Text Domain: advnews-manager
 * Domain Path: /languages
 * License: GPL v2 or later
@@ -110,6 +110,9 @@ class AdvNews_Manager
 
         // IMPORTANT: Ensure cron jobs are scheduled on init (backup for existing installations)
         add_action('init', array($this, 'ensure_cron_scheduled'), 1);
+
+        // Keep migrated .NET homepage menu/footer/carousel links pointed at the public .COM site.
+        add_action('template_redirect', array($this, 'rewrite_homepage_science180_links'), 0);
     }
 
     /**
@@ -221,6 +224,35 @@ class AdvNews_Manager
         if (!$this->database->tables_exist()) {
             $this->database->create_tables();
         }
+    }
+
+    public function rewrite_homepage_science180_links()
+    {
+        if (is_admin() || wp_doing_ajax() || !(is_front_page() || is_home())) {
+            return;
+        }
+
+        ob_start(array($this, 'rewrite_homepage_science180_link_output'));
+    }
+
+    public function rewrite_homepage_science180_link_output($html)
+    {
+        if (!is_string($html) || $html === '') {
+            return $html;
+        }
+
+        return preg_replace_callback(
+            '/<a\b([^>]*?)\bhref=(["\'])https?:\/\/(?:www\.)?science180\.net([^"\']*)\2([^>]*)>/i',
+            function ($matches) {
+                $path = $matches[3] !== '' ? $matches[3] : '/';
+                if (preg_match('#/(wp-admin|wp-login\.php|wp-json|advnews-track|zsaztyyyuiui02lk)\b#i', $path)) {
+                    return $matches[0];
+                }
+
+                return '<a' . $matches[1] . 'href=' . $matches[2] . 'https://science180.com' . $path . $matches[2] . $matches[4] . '>';
+            },
+            $html
+        );
     }
 
     /**

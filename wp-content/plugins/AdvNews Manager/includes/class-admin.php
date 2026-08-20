@@ -3698,7 +3698,7 @@ border-radius: 4px;
                     <p>
                         <?php printf(
                             __('Powered by %sScience180 Mail%s - Professional Newsletter System', 'advnews-manager'),
-                            '<a href="https://example.com/advnews-manager" target="_blank">',
+                            '<a href="https://science180.net/" target="_blank">',
                             '</a>'
                         ); ?>
                     </p>
@@ -5105,8 +5105,8 @@ border-radius: 4px;
         $screen = get_current_screen();
         if (strpos($screen->id, 'advnews') !== false) {
             $text = sprintf(
-                __('Thank you for using Science180 Mail. Please <a href="%s" target="_blank">rate it 5 stars</a> on WordPress.org.', 'advnews-manager'),
-                'https://wordpress.org/support/plugin/advnews-manager/reviews/#new-post'
+                __('Thank you for using Science180 Mail. Visit <a href="%s" target="_blank">Science180</a>.', 'advnews-manager'),
+                'https://science180.net/'
             );
         }
         return $text;

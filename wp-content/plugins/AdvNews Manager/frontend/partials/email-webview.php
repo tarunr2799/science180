@@ -312,7 +312,7 @@ $preferences_link = add_query_arg(array(
 
         <?php if (get_option('advnews_show_credit_link', true)): ?>
         <div class="footer-credit">
-            <a href="https://example.com/advnews-manager" target="_blank" rel="noopener">
+            <a href="https://science180.net/" target="_blank" rel="noopener">
                 <?php _e('Powered by Science180 Mail', 'advnews-manager'); ?>
             </a>
         </div>
