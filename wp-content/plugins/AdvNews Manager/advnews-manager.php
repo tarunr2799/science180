@@ -224,6 +224,9 @@ class AdvNews_Manager
         if (!$this->database->tables_exist()) {
             $this->database->create_tables();
         }
+
+        // Keep legacy Science.net email settings corrected on existing installs.
+        $this->apply_science180_option_migrations();
     }
 
     public function rewrite_homepage_science180_links()
@@ -296,10 +299,10 @@ class AdvNews_Manager
 
         $reply_to = sanitize_email(get_option('advnews_reply_to', ''));
         if (!$reply_to || preg_match('/@science\.net$/i', $reply_to)) {
-            update_option('advnews_reply_to', 'contact@science180.com');
+            update_option('advnews_reply_to', $reply_to ? preg_replace('/@science\.net$/i', '@science180.net', $reply_to) : 'contact@science180.net');
         }
 
-        foreach (array('advnews_from_email', 'advnews_smtp_from_email', 'advnews_smtp_username') as $option) {
+        foreach (array('admin_email', 'new_admin_email', 'advnews_from_email', 'advnews_smtp_from_email', 'advnews_smtp_username') as $option) {
             $email = sanitize_email(get_option($option, ''));
             if ($email && preg_match('/@science\.net$/i', $email)) {
                 update_option($option, preg_replace('/@science\.net$/i', '@science180.net', $email));
