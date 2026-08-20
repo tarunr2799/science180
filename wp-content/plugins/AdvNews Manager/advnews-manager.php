@@ -356,8 +356,8 @@ class AdvNews_Manager
     public function handle_admin_actions()
     {
         // Handle save campaign
-        if (isset($_POST['action']) && $_POST['action'] === 'advnews_save_campaign') {
-            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'advnews_save_campaign')) {
+        if (isset($_POST['action']) && wp_unslash($_POST['action']) === 'advnews_save_campaign') {
+            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'advnews_save_campaign')) {
                 wp_die(__('Security check failed.', 'advnews-manager'));
             }
             if (!current_user_can('manage_options')) {

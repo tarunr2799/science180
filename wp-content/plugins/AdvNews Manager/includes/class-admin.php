@@ -3149,7 +3149,7 @@ border-radius: 4px;
      */
     public function handle_save_template()
     {
-        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'advnews_save_template')) {
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'advnews_save_template')) {
             wp_die(__('Security check failed.', 'advnews-manager'));
         }
         if (!current_user_can('manage_options')) {
@@ -3164,10 +3164,10 @@ border-radius: 4px;
 
         // Prepare template data (category_id set to NULL since junction table handles relationships)
         $data = array(
-            'name' => sanitize_text_field($_POST['template_name']),
-            'subject' => sanitize_text_field($_POST['template_subject']),
-            'content' => isset($_POST['template_html']) ? $this->sanitize_email_html($_POST['template_html']) : '',
-            'css' => isset($_POST['template_css']) ? wp_strip_all_tags($_POST['template_css']) : '',
+            'name' => $this->sanitize_editor_text_field($_POST['template_name'] ?? ''),
+            'subject' => $this->sanitize_editor_text_field($_POST['template_subject'] ?? ''),
+            'content' => isset($_POST['template_html']) ? $this->sanitize_email_html(wp_unslash($_POST['template_html'])) : '',
+            'css' => isset($_POST['template_css']) ? wp_strip_all_tags(wp_unslash($_POST['template_css'])) : '',
             //'category_id' => null,
             'is_active' => isset($_POST['template_active']) ? 1 : 0
         );
@@ -3188,7 +3188,7 @@ border-radius: 4px;
 
         $categories = array();
         if (isset($_POST['template_categories']) && is_array($_POST['template_categories'])) {
-            $categories = array_filter(array_map('intval', $_POST['template_categories']));
+            $categories = array_filter(array_map('intval', wp_unslash($_POST['template_categories'])));
         }
 
         if ($template_id) {
@@ -4284,7 +4284,7 @@ border-radius: 4px;
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('AdvNews: handle_save_campaign started');
         }
-        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'advnews_save_campaign')) {
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'advnews_save_campaign')) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('AdvNews: Nonce verification failed');
             }
@@ -4302,13 +4302,13 @@ border-radius: 4px;
         }
 
         // FIXED: Use custom email sanitizer instead of wp_kses_post to preserve styles/tables
-        $content_raw = isset($_POST['content']) ? $_POST['content'] : '';
+        $content_raw = isset($_POST['content']) ? wp_unslash($_POST['content']) : '';
         $sanitized_content = $this->sanitize_email_html($content_raw);
 
         // Handle Multiple Categories
         $category_ids = array();
         if (isset($_POST['category_ids']) && is_array($_POST['category_ids'])) {
-            $category_ids = array_map('intval', $_POST['category_ids']);
+            $category_ids = array_map('intval', wp_unslash($_POST['category_ids']));
         }
 
         // Fallback for legacy single category_id if present (for backward compatibility during transition)
@@ -4349,16 +4349,16 @@ border-radius: 4px;
 
         // Prepare data for Campaign Class (which handles junction table)
         $data = array(
-            'name' => sanitize_text_field($_POST['name']),
-            'subject' => sanitize_text_field($_POST['subject']),
+            'name' => $this->sanitize_editor_text_field($_POST['name'] ?? ''),
+            'subject' => $this->sanitize_editor_text_field($_POST['subject'] ?? ''),
             'category_ids' => $category_ids, // Pass array to campaign class
             'content' => $sanitized_content,
             'template_id' => isset($_POST['template_id']) && !empty($_POST['template_id']) ? intval($_POST['template_id']) : null,
-            'from_name' => isset($_POST['from_name']) && !empty($_POST['from_name']) ? sanitize_text_field($_POST['from_name']) : null,
-            'from_email' => isset($_POST['from_email']) && !empty($_POST['from_email']) ? sanitize_email($_POST['from_email']) : null,
-            'reply_to' => isset($_POST['reply_to']) && !empty($_POST['reply_to']) ? sanitize_email($_POST['reply_to']) : null,
-            'status' => isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'draft',
-            'priority' => isset($_POST['priority']) ? sanitize_text_field($_POST['priority']) : 'normal',
+            'from_name' => isset($_POST['from_name']) && !empty($_POST['from_name']) ? $this->sanitize_editor_text_field($_POST['from_name']) : null,
+            'from_email' => isset($_POST['from_email']) && !empty($_POST['from_email']) ? sanitize_email(wp_unslash($_POST['from_email'])) : null,
+            'reply_to' => isset($_POST['reply_to']) && !empty($_POST['reply_to']) ? sanitize_email(wp_unslash($_POST['reply_to'])) : null,
+            'status' => isset($_POST['status']) ? sanitize_text_field(wp_unslash($_POST['status'])) : 'draft',
+            'priority' => isset($_POST['priority']) ? sanitize_text_field(wp_unslash($_POST['priority'])) : 'normal',
             'track_opens' => isset($_POST['track_opens']) ? 1 : 0,
             'track_clicks' => isset($_POST['track_clicks']) ? 1 : 0,
             'respect_cooldown' => isset($_POST['respect_cooldown']) ? 1 : 0
@@ -4372,18 +4372,18 @@ border-radius: 4px;
             if (empty($_POST['scheduled_for'])) {
                 wp_die(__('Select a date and time before scheduling this campaign.', 'advnews-manager'));
             }
-            $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
+            $raw_time = sanitize_text_field(str_replace('T', ' ', wp_unslash($_POST['scheduled_for'])));
             $data['scheduled_for'] = get_gmt_from_date($raw_time);
             $data['status'] = 'scheduled';
             $data['sent_at'] = null;
         } elseif (!empty($_POST['scheduled_for'])) {
             // Normalize input format (replace T with space) and convert to GMT for storage
-            $raw_time = sanitize_text_field(str_replace('T', ' ', $_POST['scheduled_for']));
+            $raw_time = sanitize_text_field(str_replace('T', ' ', wp_unslash($_POST['scheduled_for'])));
             $data['scheduled_for'] = get_gmt_from_date($raw_time);
             $data['status'] = 'scheduled';
             $data['sent_at'] = null;
         } elseif (isset($_POST['status'])) {
-            $data['status'] = sanitize_text_field($_POST['status']);
+            $data['status'] = sanitize_text_field(wp_unslash($_POST['status']));
         }
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -4468,11 +4468,30 @@ border-radius: 4px;
         }, $html);
     }
 
+    private function sanitize_editor_text_field($value) {
+        $value = is_string($value) ? wp_unslash($value) : '';
+        $value = $this->remove_editor_escape_artifacts($value);
+
+        return sanitize_text_field($value);
+    }
+
+    private function remove_editor_escape_artifacts($content) {
+        $content = (string) $content;
+
+        // Fix old records that accumulated WordPress-added slashes after repeated saves.
+        $content = preg_replace('/\\\\+([\'"])/', '$1', $content);
+        $content = preg_replace('/\\\\+(&#0?3[49];|&#x0?2[27];|&quot;|&apos;)/i', '$1', $content);
+
+        return $content;
+    }
+
     /**
     * Sanitize HTML specifically for Email Campaigns
     * Allows table attributes, inline styles, and common email tags
     */
     private function sanitize_email_html($html) {
+        $html = $this->remove_editor_escape_artifacts($html);
+
         // Convert Word HTML to email-friendly HTML first
         $html = $this->convert_word_html_to_email_html($html);
         $html = $this->clean_garbled_heading_markers($html);
