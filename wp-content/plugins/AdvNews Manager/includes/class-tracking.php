@@ -588,6 +588,7 @@ class AdvNews_Tracking
                 $analytics['overview']['delivery_rate'] = 0;
             }
         }
+        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
         $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
         // Use click rows for geo/device reports because open pixels are often loaded by email-provider proxies.
         $has_country_code = $this->column_exists('tracking_clicks', 'country_code');
