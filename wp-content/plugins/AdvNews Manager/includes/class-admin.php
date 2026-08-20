@@ -37,6 +37,8 @@ class AdvNews_Admin
         add_action('admin_post_advnews_bulk_templates', array($this, 'handle_bulk_templates'));
         add_action('admin_post_advnews_bulk_categories', array($this, 'handle_bulk_categories'));
         add_action('admin_post_advnews_export_subscribers', array($this, 'handle_export_subscribers'));
+        add_action('admin_post_advnews_export_categories', array($this, 'handle_export_categories'));
+        add_action('admin_post_advnews_export_category_subscribers', array($this, 'handle_export_category_subscribers'));
         add_action('admin_post_advnews_save_category', array($this, 'handle_save_category'));
         add_action('admin_post_advnews_save_subscriber', array($this, 'handle_save_subscriber'));
         // Dashboard widgets
@@ -2053,6 +2055,11 @@ class AdvNews_Admin
             <a href="<?php echo admin_url('admin.php?page=advnews-categories&action=add'); ?>" class="page-title-action">
                 <?php _e('Add New Category', 'advnews-manager'); ?>
             </a>
+            <?php if (!empty($categories)): ?>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=advnews_export_categories'), 'advnews_export_categories')); ?>" class="page-title-action">
+                    <?php _e('Export Categories', 'advnews-manager'); ?>
+                </a>
+            <?php endif; ?>
             <hr class="wp-header-end">
             <?php if (isset($_GET['bulk_message'])): ?>
                 <div class="notice notice-success is-dismissible">
@@ -2138,6 +2145,9 @@ class AdvNews_Admin
                                 </a>
                                 <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&category_id=' . intval($category->id)); ?>" class="button button-small">
                                     <?php _e('View Subscribers', 'advnews-manager'); ?>
+                                </a>
+                                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=advnews_export_category_subscribers&category_id=' . intval($category->id)), 'advnews_export_category_subscribers_' . intval($category->id))); ?>" class="button button-small">
+                                    <?php _e('Export Subscribers', 'advnews-manager'); ?>
                                 </a>
                                 <?php if ($stats['subscribers'] == 0 && $stats['campaigns'] == 0): ?>
                                     <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=advnews-categories&action=delete&id=' . $category->id), 'advnews_delete_category'); ?>"
@@ -4727,6 +4737,175 @@ border-radius: 4px;
         }
 
         $this->generate_export_file($subscribers, $fields, $format, $filename);
+    }
+
+    /**
+     * Handle category summary export from the Categories page
+     */
+    public function handle_export_categories()
+    {
+        check_admin_referer('advnews_export_categories');
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+
+        $category_class = new AdvNews_Category();
+        $categories = $category_class->get_all_categories();
+        if (empty($categories)) {
+            wp_die(__('No categories found to export.', 'advnews-manager'));
+        }
+
+        $filename = 'categories-export-' . date('Y-m-d-H-i-s') . '.csv';
+        $this->send_csv_headers($filename);
+
+        $output = fopen('php://output', 'w');
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($output, array(
+            __('Category Name', 'advnews-manager'),
+            __('Description', 'advnews-manager'),
+            __('Subscribers Count', 'advnews-manager'),
+            __('Campaigns Count', 'advnews-manager'),
+            __('Campaigns', 'advnews-manager'),
+            __('Average Open Rate', 'advnews-manager'),
+            __('Average Click Rate', 'advnews-manager')
+        ));
+
+        foreach ($categories as $category) {
+            $stats = $category_class->get_category_stats($category->id);
+            fputcsv($output, array(
+                $category->name,
+                $category->description,
+                $stats['subscribers'],
+                $stats['campaigns'],
+                implode(', ', $this->get_category_campaign_names($category->id)),
+                $stats['avg_open_rate'] . '%',
+                $stats['avg_click_rate'] . '%'
+            ));
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Handle subscriber export for a single category from the Categories page
+     */
+    public function handle_export_category_subscribers()
+    {
+        $category_id = isset($_GET['category_id']) ? intval($_GET['category_id']) : 0;
+        check_admin_referer('advnews_export_category_subscribers_' . $category_id);
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions.', 'advnews-manager'));
+        }
+        if ($category_id <= 0) {
+            wp_die(__('Invalid category.', 'advnews-manager'));
+        }
+
+        $category_class = new AdvNews_Category();
+        $category = $category_class->get_category($category_id);
+        if (!$category) {
+            wp_die(__('Category not found.', 'advnews-manager'));
+        }
+
+        $subscriber_class = new AdvNews_Subscriber();
+        $subscribers = $subscriber_class->get_all_subscribers(array(
+            'category_id' => $category_id,
+            'limit' => 0,
+            'offset' => 0,
+            'orderby' => 'email',
+            'order' => 'ASC'
+        ));
+
+        $filename = sanitize_file_name('category-' . $category->slug . '-subscribers-' . date('Y-m-d-H-i-s') . '.csv');
+        $this->send_csv_headers($filename);
+
+        $output = fopen('php://output', 'w');
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($output, array(
+            __('Category', 'advnews-manager'),
+            __('Email', 'advnews-manager'),
+            __('First Name', 'advnews-manager'),
+            __('Last Name', 'advnews-manager'),
+            __('Organization', 'advnews-manager'),
+            __('Title/Role', 'advnews-manager'),
+            __('URL/Website', 'advnews-manager'),
+            __('Country', 'advnews-manager'),
+            __('Status', 'advnews-manager'),
+            __('Subscribed Date', 'advnews-manager'),
+            __('Open Rate', 'advnews-manager'),
+            __('Click Rate', 'advnews-manager'),
+            __('All Categories', 'advnews-manager')
+        ));
+
+        foreach ($subscribers as $subscriber) {
+            $subscriber_categories = $subscriber_class->get_subscriber_categories($subscriber->id);
+            $category_names = array();
+            foreach ($subscriber_categories as $subscriber_category) {
+                $category_names[] = $subscriber_category->name;
+            }
+
+            fputcsv($output, array(
+                $category->name,
+                $subscriber->email,
+                $subscriber->first_name,
+                $subscriber->last_name,
+                $subscriber->organization,
+                isset($subscriber->title) ? $subscriber->title : '',
+                isset($subscriber->website_url) ? $subscriber->website_url : '',
+                isset($subscriber->country) ? $subscriber->country : '',
+                $subscriber->status,
+                $subscriber->subscribed_at,
+                $subscriber->open_rate . '%',
+                $subscriber->click_rate . '%',
+                implode(', ', $category_names)
+            ));
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    /**
+     * Send standard CSV download headers
+     */
+    private function send_csv_headers($filename)
+    {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=' . sanitize_file_name($filename));
+        header('Pragma: no-cache');
+        header('Expires: 0');
+    }
+
+    /**
+     * Get campaign names connected to a category
+     */
+    private function get_category_campaign_names($category_id)
+    {
+        $campaigns_table = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $campaign_categories_table = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
+
+        $campaigns = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT c.name, c.subject, c.status
+            FROM $campaigns_table c
+            INNER JOIN $campaign_categories_table cc ON c.id = cc.campaign_id
+            WHERE cc.category_id = %d
+            ORDER BY c.name ASC",
+            $category_id
+        ));
+
+        $names = array();
+        foreach ($campaigns as $campaign) {
+            $label = $campaign->name;
+            if (!empty($campaign->subject) && $campaign->subject !== $campaign->name) {
+                $label .= ' - ' . $campaign->subject;
+            }
+            if (!empty($campaign->status)) {
+                $label .= ' (' . $campaign->status . ')';
+            }
+            $names[] = $label;
+        }
+
+        return $names;
     }
 
     /**
