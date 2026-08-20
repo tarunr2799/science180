@@ -19,18 +19,21 @@ foreach ($subscriber_categories as $cat) {
 <div class="wrap">
     <h1><?php echo $subscriber_id ? __('Edit Subscriber', 'advnews-manager') : __('Add New Subscriber', 'advnews-manager'); ?></h1>
 
-    <?php if (isset($_GET['message'])): ?>
-        <div class="notice notice-success is-dismissible">
-            <p>
-                <?php
-                if ($_GET['message'] == 'created') {
-                    _e('Subscriber created successfully.', 'advnews-manager');
-                } elseif ($_GET['message'] == 'updated') {
-                    _e('Subscriber updated successfully.', 'advnews-manager');
-                }
-                ?>
-            </p>
-        </div>
+    <?php if (isset($_GET['message'])):
+        $message_key = sanitize_key(wp_unslash($_GET['message']));
+        $messages = array(
+            'created' => __('Subscriber created successfully.', 'advnews-manager'),
+            'updated' => __('Subscriber updated successfully.', 'advnews-manager'),
+            'unsubscribed' => __('Subscriber unsubscribed successfully.', 'advnews-manager'),
+            'resubscribed' => __('Subscriber resubscribed successfully.', 'advnews-manager'),
+            'cooldown_reset' => __('Subscriber cooldown reset successfully.', 'advnews-manager'),
+        );
+        ?>
+        <?php if (isset($messages[$message_key])): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html($messages[$message_key]); ?></p>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <div class="postbox">
