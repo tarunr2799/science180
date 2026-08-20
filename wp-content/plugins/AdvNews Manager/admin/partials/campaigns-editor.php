@@ -359,16 +359,35 @@ if (isset($_GET['message'])) {
                             <h2 class="hndle"><?php _e('Add Recipient to Queue', 'advnews-manager'); ?></h2>
                             <div class="inside">
                                 <p>
-                                    <input type="email"
-                                           id="edit-recipient-email"
-                                           class="widefat"
-                                           placeholder="<?php esc_attr_e('subscriber@example.com', 'advnews-manager'); ?>">
+                                    <label for="edit-recipient-emails"><strong><?php _e('Email addresses', 'advnews-manager'); ?></strong></label>
+                                    <textarea id="edit-recipient-emails"
+                                              class="widefat"
+                                              rows="4"
+                                              placeholder="<?php esc_attr_e('One email per line, or separated by commas', 'advnews-manager'); ?>"></textarea>
                                 </p>
+                                <p>
+                                    <label for="edit-recipient-csv"><strong><?php _e('CSV upload', 'advnews-manager'); ?></strong></label>
+                                    <input type="file" id="edit-recipient-csv" accept=".csv,text/csv" class="widefat">
+                                </p>
+                                <?php if (!empty($categories)): ?>
+                                    <p>
+                                        <strong><?php _e('Assign categories to new subscribers', 'advnews-manager'); ?></strong>
+                                        <span class="description"><?php _e('Optional', 'advnews-manager'); ?></span>
+                                    </p>
+                                    <div style="max-height:160px; overflow:auto; border:1px solid #dcdcde; padding:8px; background:#fff; margin-bottom:10px;">
+                                        <?php foreach ($categories as $category): ?>
+                                            <label style="display:block; margin-bottom:6px;">
+                                                <input type="checkbox" name="edit_recipient_category_ids[]" value="<?php echo esc_attr($category->id); ?>">
+                                                <?php echo esc_html($category->name); ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
                                 <button type="button" class="button button-secondary button-block" id="add-recipient-to-campaign">
                                     <?php _e('Add to Queue', 'advnews-manager'); ?>
                                 </button>
                                 <p class="description">
-                                    <?php _e('Adds an existing active subscriber to this campaign queue and respects cooldown settings.', 'advnews-manager'); ?>
+                                    <?php _e('Paste emails or upload CSV. New recipients are created as subscribers first, then added to this campaign queue.', 'advnews-manager'); ?>
                                 </p>
                                 <p>
                                     <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-campaigns&action=view&id=' . $campaign_id)); ?>">
@@ -619,12 +638,19 @@ jQuery(document).ready(function($) {
 
     $('#add-recipient-to-campaign').on('click', function() {
         var button = $(this);
-        var email = $('#edit-recipient-email').val().trim();
+        var emails = $('#edit-recipient-emails').val().trim();
+        var csvInput = $('#edit-recipient-csv')[0];
         var result = $('#edit-add-recipient-result');
+        var categoryIds = [];
 
-        if (!email) {
+        $('input[name="edit_recipient_category_ids[]"]:checked').each(function() {
+            categoryIds.push($(this).val());
+        });
+
+        if (!emails && (!csvInput || !csvInput.files.length)) {
             result.removeClass('updated error').addClass('error')
-                .html('<p><?php echo esc_js(__('Please enter a subscriber email address.', 'advnews-manager')); ?></p>')
+                .empty()
+                .append($('<p>').text('<?php echo esc_js(__('Enter at least one email address or upload a CSV file.', 'advnews-manager')); ?>'))
                 .show();
             return;
         }
@@ -632,28 +658,47 @@ jQuery(document).ready(function($) {
         button.prop('disabled', true).text('<?php echo esc_js(__('Adding...', 'advnews-manager')); ?>');
         result.hide();
 
-        $.post(advnews_ajax.ajax_url, {
-            action: 'advnews_add_campaign_recipient',
-            campaign_id: <?php echo intval($campaign_id); ?>,
-            email: email,
-            nonce: advnews_ajax.nonce
-        }, function(response) {
+        var formData = new FormData();
+        formData.append('action', 'advnews_add_campaign_recipient');
+        formData.append('campaign_id', <?php echo intval($campaign_id); ?>);
+        formData.append('emails', emails);
+        formData.append('nonce', advnews_ajax.nonce);
+        categoryIds.forEach(function(categoryId) {
+            formData.append('category_ids[]', categoryId);
+        });
+        if (csvInput && csvInput.files.length) {
+            formData.append('csv_file', csvInput.files[0]);
+        }
+
+        $.ajax({
+            url: advnews_ajax.ajax_url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        }).done(function(response) {
             if (response.success) {
                 result.removeClass('error').addClass('updated')
-                    .html('<p>' + response.data.message + '</p>')
+                    .empty()
+                    .append($('<p>').text(response.data.message))
                     .show();
-                $('#edit-recipient-email').val('');
+                $('#edit-recipient-emails').val('');
+                if (csvInput) {
+                    $('#edit-recipient-csv').val('');
+                }
                 setTimeout(function() {
                     location.reload();
                 }, 900);
             } else {
                 result.removeClass('updated').addClass('error')
-                    .html('<p>' + response.data.message + '</p>')
+                    .empty()
+                    .append($('<p>').text(response.data.message))
                     .show();
             }
         }).fail(function() {
             result.removeClass('updated').addClass('error')
-                .html('<p><?php echo esc_js(__('An error occurred. Please try again.', 'advnews-manager')); ?></p>')
+                .empty()
+                .append($('<p>').text('<?php echo esc_js(__('An error occurred. Please try again.', 'advnews-manager')); ?>'))
                 .show();
         }).always(function() {
             button.prop('disabled', false).text('<?php echo esc_js(__('Add to Queue', 'advnews-manager')); ?>');
