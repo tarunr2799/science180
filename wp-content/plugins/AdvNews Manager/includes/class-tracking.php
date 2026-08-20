@@ -964,36 +964,20 @@ class AdvNews_Tracking
             $end_date
         ));
         $analytics['performance'] = $performance;
-        // Geographic trends
-        if ($has_country_code) {
-            $trends = $this->wpdb->get_results($this->wpdb->prepare(
-                "SELECT
-                DATE(opened_at) as date,
-                country,
-                COUNT(*) as opens
-                FROM $table_opens
-                WHERE opened_at BETWEEN %s AND %s
-                AND country != '' AND country != 'Local' AND country != 'Unknown'
-                GROUP BY DATE(opened_at), country
-                ORDER BY date, opens DESC",
-                $start_date,
-                $end_date
-            ));
-        } else {
-            $trends = $this->wpdb->get_results($this->wpdb->prepare(
-                "SELECT
-                DATE(opened_at) as date,
-                country,
-                COUNT(*) as opens
-                FROM $table_opens
-                WHERE opened_at BETWEEN %s AND %s
-                AND country != '' AND country != 'Local' AND country != 'Unknown'
-                GROUP BY DATE(opened_at), country
-                ORDER BY date, opens DESC",
-                $start_date,
-                $end_date
-            ));
-        }
+        // Geographic trends follow click rows for the same reason as the main geo report.
+        $trends = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT
+            DATE(clicked_at) as date,
+            country,
+            COUNT(*) as opens
+            FROM $table_clicks
+            WHERE clicked_at BETWEEN %s AND %s
+            AND country != '' AND country != 'Local' AND country != 'Unknown'
+            GROUP BY DATE(clicked_at), country
+            ORDER BY date, opens DESC",
+            $start_date,
+            $end_date
+        ));
         $analytics['trends'] = $trends;
         return $analytics;
     }
