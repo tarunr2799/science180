@@ -2084,18 +2084,194 @@ class AdvNews_Ajax
         $data = array(
             'email' => $email,
             'first_name' => 'Test',
-            'last_name' => 'User'
+            'last_name' => 'User',
+            'send_welcome' => false
         );
 
-        $result = $subscriber_class->add_subscriber($data);
+        $existing_subscriber = $subscriber_class->get_subscriber_by_email($email);
+        $created_subscriber = false;
 
-        if (is_wp_error($result)) {
-            wp_send_json_error(array('message' => $result->get_error_message()));
+        if ($existing_subscriber) {
+            $subscriber_id = intval($existing_subscriber->id);
+
+            if ($existing_subscriber->status === 'unsubscribed') {
+                $result = $subscriber_class->resubscribe($subscriber_id, $data, false);
+                if (is_wp_error($result)) {
+                    wp_send_json_error(array('message' => $result->get_error_message()));
+                }
+            }
+        } else {
+            $subscriber_id = $subscriber_class->add_subscriber($data);
+            if (is_wp_error($subscriber_id)) {
+                wp_send_json_error(array('message' => $subscriber_id->get_error_message()));
+            }
+            $created_subscriber = true;
+        }
+
+        $mail_result = $this->send_subscription_flow_test_email($subscriber_id);
+
+        if (is_wp_error($mail_result)) {
+            wp_send_json_error(array(
+                'message' => sprintf(
+                    __('The test subscriber was %1$s, but the email could not be sent: %2$s', 'advnews-manager'),
+                    $created_subscriber ? __('created', 'advnews-manager') : __('found', 'advnews-manager'),
+                    $mail_result->get_error_message()
+                )
+            ));
         }
 
         wp_send_json_success(array(
-            'message' => __('Test subscription successful. Check your email for confirmation.', 'advnews-manager')
+            'message' => sprintf(
+                __('Test subscription successful. A %1$s email was sent to %2$s.', 'advnews-manager'),
+                $mail_result['type'],
+                $email
+            )
         ));
+    }
+
+    private function send_subscription_flow_test_email($subscriber_id)
+    {
+        $subscriber_id = absint($subscriber_id);
+        if (!$subscriber_id) {
+            return new WP_Error('invalid_subscriber', __('Invalid subscriber record.', 'advnews-manager'));
+        }
+
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $subscriber = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM $table_subscribers WHERE id = %d",
+            $subscriber_id
+        ));
+
+        if (!$subscriber || !is_email($subscriber->email)) {
+            return new WP_Error('subscriber_not_found', __('Subscriber record was not found.', 'advnews-manager'));
+        }
+
+        $headers = array('Content-Type: text/html; charset=UTF-8');
+
+        if (get_option('advnews_double_optin')) {
+            $mail = $this->build_subscription_confirmation_test_email($subscriber);
+        } else {
+            $mail = $this->build_subscription_welcome_test_email($subscriber);
+        }
+
+        $mail_error = null;
+        $capture_error = function ($wp_error) use (&$mail_error) {
+            $mail_error = $wp_error;
+        };
+
+        add_action('wp_mail_failed', $capture_error);
+        $sent = wp_mail($subscriber->email, $mail['subject'], $mail['message'], $headers);
+        remove_action('wp_mail_failed', $capture_error);
+
+        if (!$sent) {
+            $message = __('WordPress returned false while sending the test email.', 'advnews-manager');
+            if ($mail_error instanceof WP_Error) {
+                $message = $mail_error->get_error_message();
+            }
+
+            return new WP_Error('mail_failed', $message);
+        }
+
+        return array(
+            'type' => $mail['type']
+        );
+    }
+
+    private function build_subscription_confirmation_test_email($subscriber)
+    {
+        if (empty($subscriber->confirmation_token)) {
+            $subscriber->confirmation_token = AdvNews_Security::generate_hash($subscriber->email . time());
+            $this->wpdb->update(
+                $this->wpdb->prefix . $this->table_prefix . 'subscribers',
+                array('confirmation_token' => $subscriber->confirmation_token),
+                array('id' => $subscriber->id)
+            );
+        }
+
+        $confirmation_link = add_query_arg(array(
+            'action' => 'confirm_subscription',
+            'token' => $subscriber->confirmation_token,
+            'email' => rawurlencode($subscriber->email)
+        ), home_url());
+
+        $subject = __('Confirm Your Subscription', 'advnews-manager');
+        $message = sprintf(
+            '<p>%s</p><p><a href="%s" style="display:inline-block;padding:12px 18px;background:#2271b1;color:#fff;text-decoration:none;border-radius:4px;">%s</a></p><p>%s</p>',
+            esc_html__('Hello! Please confirm your subscription by clicking the button below.', 'advnews-manager'),
+            esc_url($confirmation_link),
+            esc_html__('Confirm Subscription', 'advnews-manager'),
+            esc_html($confirmation_link)
+        );
+
+        return array(
+            'type' => __('confirmation', 'advnews-manager'),
+            'subject' => $subject,
+            'message' => $message
+        );
+    }
+
+    private function build_subscription_welcome_test_email($subscriber)
+    {
+        $template = $this->get_subscription_test_template(get_option('advnews_welcome_template', 0));
+
+        if ($template && class_exists('AdvNews_Campaign')) {
+            $campaign = new AdvNews_Campaign();
+            $subscriber_data = $this->get_subscription_test_merge_data($subscriber);
+
+            return array(
+                'type' => __('welcome template', 'advnews-manager'),
+                'subject' => $campaign->process_merge_tags($template->subject, $subscriber_data),
+                'message' => $campaign->prepare_email_content(
+                    $campaign->process_merge_tags($template->content, $subscriber_data)
+                )
+            );
+        }
+
+        $message = '<p>' . esc_html__('Thank you for subscribing to our newsletter!', 'advnews-manager') . '</p>';
+
+        if (!get_option('advnews_welcome_email', false)) {
+            $message .= '<p><em>' . esc_html__('Admin note: welcome emails are currently disabled, so live new subscribers will not receive this fallback welcome email until that setting is enabled.', 'advnews-manager') . '</em></p>';
+        }
+
+        return array(
+            'type' => __('welcome test', 'advnews-manager'),
+            'subject' => __('Welcome to Our Newsletter!', 'advnews-manager'),
+            'message' => $message
+        );
+    }
+
+    private function get_subscription_test_template($template_id)
+    {
+        $template_id = absint($template_id);
+        if (!$template_id) {
+            return null;
+        }
+
+        $table_templates = $this->wpdb->prefix . $this->table_prefix . 'templates';
+
+        return $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM $table_templates WHERE id = %d AND is_active = 1",
+            $template_id
+        ));
+    }
+
+    private function get_subscription_test_merge_data($subscriber)
+    {
+        return array(
+            'subscriber_id' => $subscriber->id,
+            'email' => $subscriber->email,
+            'first_name' => $subscriber->first_name,
+            'last_name' => $subscriber->last_name,
+            'full_name' => trim($subscriber->first_name . ' ' . $subscriber->last_name),
+            'organization' => $subscriber->organization,
+            'title' => $subscriber->title,
+            'website_url' => $subscriber->website_url,
+            'description' => $subscriber->description,
+            'country' => $subscriber->country,
+            'status' => $subscriber->status,
+            'categories' => '',
+            'subscribed_date' => !empty($subscriber->subscribed_at) ? date_i18n(get_option('date_format'), strtotime($subscriber->subscribed_at)) : ''
+        );
     }
 
     // =====================================================
