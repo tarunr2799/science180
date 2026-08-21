@@ -52,7 +52,7 @@ else
   cp -R "$SOURCE_WP_CONTENT/." "$TARGET_WP_CONTENT/"
 fi
 
-PLUGIN_SLUG="science180-review-endorsements"
+PLUGIN_SLUG="science180-endorsement"
 WP_PATH="${DEPLOY_PATH%/}"
 
 if command -v wp >/dev/null 2>&1; then

@@ -18,12 +18,14 @@ class S180EN_Plugin
 
     private function __construct()
     {
+        add_action('init', array($this, 'maybe_upgrade'), 5);
         add_action('init', array($this, 'register_rewrites'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
         add_action('admin_menu', array($this, 'register_admin_menu'));
         add_filter('query_vars', array($this, 'register_query_vars'));
         add_filter('document_title_parts', array($this, 'detail_title_parts'));
+        add_filter('render_block', array($this, 'normalize_main_site_navigation_hrefs'), 20, 2);
         add_action('template_redirect', array($this, 'handle_verification_and_detail_routes'));
         add_action('template_redirect', array($this, 'render_shortcode_page_fallback'), 20);
 
@@ -38,6 +40,7 @@ class S180EN_Plugin
         add_action('admin_post_s180re_moderate_endorsement', array($this, 'handle_moderate_endorsement'));
         add_action('admin_post_s180re_bulk_endorsements', array($this, 'handle_bulk_endorsements'));
         add_action('admin_post_s180re_delete_endorsement', array($this, 'handle_delete_endorsement'));
+        add_action('admin_post_s180re_save_endorsement', array($this, 'handle_save_endorsement'));
         add_action('admin_post_s180en_save_settings', array($this, 'handle_save_settings'));
 
         add_action('s180re_daily_endorsement_notice', array($this, 'send_daily_endorsement_notice'));
@@ -57,6 +60,19 @@ class S180EN_Plugin
     {
         wp_clear_scheduled_hook('s180re_daily_endorsement_notice');
         flush_rewrite_rules();
+    }
+
+    public function maybe_upgrade()
+    {
+        if (get_option('s180en_version') === S180EN_VERSION) {
+            return;
+        }
+
+        self::create_tables();
+        self::seed_options();
+        self::register_rewrites_static();
+        flush_rewrite_rules(false);
+        update_option('s180en_version', S180EN_VERSION);
     }
 
     private static function create_tables()
@@ -79,6 +95,7 @@ class S180EN_Plugin
             comment longtext NOT NULL,
             photo_id bigint(20) unsigned DEFAULT 0,
             photo_url text NULL,
+            address text NULL,
             status varchar(40) NOT NULL DEFAULT 'pending_verification',
             verification_token varchar(80) NOT NULL,
             token_expires datetime NOT NULL,
@@ -110,10 +127,26 @@ class S180EN_Plugin
 
     private static function seed_options()
     {
-        add_option('s180re_recipient_email', get_option('admin_email'));
+        add_option('s180re_recipient_email', self::normalize_email_domain(get_option('admin_email')));
         add_option('s180re_from_name', get_bloginfo('name'));
         add_option('s180re_from_email', '');
         add_option('s180re_daily_notice_hour', '09:00');
+        add_option('s180en_form_intro', 'This is the official form to submit your review or critique about the discovery of Dr. Nathanael-Israel Israel (www.Israel120.com). If you have anything to share with the world about his work, please fill the form below. Thank you.');
+        add_option('s180en_daily_notice_subject', '[{site_name}] Endorsements waiting for review');
+        add_option('s180en_daily_notice_intro', 'These verified endorsements are waiting for approval or rejection.');
+        add_option('s180en_approval_subject', 'Your Science180 endorsement was approved');
+        add_option('s180en_approval_body', "Hello {full_name},\n\nThank you for taking the time to submit your endorsement to Science180. We are pleased to inform you that your endorsement has been reviewed, approved, and successfully published on our website.\n\n{view_endorsement_link}\n\nThank you for your valuable contribution and continued support of Science180.\n\nKind regards,\nScience180 Team\nwww.Science180.com\n\nFollow us: X, Linkedin, Facebook");
+    }
+
+    private static function normalize_email_domain($email)
+    {
+        $email = sanitize_email($email);
+        if ($email === '') {
+            return '';
+        }
+
+        $email = preg_replace('/@science\.net$/i', '@science180.net', $email);
+        return is_email($email) ? $email : '';
     }
 
     private static function maybe_create_pages()
@@ -157,12 +190,34 @@ class S180EN_Plugin
             return;
         }
 
-        $timestamp = strtotime('tomorrow 9:00');
-        if (!$timestamp) {
-            $timestamp = time() + DAY_IN_SECONDS;
+        wp_schedule_event(self::daily_notice_timestamp(), 'daily', 's180re_daily_endorsement_notice');
+    }
+
+    private static function reschedule_daily_notice()
+    {
+        wp_clear_scheduled_hook('s180re_daily_endorsement_notice');
+        wp_schedule_event(self::daily_notice_timestamp(), 'daily', 's180re_daily_endorsement_notice');
+    }
+
+    private static function daily_notice_timestamp()
+    {
+        $time = get_option('s180re_daily_notice_hour', '09:00');
+        if (!preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])$/', (string) $time)) {
+            $time = '09:00';
         }
 
-        wp_schedule_event($timestamp, 'daily', 's180re_daily_endorsement_notice');
+        $timezone = wp_timezone();
+        $now = new DateTimeImmutable('now', $timezone);
+        $target = DateTimeImmutable::createFromFormat('Y-m-d H:i', $now->format('Y-m-d') . ' ' . $time, $timezone);
+        if (!$target) {
+            return time() + DAY_IN_SECONDS;
+        }
+
+        if ($target->getTimestamp() <= time()) {
+            $target = $target->modify('+1 day');
+        }
+
+        return $target->getTimestamp();
     }
 
     public function register_rewrites()
@@ -172,12 +227,15 @@ class S180EN_Plugin
 
     private static function register_rewrites_static()
     {
+        add_rewrite_rule('^endorsement/([0-9]{4})/([^/]+)/?$', 'index.php?s180re_endorsement_year=$matches[1]&s180re_endorsement_slug=$matches[2]', 'top');
         add_rewrite_rule('^endorsement/([0-9]+)/([^/]+)/?$', 'index.php?s180re_endorsement_id=$matches[1]', 'top');
     }
 
     public function register_query_vars($vars)
     {
         $vars[] = 's180re_endorsement_id';
+        $vars[] = 's180re_endorsement_year';
+        $vars[] = 's180re_endorsement_slug';
         return $vars;
     }
 
@@ -194,6 +252,44 @@ class S180EN_Plugin
 
         wp_enqueue_style('s180en-admin', S180EN_PLUGIN_URL . 'assets/css/admin.css', array(), S180EN_VERSION);
         wp_enqueue_script('s180en-admin', S180EN_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), S180EN_VERSION, true);
+    }
+
+    public function normalize_main_site_navigation_hrefs($block_content, $block)
+    {
+        if (is_admin() || !is_string($block_content) || strpos($block_content, 'https://science180.net/') === false) {
+            return $block_content;
+        }
+
+        return strtr($block_content, self::main_site_href_replacements());
+    }
+
+    private static function main_site_href_replacements()
+    {
+        $paths = array(
+            'features' => 'features',
+            'about' => 'about',
+            'mediakit' => 'mediakit',
+            'shop' => 'shop',
+            'publishing' => 'publishing',
+            'services' => 'services',
+            'review-copy-request' => 'books',
+            'books' => 'books',
+            'blog' => 'blog',
+            'newsletter' => 'newsletter',
+            'contact' => 'contact',
+        );
+
+        $replacements = array(
+            'href="https://science180.net/"' => 'href="https://science180.com/"',
+            "href='https://science180.net/'" => "href='https://science180.com/'",
+        );
+
+        foreach ($paths as $from => $to) {
+            $replacements['href="https://science180.net/' . $from . '/"'] = 'href="https://science180.com/' . $to . '/"';
+            $replacements["href='https://science180.net/" . $from . "/'"] = "href='https://science180.com/" . $to . "/'";
+        }
+
+        return $replacements;
     }
 
     public function register_admin_menu()
@@ -222,8 +318,10 @@ class S180EN_Plugin
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
+                <?php if (trim((string) get_option('s180en_form_intro')) !== '') : ?>
+                    <p class="s180re-form-intro"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
+                <?php endif; ?>
                 <div class="s180re-page-actions">
-                    <a class="s180re-link-button s180re-link-button-secondary" href="<?php echo esc_url($this->review_request_page_url()); ?>"><?php esc_html_e('Request a review copy', 'science180-endorsement'); ?></a>
                     <a class="s180re-link-button" href="#s180re-approved-endorsements"><?php esc_html_e('View approved endorsements', 'science180-endorsement'); ?></a>
                 </div>
             </div>
@@ -261,6 +359,10 @@ class S180EN_Plugin
                 <div class="s180re-field s180re-field-full">
                     <label for="s180re-endorsement-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?> <span>*</span></label>
                     <textarea id="s180re-endorsement-comment" name="comment" rows="6" required></textarea>
+                </div>
+                <div class="s180re-field s180re-field-full">
+                    <label for="s180re-endorsement-address"><?php esc_html_e('Address', 'science180-endorsement'); ?> <small><?php esc_html_e('(optional)', 'science180-endorsement'); ?></small></label>
+                    <textarea id="s180re-endorsement-address" name="address" rows="3" autocomplete="street-address"></textarea>
                 </div>
                 <div class="s180re-field s180re-field-full">
                     <label for="s180re-endorsement-photo"><?php esc_html_e('Photo', 'science180-endorsement'); ?></label>
@@ -402,6 +504,7 @@ class S180EN_Plugin
             'country_origin' => $this->post_text('country_origin', true),
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $organization,
+            'address' => $this->post_textarea('address', false),
             'comment' => $this->post_textarea('comment', true),
             'verification_code_hash' => $this->verification_code_hash($verification_code),
             'token_expires' => gmdate('Y-m-d H:i:s', time() + WEEK_IN_SECONDS),
@@ -736,6 +839,11 @@ class S180EN_Plugin
 
     public function handle_verification_and_detail_routes()
     {
+        if (isset($_GET['s180re_preview_endorsement'])) {
+            $this->handle_admin_public_preview();
+            return;
+        }
+
         if (isset($_GET['s180re_verify_endorsement'])) {
             $this->handle_endorsement_verification();
             return;
@@ -744,6 +852,12 @@ class S180EN_Plugin
         $endorsement_id = absint(get_query_var('s180re_endorsement_id'));
         if ($endorsement_id > 0) {
             $this->render_endorsement_detail_page($endorsement_id);
+        }
+
+        $endorsement_year = absint(get_query_var('s180re_endorsement_year'));
+        $endorsement_slug = sanitize_title(get_query_var('s180re_endorsement_slug'));
+        if ($endorsement_year > 0 && $endorsement_slug !== '') {
+            $this->render_endorsement_detail_page_by_year_slug($endorsement_year, $endorsement_slug);
         }
     }
 
@@ -918,6 +1032,7 @@ class S180EN_Plugin
                 'country_origin' => sanitize_text_field($data['country_origin']),
                 'country_residence' => sanitize_text_field($data['country_residence']),
                 'organization' => sanitize_text_field($data['organization']),
+                'address' => sanitize_textarea_field($data['address'] ?? ''),
                 'comment' => sanitize_textarea_field($data['comment']),
                 'photo_id' => isset($photo['id']) ? (int) $photo['id'] : 0,
                 'photo_url' => isset($photo['url']) ? esc_url_raw($photo['url']) : '',
@@ -930,7 +1045,7 @@ class S180EN_Plugin
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         if (!$inserted) {
@@ -945,11 +1060,13 @@ class S180EN_Plugin
     public function detail_title_parts($parts)
     {
         $endorsement_id = absint(get_query_var('s180re_endorsement_id'));
-        if ($endorsement_id <= 0) {
+        $endorsement_year = absint(get_query_var('s180re_endorsement_year'));
+        $endorsement_slug = sanitize_title(get_query_var('s180re_endorsement_slug'));
+        if ($endorsement_id <= 0 && ($endorsement_year <= 0 || $endorsement_slug === '')) {
             return $parts;
         }
 
-        $endorsement = $this->get_endorsement($endorsement_id);
+        $endorsement = $endorsement_id > 0 ? $this->get_endorsement($endorsement_id) : $this->get_endorsement_by_year_slug($endorsement_year, $endorsement_slug);
         if ($endorsement && $endorsement->status === 'approved') {
             $parts['title'] = $this->endorsement_public_title($endorsement);
         }
@@ -957,10 +1074,32 @@ class S180EN_Plugin
         return $parts;
     }
 
+    private function render_endorsement_detail_page_by_year_slug($year, $slug)
+    {
+        $endorsement = $this->get_endorsement_by_year_slug($year, $slug);
+        $this->render_endorsement_detail($endorsement);
+    }
+
     private function render_endorsement_detail_page($endorsement_id)
     {
         $endorsement = $this->get_endorsement($endorsement_id);
-        if (!$endorsement || $endorsement->status !== 'approved') {
+        $this->render_endorsement_detail($endorsement);
+    }
+
+    private function handle_admin_public_preview()
+    {
+        $endorsement_id = absint($_GET['s180re_preview_endorsement']);
+        if (!$endorsement_id || !current_user_can('manage_options') || !isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 's180re_preview_endorsement_' . $endorsement_id)) {
+            wp_die(esc_html__('You do not have permission to preview this endorsement.', 'science180-endorsement'));
+        }
+
+        $endorsement = $this->get_endorsement($endorsement_id);
+        $this->render_endorsement_detail($endorsement, true);
+    }
+
+    private function render_endorsement_detail($endorsement, $allow_preview = false)
+    {
+        if (!$endorsement || (!$allow_preview && $endorsement->status !== 'approved')) {
             global $wp_query;
             $wp_query->set_404();
             status_header(404);
@@ -980,8 +1119,8 @@ class S180EN_Plugin
         }
 
         status_header(200);
-        $render_detail = function () use ($endorsement) {
-            $this->render_endorsement_detail_main($endorsement);
+        $render_detail = function () use ($endorsement, $allow_preview) {
+            $this->render_endorsement_detail_main($endorsement, $allow_preview);
         };
 
         if (function_exists('wp_is_block_theme') && wp_is_block_theme()) {
@@ -994,10 +1133,13 @@ class S180EN_Plugin
         exit;
     }
 
-    private function render_endorsement_detail_main($endorsement)
+    private function render_endorsement_detail_main($endorsement, $is_preview = false)
     {
         ?>
         <main class="s180re-shell s180re-detail-shell">
+            <?php if ($is_preview) : ?>
+                <div class="s180re-message s180re-message-warning"><?php esc_html_e('Admin preview: this endorsement is not necessarily published yet.', 'science180-endorsement'); ?></div>
+            <?php endif; ?>
             <article class="s180re-detail">
                 <div class="s180re-public-heading">
                     <p class="s180re-eyebrow"><?php esc_html_e('Endorsement', 'science180-endorsement'); ?></p>
@@ -1011,8 +1153,11 @@ class S180EN_Plugin
                         <span class="s180re-detail-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($endorsement)); ?></span>
                     <?php endif; ?>
                     <div class="s180re-detail-copy">
+                        <?php if (!empty($endorsement->address)) : ?>
+                            <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($endorsement->address)); ?></p>
+                        <?php endif; ?>
                         <p><?php echo nl2br(esc_html($endorsement->comment)); ?></p>
-                        <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_page_url()); ?>#s180re-approved-endorsements"><?php esc_html_e('Back to approved endorsements', 'science180-endorsement'); ?></a>
+                        <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_page_anchor_url()); ?>"><?php esc_html_e('Back to approved endorsements', 'science180-endorsement'); ?></a>
                     </div>
                 </div>
             </article>
@@ -1045,18 +1190,19 @@ class S180EN_Plugin
             $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->created_at) . '</td>';
             $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($this->endorsement_person_name($item)) . '</td>';
             $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->country_origin) . '</td>';
+            $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->email) . '</td>';
             $rows .= '</tr>';
         }
 
-        $message = '<p>' . esc_html__('These verified endorsements are waiting for approval or rejection.', 'science180-endorsement') . '</p>';
+        $message = '<p>' . esc_html(get_option('s180en_daily_notice_intro', 'These verified endorsements are waiting for approval or rejection.')) . '</p>';
         $message .= '<table style="border-collapse:collapse;width:100%;">';
-        $message .= '<thead><tr><th align="left" style="padding:8px;border-bottom:2px solid #222;">Date</th><th align="left" style="padding:8px;border-bottom:2px solid #222;">Name</th><th align="left" style="padding:8px;border-bottom:2px solid #222;">Country</th></tr></thead>';
+        $message .= '<thead><tr><th align="left" style="padding:8px;border-bottom:2px solid #222;">Date</th><th align="left" style="padding:8px;border-bottom:2px solid #222;">Name</th><th align="left" style="padding:8px;border-bottom:2px solid #222;">Country</th><th align="left" style="padding:8px;border-bottom:2px solid #222;">Email</th></tr></thead>';
         $message .= '<tbody>' . $rows . '</tbody></table>';
         $message .= '<p><a href="' . esc_url($admin_url) . '">' . esc_html__('Review endorsements', 'science180-endorsement') . '</a></p>';
 
         wp_mail(
             $this->recipient_email(),
-            sprintf('[%s] Endorsements waiting for review', wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES)),
+            $this->format_template(get_option('s180en_daily_notice_subject', '[{site_name}] Endorsements waiting for review'), array('site_name' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES))),
             $message,
             $this->mail_headers()
         );
@@ -1116,13 +1262,19 @@ class S180EN_Plugin
     private function send_moderation_result_email($endorsement, $status)
     {
         $approved = $status === 'approved';
-        $subject = $approved ? 'Your Science180 endorsement was approved' : 'Your Science180 endorsement was reviewed';
-        $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-endorsement'), esc_html($endorsement->first_name)) . '</p>';
+        $subject = $approved ? get_option('s180en_approval_subject', 'Your Science180 endorsement was approved') : 'Your Science180 endorsement was reviewed';
 
         if ($approved) {
-            $message .= '<p>' . esc_html__('Thank you. Your endorsement has been approved and published.', 'science180-endorsement') . '</p>';
-            $message .= '<p><a href="' . esc_url($this->endorsement_permalink($endorsement)) . '">' . esc_html__('View your endorsement', 'science180-endorsement') . '</a></p>';
+            $message = $this->format_template(get_option('s180en_approval_body'), array(
+                'first_name' => $endorsement->first_name,
+                'full_name' => $this->endorsement_person_name($endorsement),
+                'site_name' => get_bloginfo('name'),
+                'endorsement_url' => $this->endorsement_permalink($endorsement),
+                'view_endorsement_link' => '<a href="' . esc_url($this->endorsement_permalink($endorsement)) . '" style="display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700;">' . esc_html__('View Your Endorsement', 'science180-endorsement') . '</a>',
+            ));
+            $message = wpautop($message);
         } else {
+            $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-endorsement'), esc_html($endorsement->first_name)) . '</p>';
             $message .= '<p>' . esc_html__('Thank you for taking the time to submit an endorsement. After review, it was not approved for publication.', 'science180-endorsement') . '</p>';
         }
 
@@ -1161,7 +1313,7 @@ class S180EN_Plugin
         );
 
         foreach ($candidates as $candidate) {
-            $candidate = sanitize_email($candidate);
+            $candidate = self::normalize_email_domain($candidate);
             if ($candidate && is_email($candidate)) {
                 return $candidate;
             }
@@ -1191,12 +1343,22 @@ class S180EN_Plugin
 
     private function recipient_email()
     {
-        $email = sanitize_email(get_option('s180re_recipient_email'));
+        $email = self::normalize_email_domain(get_option('s180re_recipient_email'));
         if (!$email || !is_email($email)) {
-            $email = sanitize_email(get_option('admin_email'));
+            $email = self::normalize_email_domain(get_option('admin_email'));
         }
 
         return $email;
+    }
+
+    private function format_template($template, $values)
+    {
+        $replacements = array();
+        foreach ($values as $key => $value) {
+            $replacements['{' . $key . '}'] = (string) $value;
+        }
+
+        return strtr((string) $template, $replacements);
     }
 
     private function format_mailbox($email, $name)
@@ -1218,6 +1380,12 @@ class S180EN_Plugin
 
         global $wpdb;
         $view_id = isset($_GET['view']) ? absint($_GET['view']) : 0;
+        $edit_id = isset($_GET['edit']) ? absint($_GET['edit']) : 0;
+        if ($edit_id) {
+            $this->render_endorsement_admin_edit($edit_id);
+            return;
+        }
+
         if ($view_id) {
             $this->render_endorsement_admin_detail($view_id);
             return;
@@ -1241,8 +1409,8 @@ class S180EN_Plugin
 
         if ($search !== '') {
             $like = '%' . $wpdb->esc_like($search) . '%';
-            $where[] = '(email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR country_origin LIKE %s OR country_residence LIKE %s OR organization LIKE %s OR comment LIKE %s)';
-            $params = array_merge($params, array($like, $like, $like, $like, $like, $like, $like));
+            $where[] = '(email LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR country_origin LIKE %s OR country_residence LIKE %s OR organization LIKE %s OR address LIKE %s OR comment LIKE %s)';
+            $params = array_merge($params, array($like, $like, $like, $like, $like, $like, $like, $like));
         }
 
         $sql = "SELECT * FROM {$table}";
@@ -1357,7 +1525,11 @@ class S180EN_Plugin
         ?>
         <div class="wrap s180re-admin">
             <h1><?php echo esc_html($this->endorsement_public_title($item)); ?></h1>
-            <p><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements')); ?>"><?php esc_html_e('Back to endorsements', 'science180-endorsement'); ?></a></p>
+            <p>
+                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements')); ?>"><?php esc_html_e('Back to endorsements', 'science180-endorsement'); ?></a>
+                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
+                <a class="button" href="<?php echo esc_url($this->endorsement_preview_url($item)); ?>" target="_blank" rel="noopener"><?php echo $item->status === 'approved' ? esc_html__('View public page', 'science180-endorsement') : esc_html__('Preview public page', 'science180-endorsement'); ?></a>
+            </p>
             <div class="s180re-admin-layout">
                 <div class="s180re-admin-panel">
                     <?php if (!empty($item->photo_url)) : ?>
@@ -1376,14 +1548,58 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country of origin', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_origin); ?></td></tr>
                             <tr><th><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_residence); ?></td></tr>
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
+                            <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $item->address !== '' ? nl2br(esc_html($item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><?php echo nl2br(esc_html($item->comment)); ?></td></tr>
-                            <?php if ($item->status === 'approved') : ?>
-                                <tr><th><?php esc_html_e('Public page', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>" target="_blank"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
-                            <?php endif; ?>
+                            <tr><th><?php esc_html_e('Public page URL', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($item->status === 'approved' ? $this->endorsement_permalink($item) : $this->endorsement_preview_url($item)); ?>" target="_blank"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+        <?php
+    }
+
+    private function render_endorsement_admin_edit($endorsement_id)
+    {
+        $item = $this->get_endorsement($endorsement_id);
+        if (!$item) {
+            wp_die(esc_html__('Endorsement not found.', 'science180-endorsement'));
+        }
+        ?>
+        <div class="wrap s180re-admin">
+            <h1><?php esc_html_e('Edit Endorsement', 'science180-endorsement'); ?></h1>
+            <p><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>"><?php esc_html_e('Back to endorsement', 'science180-endorsement'); ?></a></p>
+            <form class="s180re-admin-panel s180re-admin-edit-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="s180re_save_endorsement">
+                <input type="hidden" name="endorsement_id" value="<?php echo esc_attr((int) $item->id); ?>">
+                <?php wp_nonce_field('s180re_save_endorsement_' . (int) $item->id); ?>
+
+                <label for="s180re-edit-email"><?php esc_html_e('Email', 'science180-endorsement'); ?></label>
+                <input id="s180re-edit-email" class="regular-text" type="email" name="email" value="<?php echo esc_attr($item->email); ?>" required>
+
+                <label for="s180re-edit-first"><?php esc_html_e('First name', 'science180-endorsement'); ?></label>
+                <input id="s180re-edit-first" class="regular-text" type="text" name="first_name" value="<?php echo esc_attr($item->first_name); ?>" required>
+
+                <label for="s180re-edit-last"><?php esc_html_e('Last name', 'science180-endorsement'); ?></label>
+                <input id="s180re-edit-last" class="regular-text" type="text" name="last_name" value="<?php echo esc_attr($item->last_name); ?>" required>
+
+                <label for="s180re-edit-origin"><?php esc_html_e('Country of origin', 'science180-endorsement'); ?></label>
+                <?php echo $this->country_select('country_origin', 's180re-edit-origin', $item->country_origin, true); ?>
+
+                <label for="s180re-edit-residence"><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></label>
+                <?php echo $this->country_select('country_residence', 's180re-edit-residence', $item->country_residence, true); ?>
+
+                <label for="s180re-edit-org"><?php esc_html_e('Organization', 'science180-endorsement'); ?></label>
+                <input id="s180re-edit-org" class="regular-text" type="text" name="organization" value="<?php echo esc_attr($item->organization); ?>" required>
+
+                <label for="s180re-edit-address"><?php esc_html_e('Address', 'science180-endorsement'); ?></label>
+                <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea($item->address); ?></textarea>
+
+                <label for="s180re-edit-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?></label>
+                <textarea id="s180re-edit-comment" class="large-text" name="comment" rows="8" required><?php echo esc_textarea($item->comment); ?></textarea>
+
+                <p><button type="submit" class="button button-primary"><?php esc_html_e('Save endorsement', 'science180-endorsement'); ?></button></p>
+            </form>
         </div>
         <?php
     }
@@ -1410,6 +1626,11 @@ class S180EN_Plugin
 
     private function render_endorsement_list_actions($item)
     {
+        ?>
+        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-endorsement'); ?></a>
+        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
+        <a class="button" href="<?php echo esc_url($this->endorsement_preview_url($item)); ?>" target="_blank" rel="noopener"><?php echo $item->status === 'approved' ? esc_html__('Public', 'science180-endorsement') : esc_html__('Preview', 'science180-endorsement'); ?></a>
+        <?php
         if ($this->endorsement_is_reviewable($item)) {
             ?>
             <button class="button button-primary" type="submit" name="s180re_single_action" value="<?php echo esc_attr('approved:' . (int) $item->id); ?>"><?php esc_html_e('Approve', 'science180-endorsement'); ?></button>
@@ -1476,7 +1697,32 @@ class S180EN_Plugin
 
                 <label><?php esc_html_e('From email override', 'science180-endorsement'); ?></label>
                 <input class="regular-text" type="email" name="from_email" value="<?php echo esc_attr(get_option('s180re_from_email')); ?>" placeholder="<?php echo esc_attr($this->sender_email()); ?>">
-                <p class="description"><?php esc_html_e('Leave empty to use the existing AdvNews SMTP sender or the WordPress admin email. The plugin never stores SMTP passwords.', 'science180-endorsement'); ?></p>
+                <p class="description"><?php esc_html_e('Leave empty to use the existing Science180 Mail SMTP sender or the WordPress admin email. The plugin never stores SMTP passwords.', 'science180-endorsement'); ?></p>
+
+                <label for="s180en-form-intro"><?php esc_html_e('Public form description', 'science180-endorsement'); ?></label>
+                <textarea id="s180en-form-intro" class="large-text" name="form_intro" rows="4"><?php echo esc_textarea(get_option('s180en_form_intro')); ?></textarea>
+
+                <h2><?php esc_html_e('Daily pending-review notice', 'science180-endorsement'); ?></h2>
+                <p class="description">
+                    <?php
+                    $next_notice = wp_next_scheduled('s180re_daily_endorsement_notice');
+                    echo esc_html($next_notice ? sprintf(__('Next scheduled run: %s', 'science180-endorsement'), date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_notice)) : __('Not scheduled. Deactivate and reactivate the plugin to reschedule it.', 'science180-endorsement'));
+                    ?>
+                </p>
+                <label for="s180en-daily-notice-hour"><?php esc_html_e('Daily notice time', 'science180-endorsement'); ?></label>
+                <input id="s180en-daily-notice-hour" type="time" name="daily_notice_hour" value="<?php echo esc_attr(get_option('s180re_daily_notice_hour', '09:00')); ?>">
+                <p class="description"><?php esc_html_e('Uses the WordPress site timezone.', 'science180-endorsement'); ?></p>
+                <label for="s180en-daily-subject"><?php esc_html_e('Daily notice subject', 'science180-endorsement'); ?></label>
+                <input id="s180en-daily-subject" class="regular-text" type="text" name="daily_notice_subject" value="<?php echo esc_attr(get_option('s180en_daily_notice_subject')); ?>">
+                <label for="s180en-daily-intro"><?php esc_html_e('Daily notice intro text', 'science180-endorsement'); ?></label>
+                <textarea id="s180en-daily-intro" class="large-text" name="daily_notice_intro" rows="4"><?php echo esc_textarea(get_option('s180en_daily_notice_intro')); ?></textarea>
+
+                <h2><?php esc_html_e('Letter sent after approval', 'science180-endorsement'); ?></h2>
+                <p class="description"><?php esc_html_e('Available placeholders: {first_name}, {full_name}, {site_name}, {endorsement_url}, {view_endorsement_link}.', 'science180-endorsement'); ?></p>
+                <label for="s180en-approval-subject"><?php esc_html_e('Approval email subject', 'science180-endorsement'); ?></label>
+                <input id="s180en-approval-subject" class="regular-text" type="text" name="approval_subject" value="<?php echo esc_attr(get_option('s180en_approval_subject')); ?>">
+                <label for="s180en-approval-body"><?php esc_html_e('Approval email body', 'science180-endorsement'); ?></label>
+                <textarea id="s180en-approval-body" class="large-text code" name="approval_body" rows="10"><?php echo esc_textarea(get_option('s180en_approval_body')); ?></textarea>
 
                 <p><button type="submit" class="button button-primary"><?php esc_html_e('Save settings', 'science180-endorsement'); ?></button></p>
             </form>
@@ -1593,7 +1839,7 @@ class S180EN_Plugin
 
         $slug = $endorsement->slug;
         if ($moderation === 'approved' && $slug === '') {
-            $slug = sanitize_title($this->endorsement_public_title($endorsement));
+            $slug = $this->unique_endorsement_slug($this->endorsement_public_title($endorsement), $endorsement_id, $endorsement->created_at);
         }
 
         $updated = $wpdb->update(
@@ -1642,16 +1888,82 @@ class S180EN_Plugin
         return (bool) $wpdb->delete($this->table('endorsements'), array('id' => $endorsement_id), array('%d'));
     }
 
+    public function handle_save_endorsement()
+    {
+        $endorsement_id = isset($_POST['endorsement_id']) ? absint($_POST['endorsement_id']) : 0;
+        $this->require_admin_post('s180re_save_endorsement_' . $endorsement_id);
+
+        $endorsement = $this->get_endorsement($endorsement_id);
+        if (!$endorsement) {
+            $this->admin_redirect('s180en-endorsements', 'endorsement_missing');
+        }
+
+        $email = self::normalize_email_domain($this->post_raw('email'));
+        if (!$email) {
+            $this->admin_redirect('s180en-endorsements', 'endorsement_invalid');
+        }
+
+        $data = array(
+            'email' => $email,
+            'first_name' => $this->post_text('first_name', true),
+            'last_name' => $this->post_text('last_name', true),
+            'country_origin' => $this->post_text('country_origin', true),
+            'country_residence' => $this->post_text('country_residence', true),
+            'organization' => $this->post_text('organization', true),
+            'address' => $this->post_textarea('address', false),
+            'comment' => $this->post_textarea('comment', true),
+            'updated_at' => current_time('mysql'),
+        );
+
+        if ($this->has_empty_required($data, array('first_name', 'last_name', 'country_origin', 'country_residence', 'organization', 'comment'))) {
+            $this->admin_redirect('s180en-endorsements', 'endorsement_invalid');
+        }
+
+        if ($endorsement->status === 'approved') {
+            $title = sprintf('Endorsement by "%s" From "%s"', trim($data['first_name'] . ' ' . $data['last_name']), $data['country_origin']);
+            $data['slug'] = $this->unique_endorsement_slug($title, $endorsement_id, $endorsement->created_at);
+        }
+
+        global $wpdb;
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
+        if (isset($data['slug'])) {
+            $formats[] = '%s';
+        }
+
+        $updated = $wpdb->update($this->table('endorsements'), $data, array('id' => $endorsement_id), $formats, array('%d'));
+        if ($updated === false) {
+            $this->admin_redirect('s180en-endorsements', 'endorsement_invalid');
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=s180en-endorsements&view=' . $endorsement_id . '&s180re_admin_status=endorsement_saved'));
+        exit;
+    }
+
     public function handle_save_settings()
     {
         $this->require_admin_post('s180en_save_settings');
-        $recipient = sanitize_email($this->post_raw('recipient_email'));
+        $recipient = self::normalize_email_domain($this->post_raw('recipient_email'));
         if ($recipient && is_email($recipient)) {
             update_option('s180re_recipient_email', $recipient);
         }
         update_option('s180re_from_name', $this->post_text('from_name', false));
-        $from_email = sanitize_email($this->post_raw('from_email'));
+        $from_email = self::normalize_email_domain($this->post_raw('from_email'));
         update_option('s180re_from_email', $from_email && is_email($from_email) ? $from_email : '');
+        update_option('s180en_form_intro', $this->post_textarea('form_intro', false));
+        $notice_hour = $this->post_text('daily_notice_hour', false);
+        if (!preg_match('/^([01][0-9]|2[0-3]):([0-5][0-9])$/', $notice_hour)) {
+            $notice_hour = '09:00';
+        }
+        if ($notice_hour !== get_option('s180re_daily_notice_hour', '09:00')) {
+            update_option('s180re_daily_notice_hour', $notice_hour);
+            self::reschedule_daily_notice();
+        } elseif (!wp_next_scheduled('s180re_daily_endorsement_notice')) {
+            self::reschedule_daily_notice();
+        }
+        update_option('s180en_daily_notice_subject', $this->post_text('daily_notice_subject', false));
+        update_option('s180en_daily_notice_intro', $this->post_textarea('daily_notice_intro', false));
+        update_option('s180en_approval_subject', $this->post_text('approval_subject', false));
+        update_option('s180en_approval_body', $this->post_textarea('approval_body', false));
         $this->admin_redirect('s180en-settings', 'settings_saved');
     }
 
@@ -1734,6 +2046,7 @@ class S180EN_Plugin
             'endorsement_rejected' => __('Endorsement rejected and the submitter was notified.', 'science180-endorsement'),
             'endorsement_email_failed' => __('Endorsement status updated, but the submitter email could not be sent.', 'science180-endorsement'),
             'endorsement_deleted' => __('Endorsement deleted.', 'science180-endorsement'),
+            'endorsement_saved' => __('Endorsement saved.', 'science180-endorsement'),
             'endorsements_deleted' => __('Selected endorsements deleted.', 'science180-endorsement'),
             'endorsements_updated' => __('Selected endorsements updated.', 'science180-endorsement'),
             'endorsement_none_selected' => __('Please select at least one endorsement.', 'science180-endorsement'),
@@ -1753,6 +2066,47 @@ class S180EN_Plugin
         global $wpdb;
         $table = $this->table('endorsements');
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $endorsement_id));
+    }
+
+    private function get_endorsement_by_year_slug($year, $slug)
+    {
+        global $wpdb;
+        $table = $this->table('endorsements');
+        $year = absint($year);
+        $slug = sanitize_title($slug);
+
+        if ($year <= 0 || $slug === '') {
+            return null;
+        }
+
+        $endorsement = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE status = %s AND slug = %s AND YEAR(created_at) = %d LIMIT 1",
+                'approved',
+                $slug,
+                $year
+            )
+        );
+
+        if ($endorsement) {
+            return $endorsement;
+        }
+
+        $legacy_items = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE status = %s AND (slug = '' OR slug IS NULL) AND YEAR(created_at) = %d ORDER BY reviewed_at DESC, created_at DESC",
+                'approved',
+                $year
+            )
+        );
+
+        foreach ($legacy_items as $item) {
+            if (sanitize_title($this->endorsement_public_title($item)) === $slug) {
+                return $item;
+            }
+        }
+
+        return null;
     }
 
     private function endorsement_person_name($endorsement)
@@ -1807,20 +2161,49 @@ class S180EN_Plugin
     private function endorsement_permalink($endorsement)
     {
         $slug = $endorsement->slug ? $endorsement->slug : sanitize_title($this->endorsement_public_title($endorsement));
-        return home_url('/endorsement/' . (int) $endorsement->id . '/' . $slug . '/');
+        $year = $endorsement->created_at ? gmdate('Y', strtotime($endorsement->created_at)) : gmdate('Y');
+        return home_url('/endorsement/' . $year . '/' . $slug . '/');
     }
 
-    private function review_request_page_url()
+    private function endorsement_preview_url($endorsement)
     {
-        $page_id = (int) get_option('s180re_review_page_id');
-        if ($page_id) {
-            $url = get_permalink($page_id);
-            if ($url) {
-                return $url;
-            }
+        if ($endorsement->status === 'approved') {
+            return $this->endorsement_permalink($endorsement);
         }
 
-        return home_url('/review-copy-request/');
+        return wp_nonce_url(
+            add_query_arg('s180re_preview_endorsement', (int) $endorsement->id, $this->endorsement_page_url()),
+            's180re_preview_endorsement_' . (int) $endorsement->id
+        );
+    }
+
+    private function unique_endorsement_slug($title, $endorsement_id, $created_at)
+    {
+        global $wpdb;
+
+        $base = sanitize_title($title);
+        if ($base === '') {
+            $base = 'endorsement';
+        }
+
+        $table = $this->table('endorsements');
+        $year = $created_at ? gmdate('Y', strtotime($created_at)) : gmdate('Y');
+        $slug = $base;
+        $suffix = 2;
+
+        while ((int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE id <> %d AND slug = %s AND YEAR(created_at) = %d",
+                $endorsement_id,
+                $slug,
+                $year
+            )
+        ) > 0) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     private function endorsement_page_url()
@@ -1834,6 +2217,24 @@ class S180EN_Plugin
         }
 
         return home_url('/endorsement/');
+    }
+
+    private function endorsement_page_anchor_url()
+    {
+        $url = $this->endorsement_page_url();
+        $path = wp_parse_url($url, PHP_URL_PATH);
+        $query = wp_parse_url($url, PHP_URL_QUERY);
+
+        if (!$path) {
+            $path = '/endorsement/';
+        }
+
+        $path = trailingslashit($path);
+        if ($query) {
+            $path .= '?' . $query;
+        }
+
+        return $path . '#s180re-approved-endorsements';
     }
 
     private function has_empty_required($data, $keys)

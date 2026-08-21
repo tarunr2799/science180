@@ -126,6 +126,15 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     letter-spacing: 0;
 }
 
+.s180re-form-intro {
+    max-width: 820px;
+    margin: 12px 0 0;
+    color: #7e1e9c;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
 .s180re-message {
     border: 1px solid var(--s180re-line);
     background: var(--s180re-soft);
@@ -225,6 +234,10 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 
 .s180re-form-compact {
     max-width: 820px;
+}
+
+.s180re-endorsement-form-shell .s180re-form-compact {
+    grid-template-columns: 1fr;
 }
 
 .s180re-code-shell {
@@ -494,8 +507,8 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 
 .s180re-detail-grid {
     display: grid;
-    grid-template-columns: minmax(120px, 220px) minmax(0, 1fr);
-    gap: 22px;
+    grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+    gap: 34px;
     align-items: start;
 }
 
@@ -503,6 +516,7 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     width: 100%;
     height: auto;
     aspect-ratio: 1;
+    box-shadow: 0 12px 34px rgba(23, 33, 43, 0.14);
 }
 
 .s180re-detail-avatar {
@@ -558,6 +572,11 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     .s180re-form,
     .s180re-fieldset {
         grid-template-columns: 1fr;
+    }
+
+    .s180re-detail-photo,
+    .s180re-detail-avatar {
+        max-width: 340px;
     }
 
     .s180re-book-strip {

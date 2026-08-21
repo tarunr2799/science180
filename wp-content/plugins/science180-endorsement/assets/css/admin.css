@@ -3,6 +3,27 @@
     --s180re-admin-soft: #f6f7f7;
 }
 
+#adminmenu .wp-submenu a[href*="s180en"] {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.s180re-status-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 12px;
+    float: none;
+    margin: 12px 0 18px;
+    font-size: 18px;
+    line-height: 1.6;
+}
+
+.s180re-status-links a {
+    font-size: 18px;
+    line-height: 1.6;
+}
+
 .s180re-admin-layout {
     display: grid;
     grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
@@ -135,11 +156,26 @@
 }
 
 .s180re-admin-photo {
-    width: 150px;
-    height: 150px;
+    width: min(100%, 420px);
+    height: auto;
+    max-height: 520px;
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid var(--s180re-admin-line);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+    transform-origin: top left;
+}
+
+.s180re-admin-photo:hover,
+.s180re-admin-photo:focus {
+    position: relative;
+    z-index: 5;
+    transform: scale(1.35);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+}
+
+.s180re-admin-edit-form {
+    max-width: 860px;
 }
 
 @media (max-width: 960px) {
