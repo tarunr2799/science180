@@ -159,7 +159,7 @@ class S180EN_Plugin
         self::create_page_if_missing(
             'endorsement',
             'Endorsement',
-            "[science180_endorsement_form]\n\n[science180_endorsements]",
+            '[science180_endorsement_form]',
             's180re_endorsement_page_id'
         );
 
@@ -984,7 +984,7 @@ class S180EN_Plugin
             return;
         }
 
-        $shortcode = "[science180_endorsement_form]\n\n[science180_endorsements]";
+        $shortcode = '[science180_endorsement_form]';
 
         status_header(200);
 
@@ -1277,7 +1277,6 @@ class S180EN_Plugin
                     </div>
                 </div>
             </article>
-            <?php echo $this->render_endorsements_shortcode(array('display' => 'list', 'per_page' => 100)); ?>
         </main>
         <?php
     }
