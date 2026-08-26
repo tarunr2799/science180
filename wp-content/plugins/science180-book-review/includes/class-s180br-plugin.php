@@ -1183,28 +1183,14 @@ class S180BR_Plugin
             <p>
                 <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('Back to requests', 'science180-book-review'); ?></a>
                 <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View book public page', 'science180-book-review'); ?></a>
-                <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
             </p>
 
             <div class="s180re-admin-layout">
                 <div class="s180re-admin-panel">
                     <h2><?php esc_html_e('Clean address', 'science180-book-review'); ?></h2>
                     <p><strong><?php esc_html_e('Email verification:', 'science180-book-review'); ?></strong> <?php echo $item->verified_at ? esc_html__('Verified', 'science180-book-review') . ' (' . esc_html($item->verified_at) . ')' : esc_html__('Not verified', 'science180-book-review'); ?></p>
+                    <p><strong><?php esc_html_e('Current status:', 'science180-book-review'); ?></strong> <?php echo esc_html($this->review_request_statuses()[$item->status] ?? $item->status); ?></p>
                     <pre class="s180re-address-block"><?php echo esc_html($this->format_mailing_address($data)); ?></pre>
-                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                        <input type="hidden" name="action" value="s180re_update_request_status">
-                        <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
-                        <?php wp_nonce_field('s180re_update_request_status'); ?>
-                        <label><?php esc_html_e('Status', 'science180-book-review'); ?></label>
-                        <select name="status">
-                            <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
-                                <option value="<?php echo esc_attr($status_key); ?>" <?php selected($item->status, $status_key); ?>><?php echo esc_html($status_label); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button class="button button-primary" type="submit"><?php esc_html_e('Update', 'science180-book-review'); ?></button>
-                        <button class="button button-primary" type="submit" name="status" value="qualified"><?php esc_html_e('Approve', 'science180-book-review'); ?></button>
-                        <button class="button" type="submit" name="status" value="declined"><?php esc_html_e('Reject', 'science180-book-review'); ?></button>
-                    </form>
                 </div>
                 <div class="s180re-admin-panel s180re-admin-panel-wide">
                     <h2><?php esc_html_e('Raw data', 'science180-book-review'); ?></h2>
@@ -1217,6 +1203,19 @@ class S180BR_Plugin
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+            <div class="s180re-admin-panel">
+                <h2><?php esc_html_e('Review actions', 'science180-book-review'); ?></h2>
+                <div class="s180re-row-actions">
+                    <form class="s180re-inline-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="s180re_update_request_status">
+                        <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
+                        <?php wp_nonce_field('s180re_update_request_status'); ?>
+                        <button class="button button-primary" type="submit" name="status" value="qualified"><?php esc_html_e('Approve', 'science180-book-review'); ?></button>
+                        <button class="button" type="submit" name="status" value="declined"><?php esc_html_e('Reject', 'science180-book-review'); ?></button>
+                    </form>
+                    <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
                 </div>
             </div>
         </div>
@@ -1543,7 +1542,7 @@ class S180BR_Plugin
             return;
         }
 
-        echo '<div class="s180re-message s180re-message-' . esc_attr($messages[$status][0]) . '">' . esc_html($messages[$status][1]) . '</div>';
+        echo '<div class="s180re-message s180re-message-' . esc_attr($messages[$status][0]) . ' s180re-message-' . esc_attr($status) . '">' . esc_html($messages[$status][1]) . '</div>';
     }
 
     private function render_admin_notice()

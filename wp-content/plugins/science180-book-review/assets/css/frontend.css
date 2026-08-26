@@ -158,6 +158,14 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     background: #fff8e9;
 }
 
+.s180re-message-review_verified {
+    padding: 20px 22px;
+    border-width: 2px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
 .s180re-book-strip {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
