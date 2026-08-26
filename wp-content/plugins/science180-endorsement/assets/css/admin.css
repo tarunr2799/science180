@@ -162,16 +162,69 @@
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid var(--s180re-admin-line);
-    transition: transform 160ms ease, box-shadow 160ms ease;
-    transform-origin: top left;
+    cursor: zoom-in;
 }
 
 .s180re-admin-photo:hover,
 .s180re-admin-photo:focus {
-    position: relative;
-    z-index: 5;
-    transform: scale(1.35);
-    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.25);
+    outline: 2px solid #2271b1;
+    outline-offset: 2px;
+}
+
+body.s180re-photo-zoom-open {
+    overflow: hidden;
+}
+
+.s180re-photo-zoom[hidden] {
+    display: none;
+}
+
+.s180re-photo-zoom {
+    position: fixed;
+    inset: 0;
+    z-index: 100100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 24px 24px;
+    background: rgba(0, 0, 0, 0.82);
+}
+
+.s180re-photo-zoom img {
+    display: block;
+    max-width: min(1100px, 92vw);
+    max-height: 86vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    background: #fff;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.s180re-photo-zoom-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #111;
+    color: #fff;
+    font-size: 30px;
+    line-height: 34px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.s180re-photo-zoom-close:hover,
+.s180re-photo-zoom-close:focus {
+    background: #fff;
+    color: #111;
+    outline: 2px solid #72aee6;
+    outline-offset: 2px;
 }
 
 .s180re-admin-edit-form {

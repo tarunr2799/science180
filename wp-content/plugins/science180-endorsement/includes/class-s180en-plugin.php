@@ -272,6 +272,7 @@ class S180EN_Plugin
             array(
                 'choosePhoto' => __('Choose endorsement photo', 'science180-endorsement'),
                 'usePhoto' => __('Use this photo', 'science180-endorsement'),
+                'closePhoto' => __('Close photo preview', 'science180-endorsement'),
             )
         );
     }
@@ -980,12 +981,16 @@ class S180EN_Plugin
 
         $endorsement_page_id = (int) get_option('s180re_endorsement_page_id');
         $is_endorsement_page = ($endorsement_page_id > 0 && is_page($endorsement_page_id)) || is_page('endorsement');
+        $published_page_id = (int) get_option('s180re_published_endorsements_page_id');
+        $is_published_page = ($published_page_id > 0 && is_page($published_page_id)) || is_page('published-endorsements');
 
-        if (!$is_endorsement_page) {
+        if (!$is_endorsement_page && !$is_published_page) {
             return;
         }
 
-        $shortcode = '[science180_endorsement_form]';
+        $shortcode = $is_published_page
+            ? '[science180_endorsements display="list" per_page="100"]'
+            : '[science180_endorsement_form]';
 
         status_header(200);
 
