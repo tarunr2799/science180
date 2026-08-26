@@ -336,7 +336,7 @@ class S180EN_Plugin
         $this->render_endorsement_code_form();
         ?>
         <section id="s180re-endorsement-form" class="s180re-shell s180re-endorsement-form-shell">
-            <?php $this->render_endorsement_published_link(); ?>
+            <?php $this->render_endorsement_nav('submit'); ?>
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
@@ -440,17 +440,49 @@ class S180EN_Plugin
         $paged = isset($_GET['s180re_page']) ? max(1, absint($_GET['s180re_page'])) : 1;
         $offset = ($paged - 1) * $per_page;
         $table = $this->table('endorsements');
+        $search = isset($_GET['s180re_search']) ? sanitize_text_field(wp_unslash($_GET['s180re_search'])) : '';
+        $country_filter = isset($_GET['s180re_country']) ? sanitize_text_field(wp_unslash($_GET['s180re_country'])) : '';
 
+        $where = array('status = %s');
+        $params = array('approved');
+
+        if ($display === 'list' && $search !== '') {
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where[] = '(first_name LIKE %s OR last_name LIKE %s OR organization LIKE %s OR country_origin LIKE %s OR country_residence LIKE %s OR comment LIKE %s)';
+            array_push($params, $like, $like, $like, $like, $like, $like);
+        }
+
+        if ($display === 'list' && $country_filter !== '') {
+            $where[] = '(country_origin = %s OR country_residence = %s)';
+            array_push($params, $country_filter, $country_filter);
+        }
+
+        $where_sql = 'WHERE ' . implode(' AND ', $where);
+        $query_params = array_merge($params, array($per_page, $offset));
         $items = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE status = %s ORDER BY reviewed_at DESC, created_at DESC LIMIT %d OFFSET %d",
-                'approved',
-                $per_page,
-                $offset
+                "SELECT * FROM {$table} {$where_sql} ORDER BY reviewed_at DESC, created_at DESC LIMIT %d OFFSET %d",
+                $query_params
             )
         );
-        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE status = %s", 'approved'));
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} {$where_sql}", $params));
         $pages = (int) ceil($total / $per_page);
+        $countries = array();
+
+        if ($display === 'list') {
+            $country_rows = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT country_name FROM (
+                        SELECT country_origin AS country_name FROM {$table} WHERE status = %s AND country_origin != ''
+                        UNION
+                        SELECT country_residence AS country_name FROM {$table} WHERE status = %s AND country_residence != ''
+                    ) countries ORDER BY country_name ASC",
+                    'approved',
+                    'approved'
+                )
+            );
+            $countries = array_filter(array_map('trim', (array) $country_rows));
+        }
 
         ob_start();
         ?>
@@ -461,15 +493,55 @@ class S180EN_Plugin
                 <h2><?php esc_html_e('Published Endorsements', 'science180-endorsement'); ?></h2>
             </div>
 
+            <?php if ($display === 'list') : ?>
+                <form class="s180re-directory-tools" method="get" action="<?php echo esc_url($this->published_endorsements_url()); ?>">
+                    <label for="s180re-directory-search"><?php esc_html_e('Search', 'science180-endorsement'); ?></label>
+                    <input id="s180re-directory-search" type="search" name="s180re_search" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, country, organization, comment', 'science180-endorsement'); ?>">
+                    <label for="s180re-directory-country"><?php esc_html_e('Country', 'science180-endorsement'); ?></label>
+                    <select id="s180re-directory-country" name="s180re_country">
+                        <option value=""><?php esc_html_e('All countries', 'science180-endorsement'); ?></option>
+                        <?php foreach ($countries as $country) : ?>
+                            <option value="<?php echo esc_attr($country); ?>" <?php selected($country_filter, $country); ?>><?php echo esc_html($country); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button class="s180re-button s180re-button-small" type="submit"><?php esc_html_e('Filter', 'science180-endorsement'); ?></button>
+                    <?php if ($search !== '' || $country_filter !== '') : ?>
+                        <a class="s180re-text-link" href="<?php echo esc_url($this->published_endorsements_url()); ?>"><?php esc_html_e('Reset', 'science180-endorsement'); ?></a>
+                    <?php endif; ?>
+                </form>
+            <?php endif; ?>
+
             <?php if (empty($items)) : ?>
-                <div class="s180re-message"><?php esc_html_e('No endorsements have been approved yet.', 'science180-endorsement'); ?></div>
+                <div class="s180re-message"><?php esc_html_e('No endorsements match your filters yet.', 'science180-endorsement'); ?></div>
             <?php else : ?>
                 <?php if ($display === 'list') : ?>
-                    <ul class="s180re-endorsement-title-list">
-                        <?php foreach ($items as $item) : ?>
-                            <li><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <div class="s180re-directory-summary">
+                        <?php echo esc_html(sprintf(_n('%d published endorsement', '%d published endorsements', $total, 'science180-endorsement'), $total)); ?>
+                    </div>
+                    <div class="s180re-directory-table-wrap">
+                        <table class="s180re-directory-table">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e('Title', 'science180-endorsement'); ?></th>
+                                    <th><?php esc_html_e('Name', 'science180-endorsement'); ?></th>
+                                    <th><?php esc_html_e('Country', 'science180-endorsement'); ?></th>
+                                    <th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th>
+                                    <th><?php esc_html_e('Date', 'science180-endorsement'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($items as $item) : ?>
+                                    <tr>
+                                        <td><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></td>
+                                        <td><?php echo esc_html($this->endorsement_person_name($item)); ?></td>
+                                        <td><?php echo esc_html($item->country_origin); ?></td>
+                                        <td><?php echo esc_html($item->organization); ?></td>
+                                        <td><?php echo esc_html($item->reviewed_at ? date_i18n(get_option('date_format'), strtotime($item->reviewed_at)) : date_i18n(get_option('date_format'), strtotime($item->created_at))); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php else : ?>
                     <div class="s180re-endorsement-grid">
                     <?php foreach ($items as $item) : ?>
@@ -494,7 +566,14 @@ class S180EN_Plugin
                 <?php if ($pages > 1) : ?>
                     <nav class="s180re-pagination" aria-label="<?php esc_attr_e('Endorsements pagination', 'science180-endorsement'); ?>">
                         <?php for ($i = 1; $i <= $pages; $i++) : ?>
-                            <a class="<?php echo $i === $paged ? 'is-current' : ''; ?>" href="<?php echo esc_url(add_query_arg('s180re_page', $i)); ?>"><?php echo esc_html($i); ?></a>
+                            <?php
+                            $page_url = add_query_arg(array_filter(array(
+                                's180re_page' => $i,
+                                's180re_search' => $search !== '' ? $search : null,
+                                's180re_country' => $country_filter !== '' ? $country_filter : null,
+                            )), $display === 'list' ? $this->published_endorsements_url() : null);
+                            ?>
+                            <a class="<?php echo $i === $paged ? 'is-current' : ''; ?>" href="<?php echo esc_url($page_url); ?>"><?php echo esc_html($i); ?></a>
                         <?php endfor; ?>
                     </nav>
                 <?php endif; ?>
@@ -503,7 +582,6 @@ class S180EN_Plugin
         <?php
         return ob_get_clean();
     }
-
     public function handle_endorsement_submission()
     {
         if (!$this->public_form_is_valid('s180re_endorsement_submit')) {
