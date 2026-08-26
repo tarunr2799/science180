@@ -117,12 +117,36 @@ class AdvNews_Tracking
             $subscriber_id
         ));
         if ($existing > 0) {
-            // Update existing record with new open time
             $this->wpdb->update(
                 $table_name,
-                array('opened_at' => current_time('mysql')),
+                array_merge(
+                    array(
+                        'opened_at' => current_time('mysql'),
+                        'ip_address' => $ip_address,
+                        'user_agent' => $user_agent,
+                        'device_type' => $device_info['device_type'],
+                        'browser' => $device_info['browser'],
+                        'platform' => $device_info['platform'],
+                    ),
+                    $this->geolocation_to_tracking_data(array(
+                        'country' => $country,
+                        'country_code' => $country_code,
+                        'city' => $city,
+                        'region' => $region,
+                        'latitude' => $latitude,
+                        'longitude' => $longitude,
+                    ))
+                ),
                 array('campaign_log_id' => $log_id, 'subscriber_id' => $subscriber_id)
             );
+            $this->log_activity($subscriber_id, 'opened', $campaign_id, null, $ip_address, array(
+                'country' => $country,
+                'city' => $city,
+                'device' => $device_info['device_type']
+            ));
+            $this->update_campaign_log_status($log_id, 'opened');
+            $this->update_subscriber_stats($subscriber_id);
+            $this->update_campaign_stats($campaign_id);
             return true;
         }
         // Insert new open record

@@ -626,7 +626,47 @@ class AdvNews_Campaign
             ORDER BY cl.sent_at DESC
             LIMIT %d OFFSET %d";
 
-        return $this->wpdb->get_results($this->wpdb->prepare($query, $limit, $offset));
+        $recipients = $this->wpdb->get_results($this->wpdb->prepare($query, $limit, $offset));
+        if (!empty($recipients) || !empty($status)) {
+            return $recipients;
+        }
+
+        return $this->get_campaign_category_recipients($campaign_id, $limit, $offset);
+    }
+
+    private function get_campaign_category_recipients($campaign_id, $limit = 100, $offset = 0)
+    {
+        $table_campaign_categories = $this->wpdb->prefix . $this->table_prefix . 'campaign_categories';
+        $table_subscriber_categories = $this->wpdb->prefix . $this->table_prefix . 'subscriber_categories';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+
+        return $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT DISTINCT
+                0 as id,
+                %d as campaign_id,
+                s.id as subscriber_id,
+                'selected' as status,
+                NULL as sent_at,
+                NULL as delivered_at,
+                NULL as opened_at,
+                NULL as clicked_at,
+                NULL as created_at,
+                s.email,
+                s.first_name,
+                s.last_name,
+                s.organization
+            FROM $table_campaign_categories cc
+            INNER JOIN $table_subscriber_categories sc ON cc.category_id = sc.category_id
+            INNER JOIN $table_subscribers s ON sc.subscriber_id = s.id
+            WHERE cc.campaign_id = %d
+            AND s.status = 'active'
+            ORDER BY s.email ASC
+            LIMIT %d OFFSET %d",
+            $campaign_id,
+            $campaign_id,
+            $limit,
+            $offset
+        ));
     }
 
     /**

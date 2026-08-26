@@ -182,11 +182,13 @@ jQuery(document).ready(function($) {
                 </button>
             ` : '';
 
+            const subscriberUrl = item.subscriber_id ? `?page=advnews-subscribers&action=view&id=${item.subscriber_id}` : '';
+            const emailHtml = subscriberUrl ? `<a href="${subscriberUrl}"><strong>${escHtml(item.email)}</strong></a>` : `<strong>${escHtml(item.email)}</strong>`;
             const row = `
                 <tr>
                     <td ${statusClass}>${statusLabel}${retryButton}</td>
                     <td>
-                        <strong>${escHtml(item.email)}</strong><br>
+                        ${emailHtml}<br>
                         <small style="color:#666;">${escHtml(recipientName)}</small>
                     </td>
                     <td>${campaignLink}</td>

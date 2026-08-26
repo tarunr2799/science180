@@ -1652,12 +1652,9 @@ class S180BR_Plugin
             return $this->review_request_page_url();
         }
 
-        if (!empty($book->book_id)) {
-            return add_query_arg('s180br_book_id', (int) $book->book_id, $this->review_request_page_url());
-        }
-
-        if (!empty($book->id)) {
-            return add_query_arg('s180br_book_id', (int) $book->id, $this->review_request_page_url());
+        $slug = !empty($book->slug) ? sanitize_title($book->slug) : sanitize_title($book->title ?? '');
+        if ($slug !== '') {
+            return trailingslashit($this->review_request_page_url()) . $slug . '/';
         }
 
         return $this->review_request_page_url();

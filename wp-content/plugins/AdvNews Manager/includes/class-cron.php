@@ -12,30 +12,26 @@ class AdvNews_Cron
     */
     public static function schedule_events()
     {
-        // CRITICAL FIX: Register custom cron schedules FIRST, before any clearing or scheduling
         add_filter('cron_schedules', array(__CLASS__, 'add_cron_schedules'));
 
-        // Clear existing hooks first to prevent duplicates
-        self::clear_scheduled_events();
-
-        // Schedule queue processing (every minute)
         if (!wp_next_scheduled('advnews_process_queue')) {
-            wp_schedule_event(time(), 'advnews_every_minute', 'advnews_process_queue');
+            wp_schedule_event(time() + MINUTE_IN_SECONDS, 'advnews_every_minute', 'advnews_process_queue');
         }
 
-        // Schedule daily maintenance
         if (!wp_next_scheduled('advnews_daily_maintenance')) {
-            wp_schedule_event(time(), 'daily', 'advnews_daily_maintenance');
+            wp_schedule_event(strtotime('tomorrow 02:00:00'), 'daily', 'advnews_daily_maintenance');
         }
 
-        // Schedule weekly reports
+        if (wp_next_scheduled('advnews_weekly_reports') && wp_get_schedule('advnews_weekly_reports') !== 'weekly') {
+            wp_clear_scheduled_hook('advnews_weekly_reports');
+        }
+
         if (!wp_next_scheduled('advnews_weekly_reports')) {
-            wp_schedule_event(time(), 'weekly', 'advnews_weekly_reports');
+            wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
         }
 
-        // Log for debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AdvNews Cron] Events scheduled successfully');
+            error_log('[AdvNews Cron] Events checked successfully');
         }
     }
 
@@ -51,6 +47,16 @@ class AdvNews_Cron
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[AdvNews Cron] Events cleared');
         }
+    }
+
+    private static function next_weekly_report_timestamp()
+    {
+        $timestamp = strtotime('next monday 08:00:00');
+        if (!$timestamp || $timestamp <= time()) {
+            $timestamp = time() + WEEK_IN_SECONDS;
+        }
+
+        return $timestamp;
     }
 
     /**
@@ -181,7 +187,7 @@ class AdvNews_Cron
         // 3. ✅ NEW: Auto-update MaxMind GeoIP2 Local Database
         if (get_option('advnews_maxmind_auto_update') && get_option('advnews_maxmind_license_key')) {
             $last_update = intval(get_option('advnews_maxmind_last_update', 0));
-            if (!$last_update || (time() - $last_update) >= WEEK_IN_SECONDS) {
+            if (!$last_update || (time() - $last_update) >= DAY_IN_SECONDS) {
                 if (self::update_maxmind_db_silent()) {
                     update_option('advnews_maxmind_last_update', time());
                 }

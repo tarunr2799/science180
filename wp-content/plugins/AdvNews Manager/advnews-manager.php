@@ -197,7 +197,7 @@ class AdvNews_Manager
         }
 
         if (!wp_next_scheduled('advnews_daily_maintenance')) {
-            wp_schedule_event(time(), 'daily', 'advnews_daily_maintenance');
+            wp_schedule_event(strtotime('tomorrow 02:00:00'), 'daily', 'advnews_daily_maintenance');
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[AdvNews] Scheduled advnews_daily_maintenance');
             }
@@ -208,7 +208,7 @@ class AdvNews_Manager
         }
 
         if (!wp_next_scheduled('advnews_weekly_reports')) {
-            wp_schedule_event(time(), 'weekly', 'advnews_weekly_reports');
+            wp_schedule_event(strtotime('next monday 08:00:00'), 'weekly', 'advnews_weekly_reports');
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('[AdvNews] Scheduled advnews_weekly_reports');
             }

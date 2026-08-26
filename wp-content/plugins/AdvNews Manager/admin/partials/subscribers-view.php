@@ -15,7 +15,7 @@ if (!$subscriber) {
 }
 
 $categories = $subscriber_class->get_subscriber_categories($subscriber_id);
-$activity = $tracking_class->get_subscriber_activity($subscriber_id, 100);
+$activity = $tracking_class->get_subscriber_activity($subscriber_id, 500);
 
 // Get campaign statistics for this subscriber
 global $wpdb;
@@ -198,7 +198,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
 
                 <!-- Recent Activity -->
                 <div class="postbox">
-                    <h2 class="hndle"><?php _e('Recent Activity (Last 100)', 'advnews-manager'); ?></h2>
+                    <h2 class="hndle"><?php _e('Recent Activity (Last 500)', 'advnews-manager'); ?></h2>
                     <div class="inside">
                         <?php if (empty($activity)): ?>
                             <p><?php _e('No recent activity.', 'advnews-manager'); ?></p>

@@ -89,6 +89,7 @@ class AdvNews_Ajax
         add_action('wp_ajax_advnews_get_analytics', array($this, 'ajax_get_analytics'));
         add_action('wp_ajax_advnews_export_analytics', array($this, 'ajax_export_analytics'));
         add_action('wp_ajax_advnews_load_more_analytics', array($this, 'ajax_load_more_analytics'));
+        add_action('wp_ajax_advnews_load_more_ips', array($this, 'ajax_load_more_ips'));
         add_action('wp_ajax_advnews_update_analytics_range', array($this, 'ajax_update_analytics_range'));
 
         // =====================================================
@@ -1456,7 +1457,7 @@ class AdvNews_Ajax
 
         // Get Items
         $query = "SELECT cl.*, c.name as campaign_name, c.subject as campaign_subject,
-                         s.email, s.first_name, s.last_name
+                         s.id as subscriber_id, s.email, s.first_name, s.last_name
                   FROM $table_logs cl
                   INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
                   INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
@@ -1675,6 +1676,98 @@ class AdvNews_Ajax
         ));
     }
 
+    public function ajax_load_more_ips()
+    {
+        $this->verify_nonce();
+        $this->check_capability();
+
+        $offset = isset($_POST['offset']) ? max(0, intval($_POST['offset'])) : 0;
+        $limit = isset($_POST['limit']) ? max(1, min(100, intval($_POST['limit']))) : 50;
+        $period = isset($_POST['period']) ? sanitize_text_field($_POST['period']) : '30days';
+
+        $end_date = current_time('mysql');
+        switch ($period) {
+            case '7days':
+                $start_date = date('Y-m-d H:i:s', strtotime('-7 days'));
+                break;
+            case '90days':
+                $start_date = date('Y-m-d H:i:s', strtotime('-90 days'));
+                break;
+            case 'year':
+                $start_date = date('Y-m-d H:i:s', strtotime('-1 year'));
+                break;
+            case '30days':
+            default:
+                $start_date = date('Y-m-d H:i:s', strtotime('-30 days'));
+                break;
+        }
+
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT tc.ip_address, tc.subscriber_id, tc.country, tc.country_code, tc.city,
+                    tc.device_type, tc.browser, tc.platform, tc.clicked_at as event_at,
+                    tc.campaign_id, s.email as subscriber_email, c.name as campaign_name
+             FROM $table_clicks tc
+             LEFT JOIN $table_subscribers s ON tc.subscriber_id = s.id
+             LEFT JOIN $table_campaigns c ON tc.campaign_id = c.id
+             WHERE tc.clicked_at BETWEEN %s AND %s
+             AND tc.ip_address != ''
+             ORDER BY tc.clicked_at DESC
+             LIMIT %d OFFSET %d",
+            $start_date,
+            $end_date,
+            $limit,
+            $offset
+        ));
+
+        ob_start();
+        foreach ($rows as $row) {
+            $location = trim(($row->city ?: '') . ', ' . ($row->country ?: ''), ', ');
+            if ($location === '') {
+                $location = '—';
+            }
+            $subscriber_url = $row->subscriber_id ? admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $row->subscriber_id) : '';
+            $campaign_url = $row->campaign_id ? admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . (int) $row->campaign_id) : '';
+            ?>
+            <tr>
+                <td><code style="background: #f0f0f1; padding: 2px 6px; border-radius: 3px;"><?php echo esc_html($row->ip_address); ?></code></td>
+                <td>
+                    <?php if ($subscriber_url && $row->subscriber_email): ?>
+                        <a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($row->subscriber_email); ?></a>
+                    <?php else: ?>
+                        <span style="color: #999;">—</span>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php if (!empty($row->country_code)): ?>
+                        <img src="https://flagcdn.com/16x12/<?php echo esc_attr(strtolower($row->country_code)); ?>.png" alt="<?php echo esc_attr($row->country); ?>" style="vertical-align: middle; margin-right: 5px;">
+                    <?php endif; ?>
+                    <?php echo esc_html($location); ?>
+                </td>
+                <td><?php echo esc_html($row->device_type ?: '—'); ?></td>
+                <td><?php echo esc_html($row->browser ?: '—'); ?></td>
+                <td>
+                    <?php if ($campaign_url && $row->campaign_name): ?>
+                        <a href="<?php echo esc_url($campaign_url); ?>"><?php echo esc_html($row->campaign_name); ?></a>
+                    <?php else: ?>
+                        <span style="color: #999;">—</span>
+                    <?php endif; ?>
+                </td>
+                <td><span title="<?php echo esc_attr($row->event_at); ?>"><?php echo esc_html(human_time_diff(strtotime($row->event_at), current_time('timestamp')) . ' ' . __('ago', 'advnews-manager')); ?></span></td>
+            </tr>
+            <?php
+        }
+        $html = ob_get_clean();
+
+        wp_send_json_success(array(
+            'html' => $html,
+            'count' => count($rows),
+            'has_more' => count($rows) === $limit
+        ));
+    }
     public function ajax_update_analytics_range()
     {
         $this->verify_nonce();

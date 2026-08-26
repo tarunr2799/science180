@@ -33,11 +33,16 @@ class AdvNews_Subscriber
         // Check if subscriber already exists
         $existing = $this->get_subscriber_by_email($email);
         if ($existing) {
-            // If unsubscribed, allow resubscription
+            if (!empty($data['categories'])) {
+                $categories = is_array($data['categories']) ? $data['categories'] : explode(',', $data['categories']);
+                $this->add_categories_to_subscriber($existing->id, $categories, true);
+            }
+
             if ($existing->status === 'unsubscribed') {
                 return $this->resubscribe($existing->id, $data);
             }
-            return new WP_Error('subscriber_exists', __('Subscriber already exists.', 'advnews-manager'));
+
+            return $existing->id;
         }
 
         // Prepare subscriber data
@@ -442,18 +447,18 @@ class AdvNews_Subscriber
     /**
      * Add categories to subscriber
      */
-    public function add_categories_to_subscriber($subscriber_id, $categories)
+    public function add_categories_to_subscriber($subscriber_id, $categories, $merge = false)
     {
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'subscriber_categories';
 
-        // Remove existing categories
-        $this->wpdb->delete($table_name, array('subscriber_id' => $subscriber_id));
+        if (!$merge) {
+            $this->wpdb->delete($table_name, array('subscriber_id' => $subscriber_id));
+        }
 
         if (empty($categories)) {
             return true;
         }
 
-        // Add new categories
         foreach ($categories as $category) {
             if (is_numeric($category)) {
                 $category_id = intval($category);
@@ -462,10 +467,18 @@ class AdvNews_Subscriber
             }
 
             if ($category_id) {
-                $this->wpdb->insert($table_name, array(
-                    'subscriber_id' => $subscriber_id,
-                    'category_id' => $category_id
+                $exists = $this->wpdb->get_var($this->wpdb->prepare(
+                    "SELECT COUNT(*) FROM $table_name WHERE subscriber_id = %d AND category_id = %d",
+                    $subscriber_id,
+                    $category_id
                 ));
+
+                if (!$exists) {
+                    $this->wpdb->insert($table_name, array(
+                        'subscriber_id' => $subscriber_id,
+                        'category_id' => $category_id
+                    ));
+                }
             }
         }
 
@@ -679,9 +692,12 @@ class AdvNews_Subscriber
                     }
 
                     if ($options['skip_duplicates'] && $existing->status === 'active') {
-                        // Even if skipping update, we might want to add default categories?
-                        // Usually skip means skip entirely. Keeping original behavior.
-                        $skipped++;
+                        if (!empty($final_categories)) {
+                            $this->add_categories_to_subscriber($existing->id, $final_categories, true);
+                            $updated++;
+                        } else {
+                            $skipped++;
+                        }
                         continue;
                     }
 
@@ -701,7 +717,7 @@ class AdvNews_Subscriber
 
                     // Update categories (merges with existing via add_categories_to_subscriber)
                     if (!empty($final_categories)) {
-                        $this->add_categories_to_subscriber($existing->id, $final_categories);
+                        $this->add_categories_to_subscriber($existing->id, $final_categories, true);
                     }
 
                     $updated++;
