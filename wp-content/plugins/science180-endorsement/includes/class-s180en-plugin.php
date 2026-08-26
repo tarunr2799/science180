@@ -70,6 +70,7 @@ class S180EN_Plugin
 
         self::create_tables();
         self::seed_options();
+        self::maybe_create_pages();
         self::register_rewrites_static();
         flush_rewrite_rules(false);
         update_option('s180en_version', S180EN_VERSION);
@@ -2273,7 +2274,7 @@ class S180EN_Plugin
             }
         }
 
-        return $this->endorsement_page_anchor_url();
+        return home_url('/published-endorsements/');
     }
 
     private function endorsement_person_name($endorsement)
