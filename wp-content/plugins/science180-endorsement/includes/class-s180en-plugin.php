@@ -336,7 +336,7 @@ class S180EN_Plugin
         $this->render_endorsement_code_form();
         ?>
         <section id="s180re-endorsement-form" class="s180re-shell s180re-endorsement-form-shell">
-            <?php $this->render_endorsement_nav('submit'); ?>
+            <?php $this->render_endorsement_published_link(); ?>
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
@@ -2165,6 +2165,15 @@ class S180EN_Plugin
     }
 
 
+    private function render_endorsement_published_link()
+    {
+        $published_url = $this->published_endorsements_url();
+        ?>
+        <nav class="s180re-public-nav" aria-label="<?php esc_attr_e('Endorsement navigation', 'science180-endorsement'); ?>">
+            <a href="<?php echo esc_url($published_url); ?>"><?php esc_html_e('View published endorsement/review', 'science180-endorsement'); ?></a>
+        </nav>
+        <?php
+    }
     private function render_endorsement_nav($active)
     {
         $submit_url = $this->endorsement_page_url();
