@@ -19,7 +19,7 @@ class AdvNews_Cron
         }
 
         if (!wp_next_scheduled('advnews_daily_maintenance')) {
-            wp_schedule_event(strtotime('tomorrow 02:00:00'), 'daily', 'advnews_daily_maintenance');
+            wp_schedule_event(self::next_daily_maintenance_timestamp(), 'daily', 'advnews_daily_maintenance');
         }
 
         if (wp_next_scheduled('advnews_weekly_reports') && wp_get_schedule('advnews_weekly_reports') !== 'weekly') {
@@ -28,6 +28,10 @@ class AdvNews_Cron
 
         if (!wp_next_scheduled('advnews_weekly_reports')) {
             wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
+        }
+
+        if (!wp_next_scheduled('advnews_update_maxmind_database')) {
+            wp_schedule_event(self::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
         }
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -43,6 +47,7 @@ class AdvNews_Cron
         wp_clear_scheduled_hook('advnews_process_queue');
         wp_clear_scheduled_hook('advnews_daily_maintenance');
         wp_clear_scheduled_hook('advnews_weekly_reports');
+        wp_clear_scheduled_hook('advnews_update_maxmind_database');
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[AdvNews Cron] Events cleared');
@@ -57,6 +62,23 @@ class AdvNews_Cron
         }
 
         return $timestamp;
+    }
+
+    public static function next_daily_maintenance_timestamp()
+    {
+        $timestamp = strtotime('tomorrow 02:00:00');
+        return ($timestamp && $timestamp > time()) ? $timestamp : time() + DAY_IN_SECONDS;
+    }
+
+    public static function next_weekly_report_run()
+    {
+        return self::next_weekly_report_timestamp();
+    }
+
+    public static function next_maxmind_update_timestamp()
+    {
+        $timestamp = strtotime('tomorrow 03:00:00');
+        return ($timestamp && $timestamp > time()) ? $timestamp : time() + DAY_IN_SECONDS;
     }
 
     /**

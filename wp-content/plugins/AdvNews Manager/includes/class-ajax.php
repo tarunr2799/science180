@@ -2945,13 +2945,20 @@ class AdvNews_Ajax
 
         switch ($hook) {
             case 'advnews_process_queue':
-                wp_schedule_event(time(), 'advnews_every_minute', 'advnews_process_queue');
+                wp_clear_scheduled_hook('advnews_process_queue');
+                wp_schedule_event(time() + MINUTE_IN_SECONDS, 'advnews_every_minute', 'advnews_process_queue');
                 break;
             case 'advnews_daily_maintenance':
-                wp_schedule_event(time(), 'daily', 'advnews_daily_maintenance');
+                wp_clear_scheduled_hook('advnews_daily_maintenance');
+                wp_schedule_event(AdvNews_Cron::next_daily_maintenance_timestamp(), 'daily', 'advnews_daily_maintenance');
                 break;
             case 'advnews_weekly_reports':
-                wp_schedule_event(time(), 'weekly', 'advnews_weekly_reports');
+                wp_clear_scheduled_hook('advnews_weekly_reports');
+                wp_schedule_event(AdvNews_Cron::next_weekly_report_run(), 'weekly', 'advnews_weekly_reports');
+                break;
+            case 'advnews_update_maxmind_database':
+                wp_clear_scheduled_hook('advnews_update_maxmind_database');
+                wp_schedule_event(AdvNews_Cron::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
                 break;
             default:
                 wp_send_json_error(array('message' => __('Invalid task.', 'advnews-manager')));

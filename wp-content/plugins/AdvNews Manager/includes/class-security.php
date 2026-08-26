@@ -208,29 +208,67 @@ class AdvNews_Security
      */
     public static function get_client_ip()
     {
-        $ip_address = '';
-        if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            $ip_address = $_SERVER['HTTP_CF_CONNECTING_IP'];
-        } elseif (isset($_SERVER['HTTP_X_REAL_IP'])) {
-            $ip_address = $_SERVER['HTTP_X_REAL_IP'];
-        } elseif (isset($_SERVER['HTTP_CLIENT_IP'])) {
-            $ip_address = $_SERVER['HTTP_CLIENT_IP'];
-        } elseif (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip_address = $_SERVER['HTTP_X_FORWARDED_FOR'];
-        } elseif (isset($_SERVER['HTTP_X_FORWARDED'])) {
-            $ip_address = $_SERVER['HTTP_X_FORWARDED'];
-        } elseif (isset($_SERVER['HTTP_FORWARDED_FOR'])) {
-            $ip_address = $_SERVER['HTTP_FORWARDED_FOR'];
-        } elseif (isset($_SERVER['HTTP_FORWARDED'])) {
-            $ip_address = $_SERVER['HTTP_FORWARDED'];
-        } elseif (isset($_SERVER['REMOTE_ADDR'])) {
-            $ip_address = $_SERVER['REMOTE_ADDR'];
+        $candidates = array();
+        $headers = array(
+            'HTTP_CF_CONNECTING_IP',
+            'HTTP_X_REAL_IP',
+            'HTTP_CLIENT_IP',
+            'HTTP_X_FORWARDED_FOR',
+            'HTTP_X_FORWARDED',
+            'HTTP_FORWARDED_FOR',
+            'HTTP_FORWARDED',
+            'REMOTE_ADDR'
+        );
+
+        foreach ($headers as $header) {
+            if (empty($_SERVER[$header])) {
+                continue;
+            }
+
+            $value = (string) $_SERVER[$header];
+            if ($header === 'HTTP_FORWARDED') {
+                preg_match_all('/for="?([^;,\"]+)/i', $value, $matches);
+                $parts = $matches[1] ?? array();
+            } else {
+                $parts = explode(',', $value);
+            }
+
+            foreach ($parts as $part) {
+                $ip = self::normalize_ip_candidate($part);
+                if ($ip !== '') {
+                    $candidates[] = $ip;
+                }
+            }
         }
-        // Handle multiple IPs (from proxies)
-        if (strpos($ip_address, ',') !== false) {
-            $ip_address = trim(explode(',', $ip_address)[0]);
+
+        foreach ($candidates as $ip_address) {
+            if (filter_var($ip_address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return $ip_address;
+            }
         }
-        return filter_var($ip_address, FILTER_VALIDATE_IP) ? $ip_address : '0.0.0.0';
+
+        foreach ($candidates as $ip_address) {
+            if (filter_var($ip_address, FILTER_VALIDATE_IP)) {
+                return $ip_address;
+            }
+        }
+
+        return '0.0.0.0';
+    }
+
+    private static function normalize_ip_candidate($value)
+    {
+        $value = trim((string) $value);
+        $value = trim($value, "\"'[] ");
+        $value = preg_replace('/^for=/i', '', $value);
+
+        if (strpos($value, ']') !== false) {
+            $value = trim(strstr($value, ']', true), '[]');
+        } elseif (substr_count($value, ':') === 1 && strpos($value, '.') !== false) {
+            $value = preg_replace('/:\d+$/', '', $value);
+        }
+
+        return filter_var($value, FILTER_VALIDATE_IP) ? $value : '';
     }
 
     /**
