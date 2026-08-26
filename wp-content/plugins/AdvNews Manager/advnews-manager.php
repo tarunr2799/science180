@@ -3,7 +3,7 @@
 * Plugin Name: Science180 Mail
 * Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.6
+* Version: 1.0.7
 * Author: Science180
 * Author URI: https://science180.net/
 * Text Domain: advnews-manager
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.6');
+define('ADVNEWS_VERSION', '1.0.7');
 define('ADVNEWS_DB_VERSION', '1.0.8');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -203,16 +203,7 @@ class AdvNews_Manager
             }
         }
 
-        if (wp_next_scheduled('advnews_weekly_reports') && wp_get_schedule('advnews_weekly_reports') !== 'weekly') {
-            wp_clear_scheduled_hook('advnews_weekly_reports');
-        }
-
-        if (!wp_next_scheduled('advnews_weekly_reports')) {
-            wp_schedule_event(AdvNews_Cron::next_weekly_report_run(), 'weekly', 'advnews_weekly_reports');
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[AdvNews] Scheduled advnews_weekly_reports');
-            }
-        }
+        AdvNews_Cron::ensure_weekly_report_schedule();
 
         if (!wp_next_scheduled('advnews_update_maxmind_database')) {
             wp_schedule_event(AdvNews_Cron::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
@@ -786,12 +777,19 @@ class AdvNews_Manager
 }
 // Register the daily update cron hook
 add_action('advnews_update_maxmind_database', function() {
+    if (!get_option('advnews_maxmind_auto_update', true)) {
+        return;
+    }
+
+    update_option('advnews_maxmind_last_attempt', time());
     $tracking = new AdvNews_Tracking();
     $result = $tracking->update_maxmind_database_safely();
 
     if (is_wp_error($result)) {
+        update_option('advnews_maxmind_last_error', $result->get_error_message());
         error_log('[AdvNews] MaxMind auto-update failed: ' . $result->get_error_message());
     } else {
+        delete_option('advnews_maxmind_last_error');
         error_log('[AdvNews] MaxMind auto-update successful: ' . $result['path']);
     }
 });

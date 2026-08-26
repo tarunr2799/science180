@@ -70,7 +70,7 @@ class AdvNews_Geolocation {
 
         // Try to get from database cache
         $cached = $this->get_cached_location($ip);
-        if ($cached) {
+        if ($cached && $this->has_reportable_location($cached)) {
             self::$cache[$ip] = $cached;
             return $cached;
         }
@@ -234,6 +234,14 @@ class AdvNews_Geolocation {
             'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
             'hits' => 1
         ));
+    }
+
+    private function has_reportable_location($location) {
+        $country = isset($location['country']) ? trim((string) $location['country']) : '';
+        $country_code = isset($location['country_code']) ? trim((string) $location['country_code']) : '';
+
+        return $country !== '' && !in_array($country, array('Unknown', 'Local'), true)
+            && $country_code !== '' && $country_code !== 'XX';
     }
 
     /**

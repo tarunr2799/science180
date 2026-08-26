@@ -15,7 +15,16 @@ if (!$subscriber) {
 }
 
 $categories = $subscriber_class->get_subscriber_categories($subscriber_id);
-$activity = $tracking_class->get_subscriber_activity($subscriber_id, 500);
+$activity_per_page = 100;
+$activity_page = isset($_GET['activity_page']) ? max(1, absint($_GET['activity_page'])) : 1;
+$activity_offset = ($activity_page - 1) * $activity_per_page;
+$activity_total = $tracking_class->get_subscriber_activity_count($subscriber_id);
+$activity_total_pages = max(1, (int) ceil($activity_total / $activity_per_page));
+if ($activity_page > $activity_total_pages) {
+    $activity_page = $activity_total_pages;
+    $activity_offset = ($activity_page - 1) * $activity_per_page;
+}
+$activity = $tracking_class->get_subscriber_activity($subscriber_id, $activity_per_page, $activity_offset);
 
 // Get campaign statistics for this subscriber
 global $wpdb;
@@ -198,7 +207,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
 
                 <!-- Recent Activity -->
                 <div class="postbox">
-                    <h2 class="hndle"><?php _e('Recent Activity (Last 500)', 'advnews-manager'); ?></h2>
+                    <h2 class="hndle"><?php _e('Recent Activity', 'advnews-manager'); ?></h2>
                     <div class="inside">
                         <?php if (empty($activity)): ?>
                             <p><?php _e('No recent activity.', 'advnews-manager'); ?></p>
@@ -256,6 +265,40 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
+                            <p class="description">
+                                <?php
+                                $activity_first = $activity_total > 0 ? $activity_offset + 1 : 0;
+                                $activity_last = min($activity_offset + count($activity), $activity_total);
+                                echo esc_html(sprintf(
+                                    __('Showing activities %1$d-%2$d of %3$d.', 'advnews-manager'),
+                                    $activity_first,
+                                    $activity_last,
+                                    $activity_total
+                                ));
+                                ?>
+                            </p>
+                            <?php if ($activity_total_pages > 1): ?>
+                                <div class="tablenav">
+                                    <div class="tablenav-pages">
+                                        <?php
+                                        $pagination_base = add_query_arg(array(
+                                            'page' => 'advnews-subscribers',
+                                            'action' => 'view',
+                                            'id' => $subscriber_id,
+                                            'activity_page' => 999999999
+                                        ), admin_url('admin.php'));
+                                        echo wp_kses_post(paginate_links(array(
+                                            'base' => str_replace('999999999', '%#%', $pagination_base),
+                                            'format' => '',
+                                            'current' => $activity_page,
+                                            'total' => $activity_total_pages,
+                                            'prev_text' => __('Previous', 'advnews-manager'),
+                                            'next_text' => __('Next', 'advnews-manager')
+                                        )));
+                                        ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>

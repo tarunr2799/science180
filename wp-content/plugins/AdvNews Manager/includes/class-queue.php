@@ -233,7 +233,11 @@ class AdvNews_Queue
             // FIXED: Pass log_id correctly to tracking functions
             if ($email->track_opens) {
                 $tracking_pixel = $this->add_tracking_pixel($email->log_id, $email->campaign_id, $email->subscriber_id);
-                $content .= $tracking_pixel;
+                if (stripos($content, '</body>') !== false) {
+                    $content = preg_replace('/<\/body>/i', $tracking_pixel . '</body>', $content, 1);
+                } else {
+                    $content .= $tracking_pixel;
+                }
             }
 
             if ($email->track_clicks) {

@@ -22,13 +22,7 @@ class AdvNews_Cron
             wp_schedule_event(self::next_daily_maintenance_timestamp(), 'daily', 'advnews_daily_maintenance');
         }
 
-        if (wp_next_scheduled('advnews_weekly_reports') && wp_get_schedule('advnews_weekly_reports') !== 'weekly') {
-            wp_clear_scheduled_hook('advnews_weekly_reports');
-        }
-
-        if (!wp_next_scheduled('advnews_weekly_reports')) {
-            wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
-        }
+        self::ensure_weekly_report_schedule();
 
         if (!wp_next_scheduled('advnews_update_maxmind_database')) {
             wp_schedule_event(self::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
@@ -73,6 +67,26 @@ class AdvNews_Cron
     public static function next_weekly_report_run()
     {
         return self::next_weekly_report_timestamp();
+    }
+
+    public static function ensure_weekly_report_schedule()
+    {
+        $event_count = 0;
+        $cron_array = _get_cron_array();
+        if (is_array($cron_array)) {
+            foreach ($cron_array as $hooks) {
+                if (isset($hooks['advnews_weekly_reports']) && is_array($hooks['advnews_weekly_reports'])) {
+                    $event_count += count($hooks['advnews_weekly_reports']);
+                }
+            }
+        }
+
+        if ($event_count === 1 && wp_get_schedule('advnews_weekly_reports') === 'weekly') {
+            return;
+        }
+
+        wp_clear_scheduled_hook('advnews_weekly_reports');
+        wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
     }
 
     public static function next_maxmind_update_timestamp()
@@ -220,9 +234,14 @@ class AdvNews_Cron
         if (get_option('advnews_track_geolocation', true)) {
             require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
             $tracking_class = new AdvNews_Tracking();
+            $repaired_opens = $tracking_class->backfill_missing_open_geolocation(array('limit' => 200));
             $repaired_clicks = $tracking_class->backfill_missing_click_geolocation(array('limit' => 200));
-            if ($repaired_clicks > 0 && defined('WP_DEBUG') && WP_DEBUG) {
-                error_log(sprintf('[AdvNews] Backfilled geolocation for %d click tracking rows', $repaired_clicks));
+            if (($repaired_opens > 0 || $repaired_clicks > 0) && defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[AdvNews] Backfilled geolocation for %d open rows and %d click rows',
+                    $repaired_opens,
+                    $repaired_clicks
+                ));
             }
         }
 
@@ -492,6 +511,12 @@ class AdvNews_Cron
             return;
         }
 
+        $report_week = wp_date('o-W', current_time('timestamp'));
+        if (get_option('advnews_last_weekly_report_week') === $report_week || get_transient('advnews_weekly_report_sending')) {
+            return;
+        }
+
+        set_transient('advnews_weekly_report_sending', 1, 15 * MINUTE_IN_SECONDS);
         $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 
         // Get weekly statistics
@@ -548,10 +573,14 @@ class AdvNews_Cron
 
         // Send email
         $headers = array('Content-Type: text/html; charset=UTF-8');
-        wp_mail($admin_email, $subject, $message, $headers);
+        $sent = wp_mail($admin_email, $subject, $message, $headers);
+        if ($sent) {
+            update_option('advnews_last_weekly_report_week', $report_week);
+        }
+        delete_transient('advnews_weekly_report_sending');
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AdvNews] Weekly report sent');
+            error_log($sent ? '[AdvNews] Weekly report sent' : '[AdvNews] Weekly report failed to send');
         }
     }
 }
