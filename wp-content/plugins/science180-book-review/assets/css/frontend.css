@@ -141,6 +141,13 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     line-height: 1.55;
 }
 
+.s180re-field-note {
+    margin: -2px 0 0;
+    color: var(--s180re-muted);
+    font-size: 13px;
+    line-height: 1.35;
+}
+
 .s180re-message-success {
     border-color: #8fd4bd;
     background: #ecfbf5;
@@ -156,6 +163,11 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 16px;
     margin: 22px 0;
+}
+
+.s180re-review-shell .s180re-book-strip {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
+    justify-content: start;
 }
 
 .s180re-book-choice {
@@ -354,7 +366,7 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
 }
 
 .s180re-selected-cover {
-    width: min(100%, 520px);
+    width: min(100%, 260px);
     aspect-ratio: 2 / 3;
     margin: 0 auto 14px;
     display: grid;

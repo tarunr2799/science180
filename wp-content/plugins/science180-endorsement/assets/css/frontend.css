@@ -68,6 +68,30 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     margin-bottom: 20px;
 }
 
+.s180re-public-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 22px;
+}
+
+.s180re-public-nav a {
+    border: 1px solid var(--s180re-line);
+    border-radius: 8px;
+    color: var(--s180re-ink);
+    padding: 10px 14px;
+    text-decoration: none;
+    font-weight: 800;
+}
+
+.s180re-public-nav a.is-active,
+.s180re-public-nav a:hover,
+.s180re-public-nav a:focus {
+    border-color: var(--s180re-accent);
+    background: #e8f6f2;
+    color: var(--s180re-accent-strong);
+}
+
 .s180re-page-actions {
     display: flex;
     flex-wrap: wrap;
@@ -385,6 +409,35 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     opacity: 0 !important;
 }
 
+.s180re-endorsement-title-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.s180re-endorsement-title-list li {
+    border-bottom: 1px solid var(--s180re-line);
+    padding: 10px 0;
+}
+
+.s180re-endorsement-title-list li:first-child {
+    border-top: 1px solid var(--s180re-line);
+}
+
+.s180re-endorsement-title-list a {
+    color: var(--s180re-ink);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.s180re-endorsement-title-list a:hover,
+.s180re-endorsement-title-list a:focus {
+    color: var(--s180re-accent-strong);
+    text-decoration: underline;
+}
+
 .s180re-endorsement-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -447,8 +500,8 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     line-height: 1.55;
 }
 
-.s180re-endorsement-photo,
-.s180re-detail-photo {
+.s180re-endorsement-photo
+{
     display: block;
     width: 72px;
     height: 72px;
@@ -457,6 +510,16 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     border-radius: 8px;
     object-fit: cover;
     background: #eef2f5;
+}
+
+.s180re-detail-photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: none;
+    min-width: 0;
+    aspect-ratio: 1;
+    object-fit: cover;
 }
 
 .s180re-endorsement-avatar,

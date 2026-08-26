@@ -157,6 +157,13 @@ class S180EN_Plugin
             "[science180_endorsement_form]\n\n[science180_endorsements]",
             's180re_endorsement_page_id'
         );
+
+        self::create_page_if_missing(
+            'published-endorsements',
+            'Published Endorsements',
+            '[science180_endorsements display="list" per_page="100"]',
+            's180re_published_endorsements_page_id'
+        );
     }
 
     private static function create_page_if_missing($slug, $title, $content, $option_name)
@@ -250,8 +257,17 @@ class S180EN_Plugin
             return;
         }
 
+        wp_enqueue_media();
         wp_enqueue_style('s180en-admin', S180EN_PLUGIN_URL . 'assets/css/admin.css', array(), S180EN_VERSION);
         wp_enqueue_script('s180en-admin', S180EN_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), S180EN_VERSION, true);
+        wp_localize_script(
+            's180en-admin',
+            's180reAdmin',
+            array(
+                'choosePhoto' => __('Choose endorsement photo', 'science180-endorsement'),
+                'usePhoto' => __('Use this photo', 'science180-endorsement'),
+            )
+        );
     }
 
     public function normalize_main_site_navigation_hrefs($block_content, $block)
@@ -315,15 +331,10 @@ class S180EN_Plugin
         $this->render_endorsement_code_form();
         ?>
         <section id="s180re-endorsement-form" class="s180re-shell s180re-endorsement-form-shell">
+            <?php $this->render_endorsement_nav('submit'); ?>
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
-                <?php if (trim((string) get_option('s180en_form_intro')) !== '') : ?>
-                    <p class="s180re-form-intro"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
-                <?php endif; ?>
-                <div class="s180re-page-actions">
-                    <a class="s180re-link-button" href="#s180re-approved-endorsements"><?php esc_html_e('View approved endorsements', 'science180-endorsement'); ?></a>
-                </div>
             </div>
 
             <form class="s180re-form s180re-form-compact" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -370,6 +381,9 @@ class S180EN_Plugin
                 </div>
 
                 <button class="s180re-button" type="submit"><?php esc_html_e('Submit', 'science180-endorsement'); ?></button>
+                <?php if (trim((string) get_option('s180en_form_intro')) !== '') : ?>
+                    <p class="s180re-form-intro s180re-form-intro-after-submit"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
+                <?php endif; ?>
             </form>
         </section>
         <?php
@@ -415,8 +429,9 @@ class S180EN_Plugin
     {
         global $wpdb;
 
-        $atts = shortcode_atts(array('per_page' => 50), $atts, 'science180_endorsements');
+        $atts = shortcode_atts(array('per_page' => 50, 'display' => 'cards'), $atts, 'science180_endorsements');
         $per_page = max(1, min(100, absint($atts['per_page'])));
+        $display = $atts['display'] === 'list' ? 'list' : 'cards';
         $paged = isset($_GET['s180re_page']) ? max(1, absint($_GET['s180re_page'])) : 1;
         $offset = ($paged - 1) * $per_page;
         $table = $this->table('endorsements');
@@ -435,15 +450,23 @@ class S180EN_Plugin
         ob_start();
         ?>
         <section id="s180re-approved-endorsements" class="s180re-shell s180re-listing-shell">
+            <?php $this->render_endorsement_nav('published'); ?>
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public proof', 'science180-endorsement'); ?></p>
-                <h2><?php esc_html_e('Approved Endorsements', 'science180-endorsement'); ?></h2>
+                <h2><?php esc_html_e('Published Endorsements', 'science180-endorsement'); ?></h2>
             </div>
 
             <?php if (empty($items)) : ?>
                 <div class="s180re-message"><?php esc_html_e('No endorsements have been approved yet.', 'science180-endorsement'); ?></div>
             <?php else : ?>
-                <div class="s180re-endorsement-grid">
+                <?php if ($display === 'list') : ?>
+                    <ul class="s180re-endorsement-title-list">
+                        <?php foreach ($items as $item) : ?>
+                            <li><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php else : ?>
+                    <div class="s180re-endorsement-grid">
                     <?php foreach ($items as $item) : ?>
                         <article class="s180re-endorsement-item">
                             <?php if (!empty($item->photo_url)) : ?>
@@ -460,7 +483,8 @@ class S180EN_Plugin
                             </div>
                         </article>
                     <?php endforeach; ?>
-                </div>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($pages > 1) : ?>
                     <nav class="s180re-pagination" aria-label="<?php esc_attr_e('Endorsements pagination', 'science180-endorsement'); ?>">
@@ -1137,6 +1161,7 @@ class S180EN_Plugin
     {
         ?>
         <main class="s180re-shell s180re-detail-shell">
+            <?php $this->render_endorsement_nav('published'); ?>
             <?php if ($is_preview) : ?>
                 <div class="s180re-message s180re-message-warning"><?php esc_html_e('Admin preview: this endorsement is not necessarily published yet.', 'science180-endorsement'); ?></div>
             <?php endif; ?>
@@ -1157,10 +1182,11 @@ class S180EN_Plugin
                             <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($endorsement->address)); ?></p>
                         <?php endif; ?>
                         <p><?php echo nl2br(esc_html($endorsement->comment)); ?></p>
-                        <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_page_anchor_url()); ?>"><?php esc_html_e('Back to approved endorsements', 'science180-endorsement'); ?></a>
+                        <a class="s180re-text-link" href="<?php echo esc_url($this->published_endorsements_url()); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
                     </div>
                 </div>
             </article>
+            <?php echo $this->render_endorsements_shortcode(array('display' => 'list', 'per_page' => 100)); ?>
         </main>
         <?php
     }
@@ -1595,6 +1621,16 @@ class S180EN_Plugin
                 <label for="s180re-edit-address"><?php esc_html_e('Address', 'science180-endorsement'); ?></label>
                 <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea($item->address); ?></textarea>
 
+                <label><?php esc_html_e('Photo', 'science180-endorsement'); ?></label>
+                <input type="hidden" name="photo_id" id="s180re-endorsement-photo-id" value="<?php echo esc_attr((int) $item->photo_id); ?>">
+                <input class="regular-text" type="url" name="photo_url" id="s180re-endorsement-photo-url" value="<?php echo esc_url($item->photo_url); ?>" placeholder="https://">
+                <p><button type="button" class="button" id="s180re-select-endorsement-photo"><?php esc_html_e('Upload / select photo', 'science180-endorsement'); ?></button></p>
+                <div id="s180re-endorsement-photo-preview" class="s180re-photo-preview">
+                    <?php if (!empty($item->photo_url)) : ?>
+                        <img class="s180re-admin-photo" src="<?php echo esc_url($item->photo_url); ?>" alt="">
+                    <?php endif; ?>
+                </div>
+
                 <label for="s180re-edit-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?></label>
                 <textarea id="s180re-edit-comment" class="large-text" name="comment" rows="8" required><?php echo esc_textarea($item->comment); ?></textarea>
 
@@ -1912,6 +1948,8 @@ class S180EN_Plugin
             'organization' => $this->post_text('organization', true),
             'address' => $this->post_textarea('address', false),
             'comment' => $this->post_textarea('comment', true),
+            'photo_id' => isset($_POST['photo_id']) ? absint($_POST['photo_id']) : 0,
+            'photo_url' => esc_url_raw($this->post_raw('photo_url')),
             'updated_at' => current_time('mysql'),
         );
 
@@ -1925,7 +1963,7 @@ class S180EN_Plugin
         }
 
         global $wpdb;
-        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s');
         if (isset($data['slug'])) {
             $formats[] = '%s';
         }
@@ -2107,6 +2145,32 @@ class S180EN_Plugin
         }
 
         return null;
+    }
+
+
+    private function render_endorsement_nav($active)
+    {
+        $submit_url = $this->endorsement_page_url();
+        $published_url = $this->published_endorsements_url();
+        ?>
+        <nav class="s180re-public-nav" aria-label="<?php esc_attr_e('Endorsement navigation', 'science180-endorsement'); ?>">
+            <a class="<?php echo $active === 'submit' ? 'is-active' : ''; ?>" href="<?php echo esc_url($submit_url); ?>"><?php esc_html_e('Submit a review', 'science180-endorsement'); ?></a>
+            <a class="<?php echo $active === 'published' ? 'is-active' : ''; ?>" href="<?php echo esc_url($published_url); ?>"><?php esc_html_e('View published endorsement/review', 'science180-endorsement'); ?></a>
+        </nav>
+        <?php
+    }
+
+    private function published_endorsements_url()
+    {
+        $page_id = (int) get_option('s180re_published_endorsements_page_id');
+        if ($page_id) {
+            $url = get_permalink($page_id);
+            if ($url) {
+                return $url;
+            }
+        }
+
+        return $this->endorsement_page_anchor_url();
     }
 
     private function endorsement_person_name($endorsement)

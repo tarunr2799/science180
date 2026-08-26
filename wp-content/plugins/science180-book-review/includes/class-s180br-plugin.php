@@ -90,6 +90,9 @@ class S180BR_Plugin
             description text NULL,
             cover_id bigint(20) unsigned DEFAULT 0,
             cover_url text NULL,
+            pdf_id bigint(20) unsigned DEFAULT 0,
+            pdf_url text NULL,
+            margin_message text NULL,
             is_active tinyint(1) NOT NULL DEFAULT 1,
             sort_order int(11) NOT NULL DEFAULT 0,
             created_at datetime NOT NULL,
@@ -113,7 +116,7 @@ class S180BR_Plugin
             address_line2 varchar(255) DEFAULT '',
             city varchar(120) NOT NULL,
             state_region varchar(120) DEFAULT '',
-            postal_code varchar(80) NOT NULL,
+            postal_code varchar(80) DEFAULT '',
             country varchar(120) NOT NULL,
             qualifications text NULL,
             audience text NULL,
@@ -123,6 +126,10 @@ class S180BR_Plugin
             token_expires datetime DEFAULT NULL,
             verified_at datetime DEFAULT NULL,
             ip_hash varchar(64) DEFAULT '',
+            ip_address varchar(45) DEFAULT '',
+            ip_city varchar(120) DEFAULT '',
+            ip_country varchar(120) DEFAULT '',
+            device_type varchar(40) DEFAULT '',
             user_agent varchar(255) DEFAULT '',
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
@@ -235,12 +242,15 @@ class S180BR_Plugin
                     'description' => '',
                     'cover_id' => 0,
                     'cover_url' => content_url('uploads/' . $book['file']),
+                    'pdf_id' => 0,
+                    'pdf_url' => '',
+                    'margin_message' => '',
                     'is_active' => 1,
                     'sort_order' => ($index + 1) * 10,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ),
-                array('%s', '%s', '%s', '%d', '%s', '%d', '%d', '%s', '%s')
+                array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s', '%s')
             );
         }
     }
@@ -353,6 +363,8 @@ class S180BR_Plugin
             array(
                 'chooseCover' => __('Choose book cover', 'science180-book-review'),
                 'useCover' => __('Use this cover', 'science180-book-review'),
+                'choosePdf' => __('Choose book PDF', 'science180-book-review'),
+                'usePdf' => __('Use this PDF', 'science180-book-review'),
             )
         );
     }
@@ -376,9 +388,20 @@ class S180BR_Plugin
 
     public function render_review_request_shortcode($atts = array())
     {
-        $atts = shortcode_atts(array('book' => ''), (array) $atts, 'science180_review_request');
+        $atts = shortcode_atts(array('book' => '', 'book_id' => 0), (array) $atts, 'science180_review_request');
         $selected_slug = sanitize_title($atts['book']);
-        $books = $selected_slug ? array_filter(array($this->get_book_by_slug($selected_slug))) : $this->get_books(true);
+        $selected_book_id = absint($atts['book_id']);
+        if (!$selected_book_id && isset($_GET['s180br_book_id'])) {
+            $selected_book_id = absint($_GET['s180br_book_id']);
+        }
+
+        if ($selected_book_id) {
+            $books = array_filter(array($this->get_book_for_public_selection($selected_book_id)));
+        } elseif ($selected_slug) {
+            $books = array_filter(array($this->get_book_by_slug($selected_slug)));
+        } else {
+            $books = $this->get_books(true);
+        }
         $selected = !empty($books) ? $books[0] : null;
 
         ob_start();
@@ -453,6 +476,7 @@ class S180BR_Plugin
                         <div class="s180re-field s180re-field-full">
                             <label for="s180re-review-website"><?php esc_html_e('Website / reviewer profile', 'science180-book-review'); ?></label>
                             <input id="s180re-review-website" type="url" name="website" placeholder="https://">
+                            <p class="s180re-field-note"><?php esc_html_e('Please enter the complete URL, starting with https://', 'science180-book-review'); ?></p>
                         </div>
 
                         <fieldset class="s180re-fieldset">
@@ -474,8 +498,8 @@ class S180BR_Plugin
                                 <input id="s180re-review-state" type="text" name="state_region" autocomplete="address-level1">
                             </div>
                             <div class="s180re-field">
-                                <label for="s180re-review-postal"><?php esc_html_e('Postal code', 'science180-book-review'); ?> <span>*</span></label>
-                                <input id="s180re-review-postal" type="text" name="postal_code" required autocomplete="postal-code">
+                                <label for="s180re-review-postal"><?php esc_html_e('Postal code', 'science180-book-review'); ?></label>
+                                <input id="s180re-review-postal" type="text" name="postal_code" autocomplete="postal-code">
                             </div>
                             <div class="s180re-field">
                                 <label for="s180re-review-country"><?php esc_html_e('Country', 'science180-book-review'); ?> <span>*</span></label>
@@ -551,19 +575,27 @@ class S180BR_Plugin
             'address_line2' => $this->post_text('address_line2', false),
             'city' => $this->post_text('city', true),
             'state_region' => $this->post_text('state_region', false),
-            'postal_code' => $this->post_text('postal_code', true),
+            'postal_code' => $this->post_text('postal_code', false),
             'country' => $this->post_text('country', true),
             'qualifications' => $this->post_textarea('qualifications', true),
             'audience' => $this->post_textarea('audience', false),
             'message' => $this->post_textarea('message', false),
             'status' => 'pending_verification',
             'ip_hash' => $this->ip_hash(),
+            'ip_address' => $this->client_ip(),
+            'ip_city' => '',
+            'ip_country' => '',
+            'device_type' => $this->device_type(),
             'user_agent' => $this->user_agent(),
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql'),
         );
 
-        if ($this->has_empty_required($data, array('first_name', 'last_name', 'address_line1', 'city', 'postal_code', 'country', 'qualifications'))) {
+        $geo = $this->ip_geolocation($data['ip_address']);
+        $data['ip_city'] = $geo['city'];
+        $data['ip_country'] = $geo['country'];
+
+        if ($this->has_empty_required($data, array('first_name', 'last_name', 'address_line1', 'city', 'country', 'qualifications'))) {
             $this->redirect_back('review_missing');
         }
 
@@ -708,7 +740,7 @@ class S180BR_Plugin
         $inserted = $wpdb->insert(
             $requests_table,
             $data,
-            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         $this->delete_pending_review($token);
@@ -991,6 +1023,15 @@ class S180BR_Plugin
                         <?php endif; ?>
                     </div>
 
+                    <label><?php esc_html_e('Private review PDF', 'science180-book-review'); ?></label>
+                    <input type="hidden" name="pdf_id" id="s180re-pdf-id" value="<?php echo esc_attr($book && isset($book->pdf_id) ? (int) $book->pdf_id : 0); ?>">
+                    <input class="regular-text" type="url" name="pdf_url" id="s180re-pdf-url" value="<?php echo esc_url($book && isset($book->pdf_url) ? $book->pdf_url : ''); ?>" placeholder="https://">
+                    <p><button type="button" class="button" id="s180re-select-pdf"><?php esc_html_e('Upload / select PDF', 'science180-book-review'); ?></button></p>
+                    <p class="description"><?php esc_html_e('Stored for admin use only. This file is not shown on the public review request form.', 'science180-book-review'); ?></p>
+
+                    <label><?php esc_html_e('Message to put on book margin', 'science180-book-review'); ?></label>
+                    <textarea class="large-text" name="margin_message" rows="4"><?php echo esc_textarea($book && isset($book->margin_message) ? $book->margin_message : ''); ?></textarea>
+
                     <label><?php esc_html_e('Sort order', 'science180-book-review'); ?></label>
                     <input type="number" name="sort_order" value="<?php echo esc_attr($book ? (int) $book->sort_order : 10); ?>">
 
@@ -1001,15 +1042,15 @@ class S180BR_Plugin
 
                 <div class="s180re-admin-panel s180re-admin-panel-wide">
                     <h2><?php esc_html_e('Current books', 'science180-book-review'); ?></h2>
-                    <table class="widefat striped">
+                    <table class="widefat striped s180br-books-table">
                         <thead><tr><th><?php esc_html_e('Cover', 'science180-book-review'); ?></th><th><?php esc_html_e('Title', 'science180-book-review'); ?></th><th><?php esc_html_e('Status', 'science180-book-review'); ?></th><th><?php esc_html_e('Actions', 'science180-book-review'); ?></th></tr></thead>
                         <tbody>
                             <?php foreach ($books as $item) : ?>
                                 <tr>
                                     <td class="s180re-table-cover"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt=""><?php endif; ?></td>
-                                    <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->title); ?></a></td>
+                                    <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->title); ?></a></td>
                                     <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
-                                    <td>
+                                    <td class="s180br-book-actions">
                                         <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180re_toggle_book&book_id=' . (int) $item->id), 's180re_toggle_book')); ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Hide', 'science180-book-review') : esc_html__('Show', 'science180-book-review'); ?></a>
@@ -1161,6 +1202,8 @@ class S180BR_Plugin
                             <?php endforeach; ?>
                         </select>
                         <button class="button button-primary" type="submit"><?php esc_html_e('Update', 'science180-book-review'); ?></button>
+                        <button class="button button-primary" type="submit" name="status" value="qualified"><?php esc_html_e('Approve', 'science180-book-review'); ?></button>
+                        <button class="button" type="submit" name="status" value="declined"><?php esc_html_e('Reject', 'science180-book-review'); ?></button>
                     </form>
                 </div>
                 <div class="s180re-admin-panel s180re-admin-panel-wide">
@@ -1192,8 +1235,9 @@ class S180BR_Plugin
             <form class="s180re-admin-panel" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="s180br_save_settings">
                 <?php wp_nonce_field('s180br_save_settings'); ?>
-                <label><?php esc_html_e('Request/notice recipient email', 'science180-book-review'); ?></label>
+                <label><?php esc_html_e('Admin notification recipient email', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="email" name="recipient_email" value="<?php echo esc_attr($this->recipient_email()); ?>" required>
+                <p class="description"><?php esc_html_e('Receives new review copy requests and daily pending-review notices.', 'science180-book-review'); ?></p>
 
                 <label><?php esc_html_e('From name', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="text" name="from_name" value="<?php echo esc_attr(get_option('s180re_from_name')); ?>">
@@ -1251,16 +1295,19 @@ class S180BR_Plugin
             'description' => $this->post_textarea('description', false),
             'cover_id' => isset($_POST['cover_id']) ? absint($_POST['cover_id']) : 0,
             'cover_url' => esc_url_raw($this->post_raw('cover_url')),
+            'pdf_id' => isset($_POST['pdf_id']) ? absint($_POST['pdf_id']) : 0,
+            'pdf_url' => esc_url_raw($this->post_raw('pdf_url')),
+            'margin_message' => $this->post_textarea('margin_message', false),
             'is_active' => isset($_POST['is_active']) ? 1 : 0,
             'sort_order' => isset($_POST['sort_order']) ? intval($_POST['sort_order']) : 10,
             'updated_at' => $now,
         );
 
         if ($book_id > 0) {
-            $wpdb->update($this->table('books'), $data, array('id' => $book_id), array('%s', '%s', '%s', '%d', '%s', '%d', '%d', '%s'), array('%d'));
+            $wpdb->update($this->table('books'), $data, array('id' => $book_id), array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s'), array('%d'));
         } else {
             $data['created_at'] = $now;
-            $wpdb->insert($this->table('books'), $data, array('%s', '%s', '%s', '%d', '%s', '%d', '%d', '%s', '%s'));
+            $wpdb->insert($this->table('books'), $data, array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s', '%s'));
         }
 
         $this->admin_redirect('s180br-books', 'book_saved');
@@ -1549,6 +1596,20 @@ class S180BR_Plugin
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE slug = %s AND is_active = 1", sanitize_title($slug)));
     }
 
+    private function get_book_for_public_selection($book_id)
+    {
+        $book = $this->get_book($book_id);
+        if (!$book) {
+            return null;
+        }
+
+        if ((int) $book->is_active === 1 || current_user_can('manage_options')) {
+            return $book;
+        }
+
+        return null;
+    }
+
     private function get_review_request($request_id)
     {
         global $wpdb;
@@ -1591,17 +1652,15 @@ class S180BR_Plugin
             return $this->review_request_page_url();
         }
 
-        $slug = '';
-        if (!empty($book->slug)) {
-            $slug = $book->slug;
-        } elseif (!empty($book->book_id)) {
-            $matched = $this->get_book((int) $book->book_id);
-            $slug = $matched ? $matched->slug : '';
-        } elseif (!empty($book->book_title)) {
-            $slug = sanitize_title($book->book_title);
+        if (!empty($book->book_id)) {
+            return add_query_arg('s180br_book_id', (int) $book->book_id, $this->review_request_page_url());
         }
 
-        return trailingslashit($this->review_request_page_url()) . rawurlencode($slug);
+        if (!empty($book->id)) {
+            return add_query_arg('s180br_book_id', (int) $book->id, $this->review_request_page_url());
+        }
+
+        return $this->review_request_page_url();
     }
 
     private function review_request_labels()
@@ -1624,6 +1683,11 @@ class S180BR_Plugin
             'qualifications' => 'Professional review qualifications',
             'audience' => 'Audience / review outlet',
             'message' => 'Additional message',
+            'ip_address' => 'IP address',
+            'ip_city' => 'IP city',
+            'ip_country' => 'IP country',
+            'device_type' => 'Device type',
+            'user_agent' => 'Device / browser user agent',
             'verified_at' => 'Email verified at',
             'created_at' => 'Submitted at',
             'status' => 'Status',
@@ -1715,6 +1779,76 @@ class S180BR_Plugin
     {
         $email = self::normalize_email_domain($this->post_raw($key));
         return ($email && is_email($email)) ? strtolower($email) : '';
+    }
+
+
+    private function client_ip()
+    {
+        $candidates = array();
+        foreach (array('HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP') as $key) {
+            if (!empty($_SERVER[$key])) {
+                $candidates[] = wp_unslash($_SERVER[$key]);
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $forwarded = explode(',', wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
+            $candidates = array_merge($candidates, $forwarded);
+        }
+
+        if (!empty($_SERVER['REMOTE_ADDR'])) {
+            $candidates[] = wp_unslash($_SERVER['REMOTE_ADDR']);
+        }
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    private function device_type()
+    {
+        $agent = strtolower($this->user_agent());
+        if ($agent === '') {
+            return '';
+        }
+
+        if (strpos($agent, 'tablet') !== false || strpos($agent, 'ipad') !== false) {
+            return 'tablet';
+        }
+
+        if (strpos($agent, 'mobile') !== false || strpos($agent, 'iphone') !== false || strpos($agent, 'android') !== false) {
+            return 'mobile';
+        }
+
+        return 'desktop';
+    }
+
+    private function ip_geolocation($ip)
+    {
+        $location = array(
+            'city' => '',
+            'country' => '',
+        );
+
+        if (!empty($_SERVER['HTTP_CF_IPCITY'])) {
+            $location['city'] = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCITY']));
+        }
+        if (!empty($_SERVER['HTTP_CF_IPCOUNTRY'])) {
+            $location['country'] = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']));
+        }
+        if (!empty($_SERVER['GEOIP_CITY'])) {
+            $location['city'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_CITY']));
+        }
+        if (!empty($_SERVER['GEOIP_COUNTRY_NAME'])) {
+            $location['country'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_COUNTRY_NAME']));
+        }
+
+        return $location;
     }
 
     private function ip_hash()

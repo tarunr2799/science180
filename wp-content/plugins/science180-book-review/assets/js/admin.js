@@ -1,16 +1,17 @@
 (function ($) {
     $(function () {
-        var frame;
+        var coverFrame;
+        var pdfFrame;
 
         $('#s180re-select-cover').on('click', function (event) {
             event.preventDefault();
 
-            if (frame) {
-                frame.open();
+            if (coverFrame) {
+                coverFrame.open();
                 return;
             }
 
-            frame = wp.media({
+            coverFrame = wp.media({
                 title: s180reAdmin.chooseCover,
                 button: {
                     text: s180reAdmin.useCover
@@ -18,8 +19,8 @@
                 multiple: false
             });
 
-            frame.on('select', function () {
-                var attachment = frame.state().get('selection').first().toJSON();
+            coverFrame.on('select', function () {
+                var attachment = coverFrame.state().get('selection').first().toJSON();
                 var url = attachment.sizes && attachment.sizes.large ? attachment.sizes.large.url : attachment.url;
 
                 $('#s180re-cover-id').val(attachment.id);
@@ -27,7 +28,36 @@
                 $('#s180re-cover-preview').html('<img src="' + url + '" alt="">');
             });
 
-            frame.open();
+            coverFrame.open();
+        });
+
+        $('#s180re-select-pdf').on('click', function (event) {
+            event.preventDefault();
+
+            if (pdfFrame) {
+                pdfFrame.open();
+                return;
+            }
+
+            pdfFrame = wp.media({
+                title: s180reAdmin.choosePdf,
+                button: {
+                    text: s180reAdmin.usePdf
+                },
+                library: {
+                    type: 'application/pdf'
+                },
+                multiple: false
+            });
+
+            pdfFrame.on('select', function () {
+                var attachment = pdfFrame.state().get('selection').first().toJSON();
+
+                $('#s180re-pdf-id').val(attachment.id);
+                $('#s180re-pdf-url').val(attachment.url);
+            });
+
+            pdfFrame.open();
         });
     });
 }(jQuery));

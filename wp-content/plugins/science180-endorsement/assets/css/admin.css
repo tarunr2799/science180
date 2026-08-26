@@ -183,3 +183,7 @@
         grid-template-columns: 1fr;
     }
 }
+
+.s180re-photo-preview {
+    min-height: 10px;
+}
