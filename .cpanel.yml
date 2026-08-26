@@ -1,5 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home-1tb/amen123jesus/public_html/
+    - export DEPLOYPATH=/home-1tb/science180net/public_html/
     - /bin/bash deploy/deploy.sh "$DEPLOYPATH"
