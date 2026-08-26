@@ -96,6 +96,11 @@ class S180EN_Plugin
             photo_id bigint(20) unsigned DEFAULT 0,
             photo_url text NULL,
             address text NULL,
+            ip_address varchar(45) DEFAULT '',
+            ip_city varchar(120) DEFAULT '',
+            ip_country varchar(120) DEFAULT '',
+            user_agent varchar(255) DEFAULT '',
+            device_type varchar(40) DEFAULT '',
             status varchar(40) NOT NULL DEFAULT 'pending_verification',
             verification_token varchar(80) NOT NULL,
             token_expires datetime NOT NULL,
@@ -534,6 +539,9 @@ class S180EN_Plugin
             'token_expires' => gmdate('Y-m-d H:i:s', time() + WEEK_IN_SECONDS),
             'created_at' => $now,
         );
+
+        $tracking = $this->submission_tracking_data();
+        $data = array_merge($data, $tracking);
 
         if ($this->has_empty_required($data, array('first_name', 'last_name', 'country_origin', 'country_residence', 'organization', 'comment'))) {
             $this->redirect_back('endorsement_missing');
@@ -1060,6 +1068,11 @@ class S180EN_Plugin
                 'comment' => sanitize_textarea_field($data['comment']),
                 'photo_id' => isset($photo['id']) ? (int) $photo['id'] : 0,
                 'photo_url' => isset($photo['url']) ? esc_url_raw($photo['url']) : '',
+                'ip_address' => sanitize_text_field($data['ip_address'] ?? ''),
+                'ip_city' => sanitize_text_field($data['ip_city'] ?? ''),
+                'ip_country' => sanitize_text_field($data['ip_country'] ?? ''),
+                'user_agent' => sanitize_text_field($data['user_agent'] ?? ''),
+                'device_type' => sanitize_text_field($data['device_type'] ?? ''),
                 'status' => 'verified',
                 'verification_token' => $pending['hash'],
                 'token_expires' => $data['token_expires'],
@@ -1069,7 +1082,7 @@ class S180EN_Plugin
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         if (!$inserted) {
@@ -1576,6 +1589,10 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
                             <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $item->address !== '' ? nl2br(esc_html($item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><?php echo nl2br(esc_html($item->comment)); ?></td></tr>
+                            <tr><th><?php esc_html_e('IP address', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->ip_address ?? ''); ?></td></tr>
+                            <tr><th><?php esc_html_e('IP location', 'science180-endorsement'); ?></th><td><?php echo esc_html(trim((string) ($item->ip_city ?? '') . ((($item->ip_city ?? '') && ($item->ip_country ?? '')) ? ', ' : '') . (string) ($item->ip_country ?? ''))); ?></td></tr>
+                            <tr><th><?php esc_html_e('Device', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->device_type ?? ''); ?></td></tr>
+                            <tr><th><?php esc_html_e('User agent', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->user_agent ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('Public page URL', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($item->status === 'approved' ? $this->endorsement_permalink($item) : $this->endorsement_preview_url($item)); ?>" target="_blank"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
                         </tbody>
                     </table>
@@ -2343,9 +2360,105 @@ class S180EN_Plugin
         return ($email && is_email($email)) ? strtolower($email) : '';
     }
 
+    private function submission_tracking_data()
+    {
+        $location = $this->ip_geolocation();
+
+        return array(
+            'ip_address' => $this->client_ip(),
+            'ip_city' => $location['city'],
+            'ip_country' => $location['country'],
+            'user_agent' => $this->user_agent(),
+            'device_type' => $this->device_type(),
+        );
+    }
+
+    private function client_ip()
+    {
+        $headers = array(
+            'HTTP_CF_CONNECTING_IP',
+            'HTTP_X_REAL_IP',
+            'HTTP_CLIENT_IP',
+            'HTTP_X_FORWARDED_FOR',
+            'HTTP_X_FORWARDED',
+            'HTTP_FORWARDED_FOR',
+            'HTTP_FORWARDED',
+            'REMOTE_ADDR',
+        );
+        $candidates = array();
+
+        foreach ($headers as $header) {
+            if (empty($_SERVER[$header])) {
+                continue;
+            }
+
+            $value = (string) wp_unslash($_SERVER[$header]);
+            if ($header === 'HTTP_FORWARDED') {
+                preg_match_all('/for="?([^;,\"]+)/i', $value, $matches);
+                $parts = $matches[1] ?? array();
+            } else {
+                $parts = explode(',', $value);
+            }
+
+            foreach ($parts as $part) {
+                $ip = trim((string) $part);
+                $ip = trim(preg_replace('/^for=/i', '', $ip), "\"'[] ");
+                if (substr_count($ip, ':') === 1 && strpos($ip, '.') !== false) {
+                    $ip = preg_replace('/:\d+$/', '', $ip);
+                }
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    $candidates[] = $ip;
+                }
+            }
+        }
+
+        foreach ($candidates as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return $ip;
+            }
+        }
+
+        return $candidates[0] ?? '';
+    }
+
+    private function ip_geolocation()
+    {
+        $location = array('city' => '', 'country' => '');
+
+        if (!empty($_SERVER['HTTP_CF_IPCITY'])) {
+            $location['city'] = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCITY']));
+        }
+        if (!empty($_SERVER['HTTP_CF_IPCOUNTRY'])) {
+            $location['country'] = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']));
+        }
+        if (!empty($_SERVER['GEOIP_CITY'])) {
+            $location['city'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_CITY']));
+        }
+        if (!empty($_SERVER['GEOIP_COUNTRY_NAME'])) {
+            $location['country'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_COUNTRY_NAME']));
+        }
+
+        return $location;
+    }
+
+    private function device_type()
+    {
+        $agent = strtolower($this->user_agent());
+        if ($agent === '') {
+            return '';
+        }
+        if (strpos($agent, 'tablet') !== false || strpos($agent, 'ipad') !== false) {
+            return 'tablet';
+        }
+        if (strpos($agent, 'mobile') !== false || strpos($agent, 'iphone') !== false || strpos($agent, 'android') !== false) {
+            return 'mobile';
+        }
+
+        return 'desktop';
+    }
     private function ip_hash()
     {
-        $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+        $ip = $this->client_ip();
         return $ip ? hash('sha256', $ip . wp_salt('auth')) : '';
     }
 
