@@ -1279,7 +1279,7 @@ class S180EN_Plugin
                             <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($endorsement->address)); ?></p>
                         <?php endif; ?>
                         <p><?php echo nl2br(esc_html($endorsement->comment)); ?></p>
-                        <a class="s180re-text-link" href="<?php echo esc_url($this->published_endorsements_url()); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
+                        <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
                     </div>
                 </div>
             </article>
@@ -2250,7 +2250,7 @@ class S180EN_Plugin
 
     private function render_endorsement_published_link()
     {
-        $published_url = $this->published_endorsements_url();
+        $published_url = $this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/');
         ?>
         <nav class="s180re-public-nav" aria-label="<?php esc_attr_e('Endorsement navigation', 'science180-endorsement'); ?>">
             <a href="<?php echo esc_url($published_url); ?>"><?php esc_html_e('View published endorsement/review', 'science180-endorsement'); ?></a>
@@ -2259,8 +2259,8 @@ class S180EN_Plugin
     }
     private function render_endorsement_nav($active)
     {
-        $submit_url = $this->endorsement_page_url();
-        $published_url = $this->published_endorsements_url();
+        $submit_url = $this->site_relative_url($this->endorsement_page_url(), '/endorsement/');
+        $published_url = $this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/');
         ?>
         <nav class="s180re-public-nav" aria-label="<?php esc_attr_e('Endorsement navigation', 'science180-endorsement'); ?>">
             <a class="<?php echo $active === 'submit' ? 'is-active' : ''; ?>" href="<?php echo esc_url($submit_url); ?>"><?php esc_html_e('Submit a review', 'science180-endorsement'); ?></a>
@@ -2280,6 +2280,15 @@ class S180EN_Plugin
         }
 
         return home_url('/published-endorsements/');
+    }
+
+    private function site_relative_url($url, $fallback_path)
+    {
+        $path = wp_parse_url($url, PHP_URL_PATH);
+        $query = wp_parse_url($url, PHP_URL_QUERY);
+        $path = $path ? '/' . ltrim($path, '/') : $fallback_path;
+
+        return $query ? $path . '?' . $query : $path;
     }
 
     private function endorsement_person_name($endorsement)
