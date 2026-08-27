@@ -1202,6 +1202,7 @@ class S180BR_Plugin
         ?>
         <div class="wrap s180re-admin">
             <h1><?php esc_html_e('Review Copy Request Details', 'science180-book-review'); ?></h1>
+            <?php $this->render_admin_notice(); ?>
             <p>
                 <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('Back to requests', 'science180-book-review'); ?></a>
                 <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View book public page', 'science180-book-review'); ?></a>
