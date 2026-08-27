@@ -70,6 +70,8 @@ class S180BR_Plugin
         self::seed_options();
         self::maybe_create_pages();
         self::schedule_daily_notice();
+        self::register_rewrites_static();
+        flush_rewrite_rules(false);
         update_option('s180br_version', S180BR_VERSION);
     }
 
@@ -333,6 +335,7 @@ class S180BR_Plugin
 
     private static function register_rewrites_static()
     {
+        add_rewrite_rule('^bookreviewrequest/([^/]+)/?$', 'index.php?s180br_book_slug=$matches[1]', 'top');
         add_rewrite_rule('^BookReviewRequest/([^/]+)/?$', 'index.php?s180br_book_slug=$matches[1]', 'top');
     }
 
@@ -851,7 +854,7 @@ class S180BR_Plugin
 
         $rows = '';
         foreach ($items as $item) {
-            $view_url = admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id);
+            $view_url = admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $item->id);
             $rows .= '<tr>';
             $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->created_at) . '</td>';
             $rows .= '<td style="padding:8px;border-bottom:1px solid #ddd;">' . esc_html($item->book_title) . '</td>';
@@ -1092,7 +1095,7 @@ class S180BR_Plugin
         }
 
         global $wpdb;
-        $view_id = isset($_GET['view']) ? absint($_GET['view']) : 0;
+        $view_id = isset($_GET['s180br_view']) ? absint($_GET['s180br_view']) : (isset($_GET['view']) ? absint($_GET['view']) : 0);
         if ($view_id) {
             $this->render_review_request_detail($view_id);
             return;
@@ -1172,10 +1175,10 @@ class S180BR_Plugin
                         <tr>
                             <td><?php echo esc_html($item->created_at); ?></td>
                             <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->book_title); ?></a></td>
-                            <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id)); ?>"><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?></a><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
+                            <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $item->id)); ?>"><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?></a><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
                             <td><?php echo esc_html($this->review_request_status_label($item->status)); ?></td>
                             <td>
-                                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-book-review'); ?></a>
+                                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-book-review'); ?></a>
                                 <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
                             </td>
                         </tr>
@@ -1385,7 +1388,7 @@ class S180BR_Plugin
             $notice = $updated_request && $this->send_review_request_status_email($updated_request, $status) ? 'request_updated_notified' : 'request_updated_email_failed';
         }
 
-        wp_safe_redirect(admin_url('admin.php?page=s180br-review-requests&view=' . $request_id . '&s180re_admin_status=' . rawurlencode($notice)));
+        wp_safe_redirect(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . $request_id . '&s180re_admin_status=' . rawurlencode($notice)));
         exit;
     }
 
@@ -1670,12 +1673,19 @@ class S180BR_Plugin
             return $this->review_request_page_url();
         }
 
-        $slug = !empty($book->slug) ? sanitize_title($book->slug) : sanitize_title($book->title ?? '');
-        if ($slug !== '') {
-            return trailingslashit($this->review_request_page_url()) . $slug . '/';
+        $slug = !empty($book->slug) ? sanitize_title($book->slug) : '';
+        if ($slug === '' && !empty($book->book_id)) {
+            $stored_book = $this->get_book((int) $book->book_id);
+            $slug = $stored_book && !empty($stored_book->slug) ? sanitize_title($stored_book->slug) : '';
+        }
+        if ($slug === '' && !empty($book->book_title)) {
+            $slug = sanitize_title($book->book_title);
+        }
+        if ($slug === '' && !empty($book->title)) {
+            $slug = sanitize_title($book->title);
         }
 
-        return $this->review_request_page_url();
+        return $slug !== '' ? home_url('/BookReviewRequest/' . $slug . '/') : $this->review_request_page_url();
     }
 
     private function review_request_labels()
