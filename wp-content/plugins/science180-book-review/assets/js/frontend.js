@@ -7,6 +7,16 @@
         }
     }
 
+    function normalizeHttpsField(input) {
+        var value = input.value.trim();
+        if (!value) {
+            return;
+        }
+
+        value = value.replace(/^(?:(?:https?):\/*)+/i, '').replace(/^\/+/, '');
+        input.value = value;
+    }
+
     function setSelected(shell, id, title, cover, description) {
         var select = shell.querySelector('[data-s180re-book-select]');
         var titleNode = shell.querySelector('[data-s180re-selected-title]');
@@ -81,6 +91,19 @@
                 select.addEventListener('change', function () {
                     var selected = select.options[select.selectedIndex];
                     setSelected(shell, select.value, selected.getAttribute('data-title') || selected.textContent, selected.getAttribute('data-cover'), selected.getAttribute('data-description'));
+                });
+            }
+
+            var websiteInput = shell.querySelector('[data-s180br-url-input]');
+            var reviewForm = shell.querySelector('[data-s180re-review-form]');
+            if (websiteInput) {
+                websiteInput.addEventListener('blur', function () {
+                    normalizeHttpsField(websiteInput);
+                });
+            }
+            if (reviewForm && websiteInput) {
+                reviewForm.addEventListener('submit', function () {
+                    normalizeHttpsField(websiteInput);
                 });
             }
         });

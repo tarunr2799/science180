@@ -331,6 +331,35 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     font: inherit;
 }
 
+.s180re-url-input {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+}
+
+.s180re-url-prefix {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    min-height: 40px;
+    border: 1px solid #b9c4cc;
+    border-right: 0;
+    border-radius: 6px 0 0 6px;
+    background: #f4f6f7;
+    color: var(--s180re-muted);
+    padding: 8px 10px;
+    font: inherit;
+}
+
+.s180re-field .s180re-url-input input {
+    min-width: 0;
+    border-radius: 0 6px 6px 0;
+}
+
+.s180re-url-input:focus-within .s180re-url-prefix {
+    border-color: var(--s180re-accent);
+}
+
 .s180re-field textarea {
     min-height: 110px;
     resize: vertical;

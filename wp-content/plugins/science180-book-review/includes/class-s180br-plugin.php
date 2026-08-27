@@ -475,8 +475,11 @@ class S180BR_Plugin
                         </div>
                         <div class="s180re-field s180re-field-full">
                             <label for="s180re-review-website"><?php esc_html_e('Website / reviewer profile', 'science180-book-review'); ?></label>
-                            <input id="s180re-review-website" type="url" name="website" placeholder="https://">
-                            <p class="s180re-field-note"><?php esc_html_e('Please enter the complete URL, starting with https://', 'science180-book-review'); ?></p>
+                            <div class="s180re-url-input">
+                                <span class="s180re-url-prefix" aria-hidden="true">https://</span>
+                                <input id="s180re-review-website" type="text" name="website" placeholder="science180.com/profile" autocomplete="url" inputmode="url" aria-describedby="s180re-review-website-note" data-s180br-url-input>
+                            </div>
+                            <p id="s180re-review-website-note" class="s180re-field-note"><?php esc_html_e('Enter the part after https:// (for example, science180.com/profile). You may also paste a complete URL; it will be corrected automatically.', 'science180-book-review'); ?></p>
                         </div>
 
                         <fieldset class="s180re-fieldset">
@@ -542,6 +545,22 @@ class S180BR_Plugin
         return ob_get_clean();
     }
 
+    private function normalize_https_url($value)
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('#^(?:(?:https?):/*)+#i', '', $value);
+        $value = ltrim($value, "/\\ \t\n\r\0\x0B");
+        if ($value === '') {
+            return '';
+        }
+
+        return esc_url_raw('https://' . $value, array('https'));
+    }
+
     public function handle_review_request_submission()
     {
         if (!$this->public_form_is_valid('s180re_review_request')) {
@@ -569,7 +588,7 @@ class S180BR_Plugin
             'last_name' => $this->post_text('last_name', true),
             'organization' => $this->post_text('organization', false),
             'reviewer_role' => $this->post_text('reviewer_role', false),
-            'website' => esc_url_raw($this->post_raw('website')),
+            'website' => $this->normalize_https_url($this->post_raw('website')),
             'phone' => $this->post_text('phone', false),
             'address_line1' => $this->post_text('address_line1', true),
             'address_line2' => $this->post_text('address_line2', false),
