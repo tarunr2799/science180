@@ -255,6 +255,7 @@ class S180EN_Plugin
     public function enqueue_frontend_assets()
     {
         wp_enqueue_style('s180en-frontend', S180EN_PLUGIN_URL . 'assets/css/frontend.css', array(), S180EN_VERSION);
+        wp_enqueue_script('s180en-frontend', S180EN_PLUGIN_URL . 'assets/js/frontend.js', array(), S180EN_VERSION, true);
     }
 
     public function enqueue_admin_assets($hook)
@@ -1267,13 +1268,17 @@ class S180EN_Plugin
                 </div>
                 <div class="s180re-detail-grid">
                     <?php if (!empty($endorsement->photo_url)) : ?>
-                        <img class="s180re-detail-photo" src="<?php echo esc_url($endorsement->photo_url); ?>" alt="<?php echo esc_attr($this->endorsement_person_name($endorsement)); ?>">
+                        <button class="s180re-photo-lightbox-trigger" type="button" aria-label="<?php echo esc_attr(sprintf(__('Enlarge photo of %s', 'science180-endorsement'), $this->endorsement_person_name($endorsement))); ?>">
+                            <img class="s180re-detail-photo" src="<?php echo esc_url($endorsement->photo_url); ?>" alt="<?php echo esc_attr($this->endorsement_person_name($endorsement)); ?>">
+                            <span class="s180re-photo-lightbox-hint" aria-hidden="true"><?php esc_html_e('Click to enlarge', 'science180-endorsement'); ?></span>
+                        </button>
                     <?php else : ?>
                         <span class="s180re-detail-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($endorsement)); ?></span>
                     <?php endif; ?>
                     <div class="s180re-detail-copy">
-                        <?php if (!empty($endorsement->address)) : ?>
-                            <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($endorsement->address)); ?></p>
+                        <?php $public_address = trim((string) ($endorsement->address ?? '')); ?>
+                        <?php if ($public_address !== '') : ?>
+                            <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($public_address)); ?></p>
                         <?php endif; ?>
                         <div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($endorsement->comment)); ?></div>
                         <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
@@ -1667,7 +1672,7 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country of origin', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_origin); ?></td></tr>
                             <tr><th><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_residence); ?></td></tr>
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
-                            <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $item->address !== '' ? nl2br(esc_html($item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
+                            <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo trim((string) ($item->address ?? '')) !== '' ? nl2br(esc_html((string) $item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($item->comment)); ?></div></td></tr>
                             <tr><th><?php esc_html_e('IP address', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->ip_address ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('IP location', 'science180-endorsement'); ?></th><td><?php echo esc_html(trim((string) ($item->ip_city ?? '') . ((($item->ip_city ?? '') && ($item->ip_country ?? '')) ? ', ' : '') . (string) ($item->ip_country ?? ''))); ?></td></tr>
@@ -1716,7 +1721,7 @@ class S180EN_Plugin
                 <input id="s180re-edit-org" class="regular-text" type="text" name="organization" value="<?php echo esc_attr($item->organization); ?>" required>
 
                 <label for="s180re-edit-address"><?php esc_html_e('Address', 'science180-endorsement'); ?></label>
-                <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea($item->address); ?></textarea>
+                <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea((string) ($item->address ?? '')); ?></textarea>
 
                 <label><?php esc_html_e('Photo', 'science180-endorsement'); ?></label>
                 <input type="hidden" name="photo_id" id="s180re-endorsement-photo-id" value="<?php echo esc_attr((int) $item->photo_id); ?>">
