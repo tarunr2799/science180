@@ -3,7 +3,7 @@
 * Plugin Name: Science180 Mail
 * Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.7
+* Version: 1.0.8
 * Author: Science180
 * Author URI: https://science180.net/
 * Text Domain: advnews-manager
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.7');
+define('ADVNEWS_VERSION', '1.0.8');
 define('ADVNEWS_DB_VERSION', '1.0.8');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -288,10 +288,6 @@ class AdvNews_Manager
 
     private function apply_science180_option_migrations()
     {
-        if (get_option('advnews_geolocation_service', 'ipapi') === 'ipapi') {
-            update_option('advnews_geolocation_service', 'maxmind');
-        }
-
         $reply_to = sanitize_email(get_option('advnews_reply_to', ''));
         if (!$reply_to || preg_match('/@science\.net$/i', $reply_to)) {
             update_option('advnews_reply_to', $reply_to ? preg_replace('/@science\.net$/i', '@science180.net', $reply_to) : 'contact@science180.net');

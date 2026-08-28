@@ -711,8 +711,21 @@ class AdvNews_Tracking
         }
         $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
         $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
-        // Use click rows for geo/device reports because open pixels are often loaded by email-provider proxies.
-        $has_country_code = $this->column_exists('tracking_clicks', 'country_code');
+        // Prefer clicks because open pixels are often loaded by email-provider
+        // proxies. If a campaign has no located clicks, use located opens so
+        // the geographic report does not appear empty despite engagement data.
+        $located_clicks = (int) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_clicks
+            WHERE campaign_id = %d
+            AND country != '' AND country != 'Local' AND country != 'Unknown'",
+            $campaign_id
+        ));
+        $use_click_geography = $located_clicks > 0;
+        $geographic_table = $use_click_geography ? $table_clicks : $table_opens;
+        $geographic_timestamp = $use_click_geography ? 'clicked_at' : 'opened_at';
+        $geographic_table_key = $use_click_geography ? 'tracking_clicks' : 'tracking_opens';
+        $analytics['geographic_metric'] = $use_click_geography ? 'clicks' : 'opens';
+        $has_country_code = $this->column_exists($geographic_table_key, 'country_code');
         // Enhanced geographic data with country codes for maps
         if ($has_country_code) {
             $geographic = $this->wpdb->get_results($this->wpdb->prepare(
@@ -722,9 +735,9 @@ class AdvNews_Tracking
                 city,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_opens,
-                COUNT(DISTINCT DATE(clicked_at)) as days_active,
-                AVG(HOUR(clicked_at)) as avg_hour
-                FROM $table_clicks
+                COUNT(DISTINCT DATE($geographic_timestamp)) as days_active,
+                AVG(HOUR($geographic_timestamp)) as avg_hour
+                FROM $geographic_table
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country, country_code, city
@@ -739,9 +752,9 @@ class AdvNews_Tracking
                 city,
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_opens,
-                COUNT(DISTINCT DATE(clicked_at)) as days_active,
-                AVG(HOUR(clicked_at)) as avg_hour
-                FROM $table_clicks
+                COUNT(DISTINCT DATE($geographic_timestamp)) as days_active,
+                AVG(HOUR($geographic_timestamp)) as avg_hour
+                FROM $geographic_table
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country, city
@@ -759,7 +772,7 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
-                FROM $table_clicks
+                FROM $geographic_table
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country_code, country
@@ -774,7 +787,7 @@ class AdvNews_Tracking
                 COUNT(*) as opens,
                 COUNT(DISTINCT subscriber_id) as unique_visitors,
                 COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as cities_count
-                FROM $table_clicks
+                FROM $geographic_table
                 WHERE campaign_id = %d
                 AND country != '' AND country != 'Local' AND country != 'Unknown'
                 GROUP BY country
@@ -790,7 +803,7 @@ class AdvNews_Tracking
             COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as total_cities,
             COUNT(DISTINCT CASE WHEN country != '' AND country != 'Local' AND country != 'Unknown' THEN country END) as tracked_countries,
             COUNT(DISTINCT CASE WHEN city != '' AND city != 'Local' AND city != 'Unknown' THEN city END) as tracked_cities
-            FROM $table_clicks
+            FROM $geographic_table
             WHERE campaign_id = %d",
             $campaign_id
         ));
@@ -805,9 +818,9 @@ class AdvNews_Tracking
             COUNT(DISTINCT subscriber_id) as unique_visitors,
             latitude,
             longitude,
-            MIN(clicked_at) as first_open,
-            MAX(clicked_at) as last_open
-            FROM $table_clicks
+            MIN($geographic_timestamp) as first_open,
+            MAX($geographic_timestamp) as last_open
+            FROM $geographic_table
             WHERE campaign_id = %d
             AND city != '' AND city != 'Local' AND city != 'Unknown'
             AND latitude IS NOT NULL AND longitude IS NOT NULL
@@ -823,7 +836,7 @@ class AdvNews_Tracking
             browser,
             platform,
             COUNT(*) as opens
-            FROM $table_clicks
+            FROM $geographic_table
             WHERE campaign_id = %d
             GROUP BY device_type, browser, platform
             ORDER BY opens DESC",

@@ -2815,11 +2815,12 @@ class AdvNews_Admin
             $message = 'updated';
             $redirect_id = $subscriber_id;
         } else {
-            // Create new subscriber
+            // add_subscriber() merges selected categories when the email exists.
+            $existing_subscriber = $subscriber_class->get_subscriber_by_email($data['email']);
             $result = $subscriber_class->add_subscriber($data);
             if (!is_wp_error($result)) {
                 $redirect_id = $result;
-                $message = 'created';
+                $message = $existing_subscriber ? 'updated' : 'created';
             } else {
                 $redirect_id = 0;
                 $message = 'error';

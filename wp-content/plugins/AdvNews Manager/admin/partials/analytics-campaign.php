@@ -353,6 +353,11 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
             <?php break; ?>
 
         <?php case 'geographic': ?>
+            <?php
+            $geographic_metric = ($analytics['geographic_metric'] ?? 'clicks') === 'opens' ? 'opens' : 'clicks';
+            $geographic_event_label = $geographic_metric === 'opens' ? __('Opens', 'advnews-manager') : __('Clicks', 'advnews-manager');
+            $geographic_people_label = $geographic_metric === 'opens' ? __('Unique Openers', 'advnews-manager') : __('Unique Clickers', 'advnews-manager');
+            ?>
             <div class="analytics-section">
                 <div class="geographic-header">
                     <h2><?php _e('Geographic Distribution', 'advnews-manager'); ?></h2>
@@ -382,14 +387,14 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                         <div class="geo-icon">👥</div>
                         <div class="geo-content">
                             <div class="geo-value"><?php echo esc_html(array_sum(array_column($analytics['geographic_map'] ?? [], 'unique_visitors'))); ?></div>
-                            <div class="geo-label"><?php _e('Unique Clickers', 'advnews-manager'); ?></div>
+                            <div class="geo-label"><?php echo esc_html($geographic_people_label); ?></div>
                         </div>
                     </div>
                     <div class="geo-summary-card">
                         <div class="geo-icon">📊</div>
                         <div class="geo-content">
                             <div class="geo-value"><?php echo esc_html(array_sum(array_column($analytics['geographic_map'] ?? [], 'opens'))); ?></div>
-                            <div class="geo-label"><?php _e('Total Clicks', 'advnews-manager'); ?></div>
+                            <div class="geo-label"><?php echo esc_html(sprintf(__('Total %s', 'advnews-manager'), $geographic_event_label)); ?></div>
                         </div>
                     </div>
                 </div>
@@ -404,8 +409,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                     <div class="country-filters">
                         <input type="text" id="country-search" placeholder="<?php _e('Search country...', 'advnews-manager'); ?>" class="regular-text">
                         <select id="country-sort">
-                        <option value="opens-desc"><?php _e('Sort by Clicks (High to Low)', 'advnews-manager'); ?></option>
-                        <option value="opens-asc"><?php _e('Sort by Clicks (Low to High)', 'advnews-manager'); ?></option>
+                        <option value="opens-desc"><?php echo esc_html(sprintf(__('Sort by %s (High to Low)', 'advnews-manager'), $geographic_event_label)); ?></option>
+                        <option value="opens-asc"><?php echo esc_html(sprintf(__('Sort by %s (Low to High)', 'advnews-manager'), $geographic_event_label)); ?></option>
                             <option value="country"><?php _e('Sort by Country Name', 'advnews-manager'); ?></option>
                         </select>
                     </div>
@@ -426,11 +431,11 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <div class="country-info">
                                 <h4><?php echo esc_html($country->country); ?></h4>
                                 <div class="country-stats">
-                                    <div class="stat" title="<?php _e('Clicks', 'advnews-manager'); ?>">
+                                    <div class="stat" title="<?php echo esc_attr($geographic_event_label); ?>">
                                         <span class="stat-icon">👁️</span>
                                         <span class="stat-value"><?php echo esc_html(number_format($country->opens)); ?></span>
                                     </div>
-                                    <div class="stat" title="<?php _e('Unique Clickers', 'advnews-manager'); ?>">
+                                    <div class="stat" title="<?php echo esc_attr($geographic_people_label); ?>">
                                         <span class="stat-icon">👤</span>
                                         <span class="stat-value"><?php echo esc_html(number_format($country->unique_visitors)); ?></span>
                                     </div>
@@ -457,10 +462,10 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <tr>
                                 <th><?php _e('City', 'advnews-manager'); ?></th>
                                 <th><?php _e('Country', 'advnews-manager'); ?></th>
-                                <th><?php _e('Clicks', 'advnews-manager'); ?></th>
-                                <th><?php _e('Unique Clickers', 'advnews-manager'); ?></th>
-                                <th><?php _e('First Click', 'advnews-manager'); ?></th>
-                                <th><?php _e('Last Click', 'advnews-manager'); ?></th>
+                                <th><?php echo esc_html($geographic_event_label); ?></th>
+                                <th><?php echo esc_html($geographic_people_label); ?></th>
+                                <th><?php echo esc_html($geographic_metric === 'opens' ? __('First Open', 'advnews-manager') : __('First Click', 'advnews-manager')); ?></th>
+                                <th><?php echo esc_html($geographic_metric === 'opens' ? __('Last Open', 'advnews-manager') : __('Last Click', 'advnews-manager')); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -491,17 +496,17 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             <tr>
                                 <th><?php _e('Country', 'advnews-manager'); ?></th>
                                 <th><?php _e('Code', 'advnews-manager'); ?></th>
-                                <th><?php _e('Clicks', 'advnews-manager'); ?></th>
-                                <th><?php _e('Unique Clickers', 'advnews-manager'); ?></th>
-                                <th><?php _e('Cities', 'advnews-manager'); ?></th>
-                                <th><?php _e('Avg Hour', 'advnews-manager'); ?></th>
+                                <th><?php _e('City', 'advnews-manager'); ?></th>
+                                <th><?php echo esc_html($geographic_event_label); ?></th>
+                                <th><?php echo esc_html($geographic_people_label); ?></th>
                                 <th><?php _e('Days Active', 'advnews-manager'); ?></th>
+                                <th><?php _e('Avg Hour', 'advnews-manager'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($analytics['geographic'])): ?>
                             <tr>
-                                <td colspan="7"><?php _e('No click-based geographic data available.', 'advnews-manager'); ?></td>
+                                <td colspan="7"><?php _e('No geographic engagement data available.', 'advnews-manager'); ?></td>
                             </tr>
                             <?php else:
                                 $current_country = '';
@@ -547,6 +552,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                 }).addTo(map);
 
                 var geoData = <?php echo json_encode($analytics['geographic_map'] ?? []); ?>;
+                var geographicEventLabel = <?php echo wp_json_encode($geographic_event_label); ?>;
+                var geographicPeopleLabel = <?php echo wp_json_encode($geographic_people_label); ?>;
                 geoData.forEach(function(country) {
                     if (country.country_code) {
                         // Use the new combined function
@@ -565,8 +572,8 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
 
                             circle.bindPopup(
                                 '<strong>' + country.country + '</strong><br>' +
-                                'Clicks: ' + country.opens + '<br>' +
-                                'Clickers: ' + country.unique_visitors + '<br>' +
+                                geographicEventLabel + ': ' + country.opens + '<br>' +
+                                geographicPeopleLabel + ': ' + country.unique_visitors + '<br>' +
                                 'Cities: ' + country.cities_count
                             );
                         }

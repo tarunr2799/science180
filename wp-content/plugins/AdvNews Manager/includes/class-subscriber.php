@@ -686,14 +686,24 @@ class AdvNews_Subscriber
                 $existing = $this->get_subscriber_by_email($email);
 
                 if ($existing) {
+                    // Category membership is additive for every duplicate email,
+                    // regardless of whether profile fields are being updated.
+                    // This also preserves categories for unsubscribed records.
+                    if (!empty($final_categories)) {
+                        $this->add_categories_to_subscriber($existing->id, $final_categories, true);
+                    }
+
                     if ($existing->status === 'unsubscribed' && !$options['update_existing']) {
-                        $skipped++;
+                        if (!empty($final_categories)) {
+                            $updated++;
+                        } else {
+                            $skipped++;
+                        }
                         continue;
                     }
 
                     if ($options['skip_duplicates'] && $existing->status === 'active') {
                         if (!empty($final_categories)) {
-                            $this->add_categories_to_subscriber($existing->id, $final_categories, true);
                             $updated++;
                         } else {
                             $skipped++;
@@ -713,11 +723,6 @@ class AdvNews_Subscriber
 
                     if (!empty($update_data)) {
                         $this->update_subscriber($existing->id, $update_data);
-                    }
-
-                    // Update categories (merges with existing via add_categories_to_subscriber)
-                    if (!empty($final_categories)) {
-                        $this->add_categories_to_subscriber($existing->id, $final_categories, true);
                     }
 
                     $updated++;

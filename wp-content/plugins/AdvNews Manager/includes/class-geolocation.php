@@ -262,7 +262,14 @@ class AdvNews_Geolocation {
                 return $this->get_from_ipstack($ip, $api_key);
 
             case 'maxmind':
-                return $this->get_from_maxmind($ip);
+                $location = $this->get_from_maxmind($ip);
+
+                // MaxMind is optional and requires a local GeoLite2 database.
+                // Keep tracking useful when the database is missing, unreadable,
+                // or does not contain a record for the visitor's IP.
+                return $this->has_reportable_location($location)
+                    ? $location
+                    : $this->get_from_ipapi($ip);
 
             case 'ipinfo':
                 return $this->get_from_ipinfo($ip, $api_key);
@@ -271,7 +278,7 @@ class AdvNews_Geolocation {
                 return $this->get_from_abstract($ip, $api_key);
 
             default:
-                return $this->get_from_maxmind($ip);
+                return $this->get_from_ipapi($ip);
         }
     }
 

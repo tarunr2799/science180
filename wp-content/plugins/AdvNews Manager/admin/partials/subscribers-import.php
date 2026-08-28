@@ -31,7 +31,7 @@ if (!defined('ABSPATH')) exit;
 <th><label for="skip_duplicates"><?php _e('Skip Duplicates:', 'advnews-manager'); ?></label></th>
 <td>
 <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="1" checked>
-<label for="skip_duplicates"><?php _e('Skip duplicate email addresses', 'advnews-manager'); ?></label>
+<label for="skip_duplicates"><?php _e('Keep existing subscriber details (new categories are still added)', 'advnews-manager'); ?></label>
 </td>
 </tr>
 <tr>

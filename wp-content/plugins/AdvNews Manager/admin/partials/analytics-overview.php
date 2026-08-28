@@ -581,9 +581,13 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
         <div class="ip-tracking-footer">
             <p class="description">
                 <?php printf(
-                    __('Showing last %d clicked IP addresses. Full data available in database table %s.', 'advnews-manager'),
-                    50,
-                    '<code>' . $wpdb->prefix . $table_prefix . 'tracking_clicks</code>'
+                    _n(
+                        'Showing the %d most recent clicked IP address for the selected period.',
+                        'Showing the %d most recent clicked IP addresses for the selected period.',
+                        count($ip_data),
+                        'advnews-manager'
+                    ),
+                    count($ip_data)
                 ); ?>
             </p>
             <div class="ip-tracking-pagination">
