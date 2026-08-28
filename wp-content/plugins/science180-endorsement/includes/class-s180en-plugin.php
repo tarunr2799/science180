@@ -273,6 +273,7 @@ class S180EN_Plugin
                 'choosePhoto' => __('Choose endorsement photo', 'science180-endorsement'),
                 'usePhoto' => __('Use this photo', 'science180-endorsement'),
                 'closePhoto' => __('Close photo preview', 'science180-endorsement'),
+                'viewPhoto' => __('Click image to view full size', 'science180-endorsement'),
             )
         );
     }
@@ -338,7 +339,6 @@ class S180EN_Plugin
         $this->render_endorsement_code_form();
         ?>
         <section id="s180re-endorsement-form" class="s180re-shell s180re-endorsement-form-shell">
-            <?php $this->render_endorsement_nav('submit'); ?>
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
@@ -392,6 +392,9 @@ class S180EN_Plugin
                     <p class="s180re-form-intro s180re-form-intro-after-submit"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
                 <?php endif; ?>
             </form>
+            <div class="s180re-after-submit-nav">
+                <?php $this->render_endorsement_nav('submit'); ?>
+            </div>
         </section>
         <?php
         return ob_get_clean();
@@ -520,29 +523,23 @@ class S180EN_Plugin
                     <div class="s180re-directory-summary">
                         <?php echo esc_html(sprintf(_n('%d published endorsement', '%d published endorsements', $total, 'science180-endorsement'), $total)); ?>
                     </div>
-                    <div class="s180re-directory-table-wrap">
-                        <table class="s180re-directory-table">
-                            <thead>
-                                <tr>
-                                    <th><?php esc_html_e('Title', 'science180-endorsement'); ?></th>
-                                    <th><?php esc_html_e('Name', 'science180-endorsement'); ?></th>
-                                    <th><?php esc_html_e('Country', 'science180-endorsement'); ?></th>
-                                    <th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th>
-                                    <th><?php esc_html_e('Date', 'science180-endorsement'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($items as $item) : ?>
-                                    <tr>
-                                        <td><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></td>
-                                        <td><?php echo esc_html($this->endorsement_person_name($item)); ?></td>
-                                        <td><?php echo esc_html($item->country_origin); ?></td>
-                                        <td><?php echo esc_html($item->organization); ?></td>
-                                        <td><?php echo esc_html($item->reviewed_at ? date_i18n(get_option('date_format'), strtotime($item->reviewed_at)) : date_i18n(get_option('date_format'), strtotime($item->created_at))); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                    <div class="s180re-endorsement-grid s180re-directory-grid">
+                        <?php foreach ($items as $item) : ?>
+                            <article class="s180re-endorsement-item">
+                                <?php if (!empty($item->photo_url)) : ?>
+                                    <img class="s180re-endorsement-photo" src="<?php echo esc_url($item->photo_url); ?>" alt="<?php echo esc_attr($this->endorsement_person_name($item)); ?>">
+                                <?php else : ?>
+                                    <span class="s180re-endorsement-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($item)); ?></span>
+                                <?php endif; ?>
+                                <div class="s180re-endorsement-body">
+                                    <p class="s180re-card-kicker"><?php echo esc_html($item->reviewed_at ? date_i18n(get_option('date_format'), strtotime($item->reviewed_at)) : date_i18n(get_option('date_format'), strtotime($item->created_at))); ?></p>
+                                    <h3><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_person_name($item)); ?></a></h3>
+                                    <p class="s180re-endorsement-meta"><?php echo esc_html($this->endorsement_card_meta($item)); ?></p>
+                                    <p class="s180re-endorsement-quote"><?php echo esc_html(wp_trim_words(wp_strip_all_tags($item->comment), 34)); ?></p>
+                                    <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php esc_html_e('Read full endorsement', 'science180-endorsement'); ?></a>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
                     </div>
                 <?php else : ?>
                     <div class="s180re-endorsement-grid">
@@ -557,7 +554,7 @@ class S180EN_Plugin
                                 <p class="s180re-card-kicker"><?php esc_html_e('Endorsement', 'science180-endorsement'); ?></p>
                                 <h3><a href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php echo esc_html($this->endorsement_person_name($item)); ?></a></h3>
                                 <p class="s180re-endorsement-meta"><?php echo esc_html($this->endorsement_card_meta($item)); ?></p>
-                                <p class="s180re-endorsement-quote"><?php echo esc_html(wp_trim_words($item->comment, 34)); ?></p>
+                                <p class="s180re-endorsement-quote"><?php echo esc_html(wp_trim_words(wp_strip_all_tags($item->comment), 34)); ?></p>
                                 <a class="s180re-text-link" href="<?php echo esc_url($this->endorsement_permalink($item)); ?>"><?php esc_html_e('View full endorsement', 'science180-endorsement'); ?></a>
                             </div>
                         </article>
@@ -1278,7 +1275,7 @@ class S180EN_Plugin
                         <?php if (!empty($endorsement->address)) : ?>
                             <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($endorsement->address)); ?></p>
                         <?php endif; ?>
-                        <p><?php echo nl2br(esc_html($endorsement->comment)); ?></p>
+                        <div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($endorsement->comment)); ?></div>
                         <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
                     </div>
                 </div>
@@ -1671,7 +1668,7 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_residence); ?></td></tr>
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
                             <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $item->address !== '' ? nl2br(esc_html($item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
-                            <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><?php echo nl2br(esc_html($item->comment)); ?></td></tr>
+                            <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($item->comment)); ?></div></td></tr>
                             <tr><th><?php esc_html_e('IP address', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->ip_address ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('IP location', 'science180-endorsement'); ?></th><td><?php echo esc_html(trim((string) ($item->ip_city ?? '') . ((($item->ip_city ?? '') && ($item->ip_country ?? '')) ? ', ' : '') . (string) ($item->ip_country ?? ''))); ?></td></tr>
                             <tr><th><?php esc_html_e('Device', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->device_type ?? ''); ?></td></tr>
@@ -1723,16 +1720,31 @@ class S180EN_Plugin
 
                 <label><?php esc_html_e('Photo', 'science180-endorsement'); ?></label>
                 <input type="hidden" name="photo_id" id="s180re-endorsement-photo-id" value="<?php echo esc_attr((int) $item->photo_id); ?>">
+                <input type="hidden" name="remove_photo" id="s180re-remove-endorsement-photo" value="0">
                 <input class="regular-text" type="url" name="photo_url" id="s180re-endorsement-photo-url" value="<?php echo esc_url($item->photo_url); ?>" placeholder="https://">
                 <p><button type="button" class="button" id="s180re-select-endorsement-photo"><?php esc_html_e('Upload / select photo', 'science180-endorsement'); ?></button></p>
                 <div id="s180re-endorsement-photo-preview" class="s180re-photo-preview">
                     <?php if (!empty($item->photo_url)) : ?>
-                        <img class="s180re-admin-photo" src="<?php echo esc_url($item->photo_url); ?>" alt="">
+                        <button type="button" class="s180re-remove-photo" aria-label="<?php esc_attr_e('Remove photo from endorsement', 'science180-endorsement'); ?>" title="<?php esc_attr_e('Remove photo', 'science180-endorsement'); ?>">&times;</button>
+                        <img class="s180re-admin-photo" src="<?php echo esc_url($item->photo_url); ?>" alt="" title="<?php esc_attr_e('Click image to view full size', 'science180-endorsement'); ?>">
+                        <p class="description s180re-photo-help"><?php esc_html_e('Click the image to view it full size.', 'science180-endorsement'); ?></p>
                     <?php endif; ?>
                 </div>
 
-                <label for="s180re-edit-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?></label>
-                <textarea id="s180re-edit-comment" class="large-text" name="comment" rows="8" required><?php echo esc_textarea($item->comment); ?></textarea>
+                <label for="s180re_edit_comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?></label>
+                <?php
+                wp_editor(
+                    $item->comment,
+                    's180re_edit_comment',
+                    array(
+                        'textarea_name' => 'comment',
+                        'textarea_rows' => 12,
+                        'media_buttons' => false,
+                        'teeny' => false,
+                        'quicktags' => true,
+                    )
+                );
+                ?>
 
                 <p><button type="submit" class="button button-primary"><?php esc_html_e('Save endorsement', 'science180-endorsement'); ?></button></p>
             </form>
@@ -2039,6 +2051,8 @@ class S180EN_Plugin
             $this->admin_redirect('s180en-endorsements', 'endorsement_invalid');
         }
 
+        $comment = isset($_POST['comment']) ? wp_kses_post(wp_unslash($_POST['comment'])) : '';
+        $remove_photo = !empty($_POST['remove_photo']);
         $data = array(
             'email' => $email,
             'first_name' => $this->post_text('first_name', true),
@@ -2047,13 +2061,13 @@ class S180EN_Plugin
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $this->post_text('organization', true),
             'address' => $this->post_textarea('address', false),
-            'comment' => $this->post_textarea('comment', true),
-            'photo_id' => isset($_POST['photo_id']) ? absint($_POST['photo_id']) : 0,
-            'photo_url' => esc_url_raw($this->post_raw('photo_url')),
+            'comment' => $comment,
+            'photo_id' => $remove_photo ? 0 : (isset($_POST['photo_id']) ? absint($_POST['photo_id']) : 0),
+            'photo_url' => $remove_photo ? '' : esc_url_raw($this->post_raw('photo_url')),
             'updated_at' => current_time('mysql'),
         );
 
-        if ($this->has_empty_required($data, array('first_name', 'last_name', 'country_origin', 'country_residence', 'organization', 'comment'))) {
+        if ($this->has_empty_required($data, array('first_name', 'last_name', 'country_origin', 'country_residence', 'organization')) || trim(wp_strip_all_tags($comment)) === '') {
             $this->admin_redirect('s180en-endorsements', 'endorsement_invalid');
         }
 

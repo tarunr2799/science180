@@ -542,6 +542,26 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     margin-top: 18px;
 }
 
+.s180re-after-submit-nav {
+    margin-top: 18px;
+}
+
+.s180re-after-submit-nav .s180re-public-nav {
+    margin-bottom: 0;
+}
+
+.s180re-directory-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.s180re-rich-text > :first-child {
+    margin-top: 0;
+}
+
+.s180re-rich-text > :last-child {
+    margin-bottom: 0;
+}
+
 .s180re-pagination a {
     min-width: 38px;
     min-height: 38px;

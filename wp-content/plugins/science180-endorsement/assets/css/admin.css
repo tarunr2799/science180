@@ -238,5 +238,37 @@ body.s180re-photo-zoom-open {
 }
 
 .s180re-photo-preview {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
     min-height: 10px;
+}
+
+.s180re-remove-photo {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 8px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #b32d2e;
+    color: #fff;
+    font-size: 25px;
+    line-height: 27px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.s180re-remove-photo:hover,
+.s180re-remove-photo:focus {
+    background: #8a2424;
+    outline: 2px solid #2271b1;
+    outline-offset: 2px;
+}
+
+.s180re-photo-help {
+    margin: 6px 0 0;
 }

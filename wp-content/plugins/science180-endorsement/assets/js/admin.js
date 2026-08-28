@@ -22,7 +22,8 @@
         function prepareZoomablePhotos() {
             $('.s180re-admin-photo').attr({
                 role: 'button',
-                tabindex: '0'
+                tabindex: '0',
+                title: s180reAdmin.viewPhoto
             });
         }
 
@@ -95,11 +96,23 @@
 
                 $('#s180re-endorsement-photo-id').val(attachment.id);
                 $('#s180re-endorsement-photo-url').val(url);
-                $('#s180re-endorsement-photo-preview').html('<img class="s180re-admin-photo" src="' + url + '" alt="">');
+                $('#s180re-remove-endorsement-photo').val('0');
+                $('#s180re-endorsement-photo-preview').html(
+                    '<button type="button" class="s180re-remove-photo" aria-label="Remove photo from endorsement" title="Remove photo">&times;</button>' +
+                    '<img class="s180re-admin-photo" src="' + url + '" alt="">' +
+                    '<p class="description s180re-photo-help">' + s180reAdmin.viewPhoto + '.</p>'
+                );
                 prepareZoomablePhotos();
             });
 
             photoFrame.open();
+        });
+
+        $(document).on('click', '.s180re-remove-photo', function () {
+            $('#s180re-endorsement-photo-id').val('0');
+            $('#s180re-endorsement-photo-url').val('');
+            $('#s180re-remove-endorsement-photo').val('1');
+            $('#s180re-endorsement-photo-preview').empty();
         });
 
         $('.s180re-bulk-form').on('submit', function (event) {
