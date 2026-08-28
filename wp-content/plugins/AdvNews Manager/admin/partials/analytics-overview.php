@@ -148,6 +148,11 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
 <div class="wrap advnews-analytics-overview">
     <h1 class="wp-heading-inline"><?php _e('Analytics Overview', 'advnews-manager'); ?></h1>
 
+    <nav class="nav-tab-wrapper advnews-analytics-tabs">
+        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics')); ?>" class="nav-tab nav-tab-active"><?php esc_html_e('Overview', 'advnews-manager'); ?></a>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=weekly')); ?>" class="nav-tab"><?php esc_html_e('Weekly Reports', 'advnews-manager'); ?></a>
+    </nav>
+
     <div class="advnews-period-selector">
         <select id="analytics-period" class="advnews-period-select">
             <option value="7days" <?php selected($period, '7days'); ?>><?php _e('Last 7 Days', 'advnews-manager'); ?></option>

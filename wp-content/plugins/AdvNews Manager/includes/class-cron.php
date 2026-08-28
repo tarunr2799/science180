@@ -530,6 +530,7 @@ class AdvNews_Cron
         // while still returning an ambiguous result, which must not trigger retries
         // every minute.
         update_option('advnews_last_weekly_report_week', $report_week, false);
+        update_option('advnews_last_weekly_report_sent_at', current_time('mysql'), false);
         $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 
         // Get weekly statistics

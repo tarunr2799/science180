@@ -3976,6 +3976,9 @@ border-radius: 4px;
             case 'campaign':
                 include ADVNEWS_PLUGIN_DIR . 'admin/partials/analytics-campaign.php';
                 break;
+            case 'weekly':
+                include ADVNEWS_PLUGIN_DIR . 'admin/partials/analytics-weekly.php';
+                break;
             case 'system':
                 include ADVNEWS_PLUGIN_DIR . 'admin/partials/analytics-system.php';
                 break;
