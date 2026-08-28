@@ -156,7 +156,36 @@
 }
 
 .s180re-delivery-report table {
-    min-width: 1050px;
+    min-width: 1450px;
+}
+
+.s180br-delivery-link {
+    min-width: 260px;
+}
+
+.s180br-delivery-link .s180br-copy-source {
+    width: 190px;
+    margin-right: 6px;
+}
+
+.s180br-state {
+    display: inline-grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.s180br-state.is-complete {
+    background: #edfaef;
+    color: #087423;
+}
+
+.s180br-state.is-pending {
+    background: #f0f0f1;
+    color: #646970;
 }
 
 @media (max-width: 960px) {

@@ -160,6 +160,7 @@ class S180BR_Plugin
             request_id bigint(20) unsigned NOT NULL,
             book_id bigint(20) unsigned NOT NULL,
             token_hash varchar(64) NOT NULL,
+            token_value varchar(100) DEFAULT '',
             personalized tinyint(1) NOT NULL DEFAULT 1,
             file_path text NOT NULL,
             status varchar(30) NOT NULL DEFAULT 'sent',
@@ -430,6 +431,8 @@ class S180BR_Plugin
                 'useCover' => __('Use this cover', 'science180-book-review'),
                 'choosePdf' => __('Choose book PDF', 'science180-book-review'),
                 'usePdf' => __('Use this PDF', 'science180-book-review'),
+                'copied' => __('Copied', 'science180-book-review'),
+                'copyFailed' => __('Copy failed', 'science180-book-review'),
             )
         );
     }
@@ -1611,6 +1614,7 @@ class S180BR_Plugin
                 'request_id' => $request_id,
                 'book_id' => (int) $book->id,
                 'token_hash' => hash('sha256', $token),
+                'token_value' => $token,
                 'personalized' => $mode === 'personalized' ? 1 : 0,
                 'file_path' => $destination,
                 'status' => 'sending',
@@ -1824,30 +1828,50 @@ class S180BR_Plugin
                     <table class="widefat striped">
                         <thead><tr>
                             <th><?php esc_html_e('Recipient', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('Copy', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Link', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('PDF type', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('PDF email sent', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('PDF email opened', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Viewed', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Downloaded', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Download IP', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('City', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Country', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Device / browser user agent', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Follow-up', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Action', 'science180-book-review'); ?></th>
                         </tr></thead>
                         <tbody>
                         <?php foreach ($items as $delivery) : ?>
                             <?php $profile_url = admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $delivery->request_id); ?>
+                            <?php $delivery_url = !empty($delivery->token_value) ? add_query_arg('s180br_pdf_download', rawurlencode($delivery->token_value), home_url('/')) : ''; ?>
                             <tr>
                                 <td><a href="<?php echo esc_url($profile_url); ?>"><?php echo esc_html(trim($delivery->first_name . ' ' . $delivery->last_name)); ?></a><br><a href="<?php echo esc_url($profile_url); ?>"><?php echo esc_html($delivery->email); ?></a></td>
+                                <td class="s180br-delivery-link">
+                                    <?php if ($delivery_url !== '') : ?>
+                                        <input class="regular-text s180br-copy-source" type="text" value="<?php echo esc_attr($delivery_url); ?>" readonly>
+                                        <button class="button-link s180br-copy-link" type="button"><?php esc_html_e('Copy', 'science180-book-review'); ?></button>
+                                    <?php else : ?>
+                                        <span class="s180re-status-note"><?php esc_html_e('Historical link unavailable', 'science180-book-review'); ?></span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo (int) $delivery->personalized === 1 ? esc_html__('Personalized', 'science180-book-review') : esc_html__('Original', 'science180-book-review'); ?></td>
                                 <td><?php echo esc_html($delivery->emailed_at ?: __('Email failed', 'science180-book-review')); ?></td>
-                                <td><?php echo esc_html($delivery->email_opened_at ?: __('Not detected', 'science180-book-review')); ?><?php if ($delivery->email_opened_at) : ?><br><small><?php echo esc_html(trim((string) $delivery->open_ip_address . ' ' . (string) $delivery->open_ip_city . ' ' . (string) $delivery->open_ip_country . ' ' . (string) $delivery->open_device_type)); ?></small><?php endif; ?></td>
-                                <td><?php echo esc_html($delivery->downloaded_at ?: __('Not yet', 'science180-book-review')); ?></td>
+                                <td><span class="s180br-state <?php echo $delivery->email_opened_at ? 'is-complete' : 'is-pending'; ?>" aria-label="<?php echo esc_attr($delivery->email_opened_at ? __('Viewed', 'science180-book-review') : __('Not viewed', 'science180-book-review')); ?>"><?php echo $delivery->email_opened_at ? '&#10003;' : '&mdash;'; ?></span><?php if ($delivery->email_opened_at) : ?><br><small><?php echo esc_html($delivery->email_opened_at); ?><br><?php echo esc_html(trim((string) $delivery->open_ip_address . ' ' . (string) $delivery->open_ip_city . ' ' . (string) $delivery->open_ip_country . ' ' . (string) $delivery->open_device_type)); ?></small><?php endif; ?></td>
+                                <td><span class="s180br-state <?php echo $delivery->downloaded_at ? 'is-complete' : 'is-pending'; ?>" aria-label="<?php echo esc_attr($delivery->downloaded_at ? __('Downloaded', 'science180-book-review') : __('Not downloaded', 'science180-book-review')); ?>"><?php echo $delivery->downloaded_at ? '&#10003;' : '&mdash;'; ?></span><?php if ($delivery->downloaded_at) : ?><br><small><?php echo esc_html($delivery->downloaded_at); ?></small><?php endif; ?></td>
                                 <td><?php echo esc_html($delivery->ip_address ?: __('Not available', 'science180-book-review')); ?></td>
                                 <td><?php echo esc_html($delivery->ip_city ?: __('Unknown', 'science180-book-review')); ?></td>
                                 <td><?php echo esc_html($delivery->ip_country ?: __('Unknown', 'science180-book-review')); ?></td>
                                 <td><?php echo esc_html(trim((string) $delivery->device_type . ' ' . (string) $delivery->user_agent) ?: __('Not available', 'science180-book-review')); ?></td>
                                 <td><?php echo esc_html($delivery->reminder_sent_at ?: __('Pending', 'science180-book-review')); ?></td>
+                                <td>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <input type="hidden" name="action" value="s180br_send_pdf">
+                                        <input type="hidden" name="request_id" value="<?php echo esc_attr((int) $delivery->request_id); ?>">
+                                        <input type="hidden" name="delivery_mode" value="<?php echo (int) $delivery->personalized === 1 ? 'personalized' : 'original'; ?>">
+                                        <?php wp_nonce_field('s180br_send_pdf'); ?>
+                                        <button class="button" type="submit"><?php esc_html_e('Resend', 'science180-book-review'); ?></button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

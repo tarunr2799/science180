@@ -59,5 +59,20 @@
 
             pdfFrame.open();
         });
+
+        $(document).on('click', '.s180br-copy-link', function () {
+            var button = $(this);
+            var input = button.siblings('.s180br-copy-source').get(0);
+            if (!input) {
+                return;
+            }
+
+            navigator.clipboard.writeText(input.value).then(function () {
+                button.text(s180reAdmin.copied);
+            }).catch(function () {
+                input.select();
+                button.text(document.execCommand('copy') ? s180reAdmin.copied : s180reAdmin.copyFailed);
+            });
+        });
     });
 }(jQuery));
