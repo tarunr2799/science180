@@ -158,12 +158,14 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     background: #fff8e9;
 }
 
-.s180re-message-review_verified {
-    padding: 20px 22px;
+.s180re-message-review_verified,
+.s180re-message-review_check_email {
+    padding: 24px 26px;
     border-width: 2px;
-    font-size: 20px;
+    font-size: clamp(20px, 2.4vw, 26px);
     font-weight: 700;
-    line-height: 1.45;
+    line-height: 1.4;
+    box-shadow: 0 8px 24px rgba(15, 118, 110, 0.14);
 }
 
 .s180re-book-strip {

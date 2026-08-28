@@ -33,6 +33,7 @@ class S180BR_Plugin
         add_action('template_redirect', array($this, 'render_shortcode_page_fallback'), 20);
         add_action('s180br_daily_review_notice', array($this, 'send_daily_review_notice'));
         add_action('s180br_daily_review_notice', array($this, 'send_pdf_followups'));
+        add_action('s180br_pending_verification_reminders', array($this, 'send_pending_verification_reminders'));
 
         add_shortcode('science180_review_request', array($this, 'render_review_request_shortcode'));
 
@@ -56,6 +57,7 @@ class S180BR_Plugin
         self::maybe_create_pages();
         self::register_rewrites_static();
         self::schedule_daily_notice();
+        self::schedule_verification_reminders();
         update_option('s180br_version', S180BR_VERSION);
         flush_rewrite_rules();
     }
@@ -63,12 +65,14 @@ class S180BR_Plugin
     public static function deactivate()
     {
         wp_clear_scheduled_hook('s180br_daily_review_notice');
+        wp_clear_scheduled_hook('s180br_pending_verification_reminders');
         flush_rewrite_rules();
     }
 
     public function maybe_upgrade()
     {
         if (get_option('s180br_version') === S180BR_VERSION) {
+            self::schedule_verification_reminders();
             return;
         }
 
@@ -76,6 +80,7 @@ class S180BR_Plugin
         self::seed_options();
         self::maybe_create_pages();
         self::schedule_daily_notice();
+        self::schedule_verification_reminders();
         self::register_rewrites_static();
         flush_rewrite_rules(false);
         update_option('s180br_version', S180BR_VERSION);
@@ -214,6 +219,7 @@ class S180BR_Plugin
         add_option('s180br_followup_days', 30);
         add_option('s180br_followup_subject', 'A reminder to review {book_title}');
         add_option('s180br_followup_body', "Hello {full_name},\n\nThank you for requesting a review copy of {book_title}. It has been {days} days since we sent you a copy. We would like to remind you to submit your review if you have not done so yet.\n\nSubmit your review at {endorsement_url}.\n\nFor any questions or comments, please contact us.\n\nKind regards,\nScience180 Team");
+        add_option('s180br_verification_reminder_hours', 12);
     }
 
     private static function normalize_email_domain($email)
@@ -346,6 +352,13 @@ class S180BR_Plugin
         }
 
         wp_schedule_event(self::daily_notice_timestamp(), 'daily', 's180br_daily_review_notice');
+    }
+
+    private static function schedule_verification_reminders()
+    {
+        if (!wp_next_scheduled('s180br_pending_verification_reminders')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', 's180br_pending_verification_reminders');
+        }
     }
 
     private static function reschedule_daily_notice()
@@ -868,11 +881,14 @@ class S180BR_Plugin
         <?php
     }
 
-    private function send_review_verification_email($data, $book, $token)
+    private function send_review_verification_email($data, $book, $token, $is_reminder = false)
     {
         $verify_url = add_query_arg('s180br_verify_review', rawurlencode($token), $this->review_request_page_url());
         $full_name = trim($data['first_name'] . ' ' . $data['last_name']);
         $message = '<p>' . sprintf(esc_html__('Hello %s,', 'science180-book-review'), esc_html($data['first_name'])) . '</p>';
+        if ($is_reminder) {
+            $message .= '<p><strong>' . esc_html__('Reminder: your review copy request is still waiting for email verification.', 'science180-book-review') . '</strong></p>';
+        }
         $message .= '<p>' . esc_html__('Please verify your email address before we submit your review copy request.', 'science180-book-review') . '</p>';
         $message .= '<p><a href="' . esc_url($verify_url) . '" style="display:inline-block;background:#0f766e;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none;font-weight:700;">' . esc_html__('Verify My Email', 'science180-book-review') . '</a></p>';
         $message .= '<p>' . esc_html__('If the button does not work, copy and paste this link into your browser:', 'science180-book-review') . '<br><a href="' . esc_url($verify_url) . '">' . esc_html($verify_url) . '</a></p>';
@@ -880,7 +896,7 @@ class S180BR_Plugin
 
         $sent = wp_mail(
             $data['email'],
-            get_option('s180br_verification_subject', 'Verify your Science180 review copy request'),
+            ($is_reminder ? __('Reminder: ', 'science180-book-review') : '') . get_option('s180br_verification_subject', 'Verify your Science180 review copy request'),
             $message,
             $this->mail_headers('', $full_name)
         );
@@ -890,6 +906,53 @@ class S180BR_Plugin
         }
 
         return $sent;
+    }
+
+    public function send_pending_verification_reminders()
+    {
+        $directory = $this->pending_review_dir();
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        $reminder_after = max(1, (int) get_option('s180br_verification_reminder_hours', 12)) * HOUR_IN_SECONDS;
+        $now = time();
+        $processed = 0;
+        foreach ((array) glob(trailingslashit($directory) . '*.json') as $path) {
+            if ($processed >= 100) {
+                break;
+            }
+            if (!is_readable($path)) {
+                continue;
+            }
+            $payload = json_decode((string) file_get_contents($path), true);
+            if (!is_array($payload)) {
+                continue;
+            }
+            if (!empty($payload['expires']) && (int) $payload['expires'] < $now) {
+                wp_delete_file($path);
+                continue;
+            }
+            if (empty($payload['data']) || empty($payload['token'])) {
+                continue;
+            }
+            $created = isset($payload['created_at']) ? (int) $payload['created_at'] : 0;
+            if ($created < 1 || ($created + $reminder_after) > $now || !empty($payload['reminder_sent_at'])) {
+                continue;
+            }
+
+            $book = $this->get_book((int) $payload['data']['book_id']);
+            if (!$book) {
+                continue;
+            }
+            if ($this->send_review_verification_email($payload['data'], $book, $payload['token'], true)) {
+                $payload['reminder_sent_at'] = $now;
+                if (is_file($path)) {
+                    file_put_contents($path, wp_json_encode($payload), LOCK_EX);
+                }
+            }
+            $processed++;
+        }
     }
 
     public function send_daily_review_notice()
@@ -1264,6 +1327,10 @@ class S180BR_Plugin
             wp_die(esc_html__('Request not found.', 'science180-book-review'));
         }
 
+        if ($this->backfill_request_telemetry($item)) {
+            $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $request_id));
+        }
+
         $data = (array) $item;
         ?>
         <div class="wrap s180re-admin">
@@ -1364,6 +1431,11 @@ class S180BR_Plugin
 
                 <label><?php esc_html_e('Daily notice message', 'science180-book-review'); ?></label>
                 <textarea class="large-text" name="daily_notice_intro" rows="4"><?php echo esc_textarea(get_option('s180br_daily_notice_intro')); ?></textarea>
+
+                <h2><?php esc_html_e('Pending email verification reminder', 'science180-book-review'); ?></h2>
+                <p class="description"><?php esc_html_e('An hourly cron checks pending applications and sends one reminder before the verification link expires after 48 hours.', 'science180-book-review'); ?></p>
+                <label><?php esc_html_e('Send reminder after hours', 'science180-book-review'); ?></label>
+                <input type="number" min="1" max="47" name="verification_reminder_hours" value="<?php echo esc_attr((int) get_option('s180br_verification_reminder_hours', 12)); ?>">
 
                 <h2><?php esc_html_e('Letter sent after approval', 'science180-book-review'); ?></h2>
                 <p class="description"><?php esc_html_e('Available placeholders: {first_name}, {full_name}, {book_title}, {site_name}.', 'science180-book-review'); ?></p>
@@ -1685,6 +1757,7 @@ class S180BR_Plugin
         update_option('s180br_daily_notice_hour', $notice_hour);
         update_option('s180br_daily_notice_subject', $this->post_text('daily_notice_subject', false));
         update_option('s180br_daily_notice_intro', $this->post_textarea('daily_notice_intro', false));
+        update_option('s180br_verification_reminder_hours', min(47, max(1, isset($_POST['verification_reminder_hours']) ? absint($_POST['verification_reminder_hours']) : 12)));
         update_option('s180br_approval_subject', $this->post_text('approval_subject', false));
         update_option('s180br_approval_body', $this->post_textarea('approval_body', false));
         update_option('s180br_pdf_subject', $this->post_text('pdf_subject', false));
@@ -1900,12 +1973,22 @@ class S180BR_Plugin
             return false;
         }
 
+        if (!file_exists(trailingslashit($dir) . '.htaccess')) {
+            file_put_contents(trailingslashit($dir) . '.htaccess', "Require all denied\nDeny from all\n");
+        }
+        if (!file_exists(trailingslashit($dir) . 'index.php')) {
+            file_put_contents(trailingslashit($dir) . 'index.php', "<?php\n// Silence is golden.\n");
+        }
+
         $payload = array(
-            'expires' => time() + DAY_IN_SECONDS,
+            'expires' => time() + (2 * DAY_IN_SECONDS),
+            'created_at' => time(),
+            'reminder_sent_at' => 0,
+            'token' => $token,
             'data' => $data,
         );
 
-        return (bool) file_put_contents($this->pending_review_path($token), wp_json_encode($payload));
+        return (bool) file_put_contents($this->pending_review_path($token), wp_json_encode($payload), LOCK_EX);
     }
 
     private function load_pending_review($token)
@@ -2242,7 +2325,12 @@ class S180BR_Plugin
 
     private function device_type()
     {
-        $agent = strtolower($this->user_agent());
+        return $this->device_type_from_agent($this->user_agent());
+    }
+
+    private function device_type_from_agent($user_agent)
+    {
+        $agent = strtolower((string) $user_agent);
         if ($agent === '') {
             return '';
         }
@@ -2256,6 +2344,29 @@ class S180BR_Plugin
         }
 
         return 'desktop';
+    }
+
+    private function backfill_request_telemetry($request)
+    {
+        global $wpdb;
+        $updates = array();
+        if (!empty($request->ip_address) && (empty($request->ip_city) || empty($request->ip_country))) {
+            $geo = $this->ip_geolocation($request->ip_address);
+            if (empty($request->ip_city) && !empty($geo['city'])) {
+                $updates['ip_city'] = $geo['city'];
+            }
+            if (empty($request->ip_country) && !empty($geo['country'])) {
+                $updates['ip_country'] = $geo['country'];
+            }
+        }
+        if (empty($request->device_type) && !empty($request->user_agent)) {
+            $updates['device_type'] = $this->device_type_from_agent($request->user_agent);
+        }
+        if (!$updates) {
+            return false;
+        }
+        $updates['updated_at'] = current_time('mysql');
+        return $wpdb->update($this->table('review_requests'), $updates, array('id' => (int) $request->id)) !== false;
     }
 
     private function ip_geolocation($ip)

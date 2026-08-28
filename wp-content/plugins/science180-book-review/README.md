@@ -23,6 +23,8 @@ On activation, the plugin creates `/BookReviewRequest/` if it does not already e
 - Email-open and download analytics including timestamp, IP, location, device type, and user agent when available.
 - Per-book delivery report with links back to each recipient's application.
 - Configurable automatic review reminders after a chosen number of days.
+- Hourly pending-verification cron with one configurable reminder and 48-hour verification links.
+- Submission telemetry capture with automatic city/country/device backfill when data becomes available.
 
 ## Email
 
