@@ -44,6 +44,7 @@ for ($week_index = 0; $week_index < 12; $week_index++) {
         $end_sql
     ));
 
+    $report_start_week = $week_start->format('o-W');
     $report_run_week = $week_end->format('o-W');
     $weekly_rows[] = array(
         'start' => $week_start,
@@ -57,7 +58,9 @@ for ($week_index = 0; $week_index < 12; $week_index++) {
         'active' => (int) ($subscriber_stats->active_subscribers ?? 0),
         'unsubscribed' => (int) ($subscriber_stats->unsubscribed ?? 0),
         'bounced' => (int) ($subscriber_stats->bounced ?? 0),
-        'emailed' => $last_report_week !== '' && $last_report_week === $report_run_week,
+        // Older releases identified a report by its starting ISO week; the
+        // corrected scheduler identifies it by the week in which it runs.
+        'emailed' => $last_report_week !== '' && in_array($last_report_week, array($report_start_week, $report_run_week), true),
     );
 }
 ?>
