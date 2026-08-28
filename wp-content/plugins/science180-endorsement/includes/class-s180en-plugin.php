@@ -50,6 +50,7 @@ class S180EN_Plugin
     {
         self::create_tables();
         self::seed_options();
+        self::clean_legacy_null_warnings();
         self::maybe_create_pages();
         self::schedule_daily_notice();
         self::register_rewrites_static();
@@ -70,10 +71,22 @@ class S180EN_Plugin
 
         self::create_tables();
         self::seed_options();
+        self::clean_legacy_null_warnings();
         self::maybe_create_pages();
         self::register_rewrites_static();
         flush_rewrite_rules(false);
         update_option('s180en_version', S180EN_VERSION);
+    }
+
+    private static function clean_legacy_null_warnings()
+    {
+        global $wpdb;
+        $table = self::table_static('endorsements');
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET address = '' WHERE address LIKE %s AND address LIKE %s",
+            'Deprecated:%',
+            '%htmlspecialchars()%'
+        ));
     }
 
     private static function create_tables()
@@ -1276,7 +1289,7 @@ class S180EN_Plugin
                         <span class="s180re-detail-avatar" aria-hidden="true"><?php echo esc_html($this->endorsement_initials($endorsement)); ?></span>
                     <?php endif; ?>
                     <div class="s180re-detail-copy">
-                        <?php $public_address = trim((string) ($endorsement->address ?? '')); ?>
+                        <?php $public_address = $this->clean_optional_text($endorsement->address ?? ''); ?>
                         <?php if ($public_address !== '') : ?>
                             <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($public_address)); ?></p>
                         <?php endif; ?>
@@ -1672,7 +1685,8 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country of origin', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_origin); ?></td></tr>
                             <tr><th><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_residence); ?></td></tr>
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
-                            <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo trim((string) ($item->address ?? '')) !== '' ? nl2br(esc_html((string) $item->address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
+                            <?php $admin_address = $this->clean_optional_text($item->address ?? ''); ?>
+                            <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $admin_address !== '' ? nl2br(esc_html($admin_address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($item->comment)); ?></div></td></tr>
                             <tr><th><?php esc_html_e('IP address', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->ip_address ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('IP location', 'science180-endorsement'); ?></th><td><?php echo esc_html(trim((string) ($item->ip_city ?? '') . ((($item->ip_city ?? '') && ($item->ip_country ?? '')) ? ', ' : '') . (string) ($item->ip_country ?? ''))); ?></td></tr>
@@ -1721,7 +1735,7 @@ class S180EN_Plugin
                 <input id="s180re-edit-org" class="regular-text" type="text" name="organization" value="<?php echo esc_attr($item->organization); ?>" required>
 
                 <label for="s180re-edit-address"><?php esc_html_e('Address', 'science180-endorsement'); ?></label>
-                <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea((string) ($item->address ?? '')); ?></textarea>
+                <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea($this->clean_optional_text($item->address ?? '')); ?></textarea>
 
                 <label><?php esc_html_e('Photo', 'science180-endorsement'); ?></label>
                 <input type="hidden" name="photo_id" id="s180re-endorsement-photo-id" value="<?php echo esc_attr((int) $item->photo_id); ?>">
@@ -2447,6 +2461,15 @@ class S180EN_Plugin
         }
 
         return false;
+    }
+
+    private function clean_optional_text($value)
+    {
+        $value = trim((string) $value);
+        if (stripos($value, 'Deprecated:') === 0 && stripos($value, 'htmlspecialchars()') !== false) {
+            return '';
+        }
+        return $value;
     }
 
     private function post_raw($key)
