@@ -412,12 +412,6 @@ class AdvNews_Weekly_Reports {
     }
 }
 
-// Execute if called directly (for cron)
-if (defined('DOING_CRON') && DOING_CRON) {
-    $reports = new AdvNews_Weekly_Reports();
-    $result = $reports->execute();
-
-    if (get_option('advnews_enable_debug_log')) {
-        error_log('[AdvNews Cron] Weekly reports result: ' . print_r($result, true));
-    }
-}
+// Execution is intentionally handled only by the registered cron callback or
+// the explicit admin test action. Merely loading this class during a cron
+// request must never send a report.

@@ -50,8 +50,10 @@ class AdvNews_Cron
 
     private static function next_weekly_report_timestamp()
     {
-        $timestamp = strtotime('next monday 08:00:00');
-        if (!$timestamp || $timestamp <= time()) {
+        try {
+            $next_run = new DateTimeImmutable('next monday 08:00:00', wp_timezone());
+            $timestamp = $next_run->getTimestamp();
+        } catch (Exception $error) {
             $timestamp = time() + WEEK_IN_SECONDS;
         }
 
@@ -511,12 +513,23 @@ class AdvNews_Cron
             return;
         }
 
-        $report_week = wp_date('o-W', current_time('timestamp'));
-        if (get_option('advnews_last_weekly_report_week') === $report_week || get_transient('advnews_weekly_report_sending')) {
+        $report_week = wp_date('o-W');
+        if (get_option('advnews_last_weekly_report_week') === $report_week) {
             return;
         }
 
-        set_transient('advnews_weekly_report_sending', 1, 15 * MINUTE_IN_SECONDS);
+        // add_option() is backed by the unique option_name database key. Unlike a
+        // transient check followed by a set, this is atomic across concurrent cron
+        // requests and guarantees that a report period is claimed only once.
+        $claim_key = 'advnews_weekly_report_claim_' . sanitize_key($report_week);
+        if (!add_option($claim_key, current_time('mysql'), '', false)) {
+            return;
+        }
+
+        // Mark the period before wp_mail(). A mail transport can deliver a message
+        // while still returning an ambiguous result, which must not trigger retries
+        // every minute.
+        update_option('advnews_last_weekly_report_week', $report_week, false);
         $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 
         // Get weekly statistics
@@ -574,11 +587,6 @@ class AdvNews_Cron
         // Send email
         $headers = array('Content-Type: text/html; charset=UTF-8');
         $sent = wp_mail($admin_email, $subject, $message, $headers);
-        if ($sent) {
-            update_option('advnews_last_weekly_report_week', $report_week);
-        }
-        delete_transient('advnews_weekly_report_sending');
-
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log($sent ? '[AdvNews] Weekly report sent' : '[AdvNews] Weekly report failed to send');
         }
