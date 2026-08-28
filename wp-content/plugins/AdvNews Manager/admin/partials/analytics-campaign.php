@@ -509,32 +509,27 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                                 <td colspan="7"><?php _e('No geographic engagement data available.', 'advnews-manager'); ?></td>
                             </tr>
                             <?php else:
-                                $current_country = '';
-                                foreach ($analytics['geographic'] as $geo): ?>
-                                <tr class="<?php echo $current_country !== $geo->country ? 'country-group' : 'city-row'; ?>">
-                                    <?php if ($current_country !== $geo->country):
-                                        $current_country = $geo->country;
-                                    ?>
-                                    <td rowspan="<?php
-                                        $country_rows = array_filter($analytics['geographic'], function($item) use ($geo) {
-                                            return $item->country === $geo->country;
-                                        });
-                                        echo count($country_rows);
-                                    ?>">
-                                        <strong><?php echo esc_html($geo->country); ?></strong>
-                                    </td>
-                                    <td rowspan="<?php echo count($country_rows); ?>">
+                                foreach ($analytics['geographic'] as $geo):
+                                    $average_minutes = $geo->avg_hour !== null ? (int) round((float) $geo->avg_hour * 60) : null;
+                                    $average_hour = $average_minutes !== null
+                                        ? sprintf('%02d:%02d', (int) floor($average_minutes / 60) % 24, $average_minutes % 60)
+                                        : '—';
+                            ?>
+                                <tr>
+                                    <td><strong><?php echo esc_html($geo->country ?: __('Unknown', 'advnews-manager')); ?></strong></td>
+                                    <td>
                                         <?php if (!empty($geo->country_code)): ?>
                                             <img src="https://flagcdn.com/24x18/<?php echo strtolower($geo->country_code); ?>.png" alt="<?php echo esc_attr($geo->country); ?>" style="vertical-align: middle;">
                                             <?php echo esc_html($geo->country_code); ?>
+                                        <?php else: ?>
+                                            <?php echo esc_html__('—', 'advnews-manager'); ?>
                                         <?php endif; ?>
                                     </td>
-                                    <?php endif; ?>
                                     <td><?php echo esc_html($geo->city ?: __('(unknown city)', 'advnews-manager')); ?></td>
                                     <td><?php echo esc_html($geo->opens); ?></td>
                                     <td><?php echo esc_html($geo->unique_opens); ?></td>
                                     <td><?php echo esc_html($geo->days_active); ?></td>
-                                    <td><?php echo $geo->avg_hour ? round($geo->avg_hour, 1) . ':00' : '—'; ?></td>
+                                    <td><?php echo esc_html($average_hour); ?></td>
                                 </tr>
                             <?php endforeach; endif; ?>
                         </tbody>

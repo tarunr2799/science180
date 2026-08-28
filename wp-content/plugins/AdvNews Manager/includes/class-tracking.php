@@ -1157,6 +1157,10 @@ class AdvNews_Tracking
             case 'geographic':
                 fputcsv($output, array('Country', 'Country Code', 'City', 'Clicks', 'Unique Clickers', 'Days Active', 'Avg Hour'));
                 foreach ($analytics['geographic'] as $row) {
+                    $average_minutes = $row->avg_hour !== null ? (int) round((float) $row->avg_hour * 60) : null;
+                    $average_hour = $average_minutes !== null
+                        ? sprintf('%02d:%02d', (int) floor($average_minutes / 60) % 24, $average_minutes % 60)
+                        : 'N/A';
                     fputcsv($output, array(
                         $row->country,
                         $row->country_code ?? '',
@@ -1164,7 +1168,7 @@ class AdvNews_Tracking
                         $row->opens,
                         $row->unique_opens,
                         $row->days_active,
-                        $row->avg_hour ? round($row->avg_hour, 1) . ':00' : 'N/A'
+                        $average_hour
                     ));
                 }
                 break;
