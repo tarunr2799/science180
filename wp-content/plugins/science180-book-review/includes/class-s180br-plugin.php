@@ -1825,23 +1825,28 @@ class S180BR_Plugin
                         <thead><tr>
                             <th><?php esc_html_e('Recipient', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Copy', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('Sent', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('Email opened', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('PDF email sent', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('PDF email opened', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Downloaded', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('IP / location', 'science180-book-review'); ?></th>
-                            <th><?php esc_html_e('Device', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Download IP', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('City', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Country', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Device / browser user agent', 'science180-book-review'); ?></th>
                             <th><?php esc_html_e('Follow-up', 'science180-book-review'); ?></th>
                         </tr></thead>
                         <tbody>
                         <?php foreach ($items as $delivery) : ?>
+                            <?php $profile_url = admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $delivery->request_id); ?>
                             <tr>
-                                <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $delivery->request_id)); ?>"><?php echo esc_html(trim($delivery->first_name . ' ' . $delivery->last_name)); ?></a><br><a href="mailto:<?php echo esc_attr($delivery->email); ?>"><?php echo esc_html($delivery->email); ?></a></td>
+                                <td><a href="<?php echo esc_url($profile_url); ?>"><?php echo esc_html(trim($delivery->first_name . ' ' . $delivery->last_name)); ?></a><br><a href="<?php echo esc_url($profile_url); ?>"><?php echo esc_html($delivery->email); ?></a></td>
                                 <td><?php echo (int) $delivery->personalized === 1 ? esc_html__('Personalized', 'science180-book-review') : esc_html__('Original', 'science180-book-review'); ?></td>
                                 <td><?php echo esc_html($delivery->emailed_at ?: __('Email failed', 'science180-book-review')); ?></td>
-                                <td><?php echo esc_html($delivery->email_opened_at ?: __('Not detected', 'science180-book-review')); ?><?php if ($delivery->email_opened_at) : ?><br><small><?php echo esc_html(trim($delivery->open_ip_address . ' ' . $delivery->open_ip_city . ' ' . $delivery->open_ip_country . ' ' . $delivery->open_device_type)); ?></small><?php endif; ?></td>
+                                <td><?php echo esc_html($delivery->email_opened_at ?: __('Not detected', 'science180-book-review')); ?><?php if ($delivery->email_opened_at) : ?><br><small><?php echo esc_html(trim((string) $delivery->open_ip_address . ' ' . (string) $delivery->open_ip_city . ' ' . (string) $delivery->open_ip_country . ' ' . (string) $delivery->open_device_type)); ?></small><?php endif; ?></td>
                                 <td><?php echo esc_html($delivery->downloaded_at ?: __('Not yet', 'science180-book-review')); ?></td>
-                                <td><?php echo esc_html(trim($delivery->ip_address . ' ' . $delivery->ip_city . ' ' . $delivery->ip_country)); ?></td>
-                                <td><?php echo esc_html(trim($delivery->device_type . ' ' . $delivery->user_agent)); ?></td>
+                                <td><?php echo esc_html($delivery->ip_address ?: __('Not available', 'science180-book-review')); ?></td>
+                                <td><?php echo esc_html($delivery->ip_city ?: __('Unknown', 'science180-book-review')); ?></td>
+                                <td><?php echo esc_html($delivery->ip_country ?: __('Unknown', 'science180-book-review')); ?></td>
+                                <td><?php echo esc_html(trim((string) $delivery->device_type . ' ' . (string) $delivery->user_agent) ?: __('Not available', 'science180-book-review')); ?></td>
                                 <td><?php echo esc_html($delivery->reminder_sent_at ?: __('Pending', 'science180-book-review')); ?></td>
                             </tr>
                         <?php endforeach; ?>
