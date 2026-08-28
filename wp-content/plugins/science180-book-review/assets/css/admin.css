@@ -147,6 +147,18 @@
     border: 1px solid var(--s180re-admin-line);
 }
 
+.s180re-delivery-report {
+    margin-top: 18px;
+}
+
+.s180re-table-scroll {
+    overflow-x: auto;
+}
+
+.s180re-delivery-report table {
+    min-width: 1050px;
+}
+
 @media (max-width: 960px) {
     .s180re-admin-layout {
         grid-template-columns: 1fr;

@@ -3,6 +3,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once S180BR_PLUGIN_DIR . 'includes/class-s180br-pdf.php';
+
 class S180BR_Plugin
 {
     private static $instance = null;
@@ -25,9 +27,12 @@ class S180BR_Plugin
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
         add_action('admin_menu', array($this, 'register_admin_menu'));
         add_action('template_redirect', array($this, 'handle_review_verification_route'), 5);
+        add_action('template_redirect', array($this, 'handle_pdf_open_route'), 6);
+        add_action('template_redirect', array($this, 'handle_pdf_download_route'), 7);
         add_action('template_redirect', array($this, 'render_book_review_route'), 10);
         add_action('template_redirect', array($this, 'render_shortcode_page_fallback'), 20);
         add_action('s180br_daily_review_notice', array($this, 'send_daily_review_notice'));
+        add_action('s180br_daily_review_notice', array($this, 'send_pdf_followups'));
 
         add_shortcode('science180_review_request', array($this, 'render_review_request_shortcode'));
 
@@ -38,6 +43,7 @@ class S180BR_Plugin
         add_action('admin_post_s180re_toggle_book', array($this, 'handle_toggle_book'));
         add_action('admin_post_s180br_delete_book', array($this, 'handle_delete_book'));
         add_action('admin_post_s180re_update_request_status', array($this, 'handle_update_request_status'));
+        add_action('admin_post_s180br_send_pdf', array($this, 'handle_send_pdf'));
         add_action('admin_post_s180br_delete_request', array($this, 'handle_delete_request'));
         add_action('admin_post_s180br_save_settings', array($this, 'handle_save_settings'));
     }
@@ -84,6 +90,7 @@ class S180BR_Plugin
         $charset = $wpdb->get_charset_collate();
         $books = self::table_static('books');
         $requests = self::table_static('review_requests');
+        $deliveries = self::table_static('pdf_deliveries');
 
         $sql_books = "CREATE TABLE {$books} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -95,6 +102,8 @@ class S180BR_Plugin
             pdf_id bigint(20) unsigned DEFAULT 0,
             pdf_url text NULL,
             margin_message text NULL,
+            margin_color varchar(7) NOT NULL DEFAULT '#7030A0',
+            margin_position varchar(10) NOT NULL DEFAULT 'top',
             is_active tinyint(1) NOT NULL DEFAULT 1,
             sort_order int(11) NOT NULL DEFAULT 0,
             created_at datetime NOT NULL,
@@ -141,8 +150,41 @@ class S180BR_Plugin
             KEY created_at (created_at)
         ) {$charset};";
 
+        $sql_deliveries = "CREATE TABLE {$deliveries} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            request_id bigint(20) unsigned NOT NULL,
+            book_id bigint(20) unsigned NOT NULL,
+            token_hash varchar(64) NOT NULL,
+            personalized tinyint(1) NOT NULL DEFAULT 1,
+            file_path text NOT NULL,
+            status varchar(30) NOT NULL DEFAULT 'sent',
+            emailed_at datetime DEFAULT NULL,
+            email_opened_at datetime DEFAULT NULL,
+            open_ip_address varchar(45) DEFAULT '',
+            open_ip_city varchar(120) DEFAULT '',
+            open_ip_country varchar(120) DEFAULT '',
+            open_device_type varchar(40) DEFAULT '',
+            open_user_agent varchar(255) DEFAULT '',
+            downloaded_at datetime DEFAULT NULL,
+            download_attempts int(11) NOT NULL DEFAULT 0,
+            ip_address varchar(45) DEFAULT '',
+            ip_city varchar(120) DEFAULT '',
+            ip_country varchar(120) DEFAULT '',
+            device_type varchar(40) DEFAULT '',
+            user_agent varchar(255) DEFAULT '',
+            reminder_sent_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY token_hash (token_hash),
+            KEY request_id (request_id),
+            KEY book_id (book_id),
+            KEY downloaded_at (downloaded_at)
+        ) {$charset};";
+
         dbDelta($sql_books);
         dbDelta($sql_requests);
+        dbDelta($sql_deliveries);
     }
 
     private static function table_static($name)
@@ -167,6 +209,11 @@ class S180BR_Plugin
         add_option('s180br_approval_subject', 'Your Science180 review copy request was approved');
         add_option('s180br_approval_body', "Hello {full_name},\n\nYour application to get a review copy of the book \"{book_title}\" is APPROVED. You will be receiving the copy of the book very soon.\n\nKind regards,\nScience180 Team");
         add_option('s180br_verification_subject', 'Verify your Science180 review copy request');
+        add_option('s180br_pdf_subject', '{book_title} is ready to download');
+        add_option('s180br_pdf_body', "Hello {full_name},\n\n{book_title} is ready for you to download, read and review.\n\nCLICK HERE TO DOWNLOAD THE BOOK:\n{download_url}\n\nNote: This is a private, one-time download link for you only. If you share it, you may not be able to download your own copy.\n\nWhen finished, please leave your review at {endorsement_url}.\n\nKind regards,\nScience180 Team");
+        add_option('s180br_followup_days', 30);
+        add_option('s180br_followup_subject', 'A reminder to review {book_title}');
+        add_option('s180br_followup_body', "Hello {full_name},\n\nThank you for requesting a review copy of {book_title}. It has been {days} days since we sent you a copy. We would like to remind you to submit your review if you have not done so yet.\n\nSubmit your review at {endorsement_url}.\n\nFor any questions or comments, please contact us.\n\nKind regards,\nScience180 Team");
     }
 
     private static function normalize_email_domain($email)
@@ -342,6 +389,8 @@ class S180BR_Plugin
     public function register_query_vars($vars)
     {
         $vars[] = 's180br_book_slug';
+        $vars[] = 's180br_pdf_download';
+        $vars[] = 's180br_pdf_open';
         return $vars;
     }
 
@@ -919,6 +968,9 @@ class S180BR_Plugin
             '{first_name}' => $data['first_name'] ?? '',
             '{full_name}' => $full_name,
             '{book_title}' => $data['book_title'] ?? '',
+            '{download_url}' => $data['download_url'] ?? '',
+            '{endorsement_url}' => $data['endorsement_url'] ?? home_url('/endorsement/'),
+            '{days}' => isset($data['days']) ? (string) $data['days'] : '',
         );
 
         return strtr((string) $template, $replacements);
@@ -1054,6 +1106,17 @@ class S180BR_Plugin
                     <label><?php esc_html_e('Message to put on book margin', 'science180-book-review'); ?></label>
                     <textarea class="large-text" name="margin_message" rows="4"><?php echo esc_textarea($book && isset($book->margin_message) ? $book->margin_message : ''); ?></textarea>
 
+                    <label><?php esc_html_e('Margin message color', 'science180-book-review'); ?></label>
+                    <input type="color" name="margin_color" value="<?php echo esc_attr($book && !empty($book->margin_color) ? $book->margin_color : '#7030A0'); ?>">
+
+                    <label><?php esc_html_e('Margin message position', 'science180-book-review'); ?></label>
+                    <select name="margin_position">
+                        <?php $margin_position = $book && !empty($book->margin_position) ? $book->margin_position : 'top'; ?>
+                        <option value="top" <?php selected($margin_position, 'top'); ?>><?php esc_html_e('Top margin', 'science180-book-review'); ?></option>
+                        <option value="left" <?php selected($margin_position, 'left'); ?>><?php esc_html_e('Left margin', 'science180-book-review'); ?></option>
+                        <option value="right" <?php selected($margin_position, 'right'); ?>><?php esc_html_e('Right margin', 'science180-book-review'); ?></option>
+                    </select>
+
                     <label><?php esc_html_e('Sort order', 'science180-book-review'); ?></label>
                     <input type="number" name="sort_order" value="<?php echo esc_attr($book ? (int) $book->sort_order : 10); ?>">
 
@@ -1084,6 +1147,9 @@ class S180BR_Plugin
                     </table>
                 </div>
             </div>
+            <?php if ($book) : ?>
+                <?php $this->render_delivery_table((int) $book->id); ?>
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -1237,10 +1303,24 @@ class S180BR_Plugin
                         <?php wp_nonce_field('s180re_update_request_status'); ?>
                         <button class="button button-primary" type="submit" name="status" value="qualified"><?php esc_html_e('Approve', 'science180-book-review'); ?></button>
                         <button class="button" type="submit" name="status" value="declined"><?php esc_html_e('Reject', 'science180-book-review'); ?></button>
+                        <button class="button" type="submit" name="status" value="sent"><?php esc_html_e('Mark paperback sent', 'science180-book-review'); ?></button>
                     </form>
+                    <?php $request_book = $this->get_book((int) $item->book_id); ?>
+                    <?php if ($request_book && (!empty($request_book->pdf_id) || !empty($request_book->pdf_url))) : ?>
+                        <form class="s180re-inline-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="s180br_send_pdf">
+                            <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
+                            <?php wp_nonce_field('s180br_send_pdf'); ?>
+                            <button class="button button-primary" type="submit" name="delivery_mode" value="personalized"><?php esc_html_e('Send personalized PDF', 'science180-book-review'); ?></button>
+                            <button class="button" type="submit" name="delivery_mode" value="original"><?php esc_html_e('Send original PDF', 'science180-book-review'); ?></button>
+                        </form>
+                    <?php else : ?>
+                        <span class="s180re-status-note"><?php esc_html_e('Upload a PDF on the book page before sending.', 'science180-book-review'); ?></span>
+                    <?php endif; ?>
                     <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_request&request_id=' . (int) $item->id), 's180br_delete_request')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this request?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
                 </div>
             </div>
+            <?php $this->render_delivery_table((int) $item->book_id, (int) $item->id); ?>
         </div>
         <?php
     }
@@ -1293,6 +1373,25 @@ class S180BR_Plugin
                 <label><?php esc_html_e('Approval email body', 'science180-book-review'); ?></label>
                 <textarea class="large-text" name="approval_body" rows="8"><?php echo esc_textarea(get_option('s180br_approval_body')); ?></textarea>
 
+                <h2><?php esc_html_e('PDF delivery message', 'science180-book-review'); ?></h2>
+                <p class="description"><?php esc_html_e('Available placeholders: {first_name}, {full_name}, {book_title}, {download_url}, {endorsement_url}, {site_name}. The email-open tracking pixel is added automatically.', 'science180-book-review'); ?></p>
+                <label><?php esc_html_e('PDF delivery subject', 'science180-book-review'); ?></label>
+                <input class="large-text" type="text" name="pdf_subject" value="<?php echo esc_attr(get_option('s180br_pdf_subject')); ?>">
+
+                <label><?php esc_html_e('PDF delivery message', 'science180-book-review'); ?></label>
+                <textarea class="large-text" name="pdf_body" rows="12"><?php echo esc_textarea(get_option('s180br_pdf_body')); ?></textarea>
+
+                <h2><?php esc_html_e('Follow up message after sending the PDF', 'science180-book-review'); ?></h2>
+                <p class="description"><?php esc_html_e('One reminder is sent automatically for each PDF delivery. Set days to 0 to disable reminders. Available placeholders: {first_name}, {full_name}, {book_title}, {days}, {endorsement_url}, {site_name}.', 'science180-book-review'); ?></p>
+                <label><?php esc_html_e('Days after sending', 'science180-book-review'); ?></label>
+                <input type="number" min="0" max="3650" name="followup_days" value="<?php echo esc_attr((int) get_option('s180br_followup_days', 30)); ?>">
+
+                <label><?php esc_html_e('Follow-up subject', 'science180-book-review'); ?></label>
+                <input class="large-text" type="text" name="followup_subject" value="<?php echo esc_attr(get_option('s180br_followup_subject')); ?>">
+
+                <label><?php esc_html_e('Follow-up message', 'science180-book-review'); ?></label>
+                <textarea class="large-text" name="followup_body" rows="10"><?php echo esc_textarea(get_option('s180br_followup_body')); ?></textarea>
+
                 <p><button type="submit" class="button button-primary"><?php esc_html_e('Save settings', 'science180-book-review'); ?></button></p>
             </form>
         </div>
@@ -1320,16 +1419,18 @@ class S180BR_Plugin
             'pdf_id' => isset($_POST['pdf_id']) ? absint($_POST['pdf_id']) : 0,
             'pdf_url' => esc_url_raw($this->post_raw('pdf_url')),
             'margin_message' => $this->post_textarea('margin_message', false),
+            'margin_color' => preg_match('/^#[0-9a-fA-F]{6}$/', $this->post_raw('margin_color')) ? $this->post_raw('margin_color') : '#7030A0',
+            'margin_position' => in_array($this->post_text('margin_position', false), array('top', 'left', 'right'), true) ? $this->post_text('margin_position', false) : 'top',
             'is_active' => isset($_POST['is_active']) ? 1 : 0,
             'sort_order' => isset($_POST['sort_order']) ? intval($_POST['sort_order']) : 10,
             'updated_at' => $now,
         );
 
         if ($book_id > 0) {
-            $wpdb->update($this->table('books'), $data, array('id' => $book_id), array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s'), array('%d'));
+            $wpdb->update($this->table('books'), $data, array('id' => $book_id));
         } else {
             $data['created_at'] = $now;
-            $wpdb->insert($this->table('books'), $data, array('%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s', '%s'));
+            $wpdb->insert($this->table('books'), $data);
         }
 
         $this->admin_redirect('s180br-books', 'book_saved');
@@ -1393,6 +1494,167 @@ class S180BR_Plugin
         exit;
     }
 
+    public function handle_send_pdf()
+    {
+        $this->require_admin_post('s180br_send_pdf');
+        global $wpdb;
+
+        $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+        $mode = isset($_POST['delivery_mode']) && sanitize_key($_POST['delivery_mode']) === 'original' ? 'original' : 'personalized';
+        $request = $this->get_review_request($request_id);
+        $book = $request ? $this->get_book((int) $request->book_id) : null;
+        if (!$request || !$book) {
+            $this->admin_redirect('s180br-review-requests', 'request_missing');
+        }
+
+        $source = $this->book_pdf_path($book);
+        if (!$source) {
+            $this->redirect_request_detail($request_id, 'pdf_missing');
+        }
+
+        try {
+            $directory = $this->private_pdf_dir();
+            $token = $this->generate_token();
+            $filename = 'review-copy-' . (int) $request_id . '-' . wp_generate_password(12, false, false) . '.pdf';
+            $destination = trailingslashit($directory) . $filename;
+            if ($mode === 'original') {
+                if (!copy($source, $destination)) {
+                    throw new RuntimeException(__('The original PDF could not be copied.', 'science180-book-review'));
+                }
+            } else {
+                S180BR_PDF::generate(
+                    $source,
+                    $destination,
+                    array('name' => trim($request->first_name . ' ' . $request->last_name), 'email' => $request->email),
+                    isset($book->margin_message) ? $book->margin_message : '',
+                    isset($book->margin_color) ? $book->margin_color : '#7030A0',
+                    isset($book->margin_position) ? $book->margin_position : 'top',
+                    true
+                );
+            }
+
+            $now = current_time('mysql');
+            $delivery_table = $this->table('pdf_deliveries');
+            $inserted = $wpdb->insert($delivery_table, array(
+                'request_id' => $request_id,
+                'book_id' => (int) $book->id,
+                'token_hash' => hash('sha256', $token),
+                'personalized' => $mode === 'personalized' ? 1 : 0,
+                'file_path' => $destination,
+                'status' => 'sending',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ));
+            if (!$inserted) {
+                throw new RuntimeException(__('The delivery record could not be created.', 'science180-book-review'));
+            }
+
+            $delivery_id = (int) $wpdb->insert_id;
+            $download_url = add_query_arg('s180br_pdf_download', rawurlencode($token), home_url('/'));
+            $open_url = add_query_arg('s180br_pdf_open', rawurlencode($token), home_url('/'));
+            $email_data = (array) $request;
+            $email_data['download_url'] = '<a href="' . esc_url($download_url) . '">' . esc_html__('CLICK HERE TO DOWNLOAD THE BOOK', 'science180-book-review') . '</a>';
+            $email_data['endorsement_url'] = '<a href="' . esc_url(home_url('/endorsement/')) . '">' . esc_html(home_url('/endorsement/')) . '</a>';
+            $subject = $this->format_template(get_option('s180br_pdf_subject'), $email_data);
+            $body = $this->format_template(get_option('s180br_pdf_body'), $email_data);
+            $message = wpautop(wp_kses_post($body));
+            $message .= '<img src="' . esc_url($open_url) . '" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;">';
+
+            if (!wp_mail($request->email, $subject, $message, $this->mail_headers())) {
+                $wpdb->update($delivery_table, array('status' => 'email_failed', 'updated_at' => current_time('mysql')), array('id' => $delivery_id));
+                $this->log_mail_failure('PDF delivery', $request->email);
+                $this->redirect_request_detail($request_id, 'pdf_email_failed');
+            }
+
+            $wpdb->update($delivery_table, array('status' => 'sent', 'emailed_at' => current_time('mysql'), 'updated_at' => current_time('mysql')), array('id' => $delivery_id));
+            $wpdb->query($wpdb->prepare("UPDATE {$delivery_table} SET status = 'revoked', updated_at = %s WHERE request_id = %d AND id <> %d AND downloaded_at IS NULL", current_time('mysql'), $request_id, $delivery_id));
+            $wpdb->update($this->table('review_requests'), array('status' => 'sent', 'updated_at' => current_time('mysql')), array('id' => $request_id));
+            $this->redirect_request_detail($request_id, 'pdf_sent');
+        } catch (Throwable $error) {
+            if (!empty($destination) && is_file($destination)) {
+                @unlink($destination);
+            }
+            error_log('Science180 Book Review PDF error: ' . $error->getMessage());
+            $this->redirect_request_detail($request_id, 'pdf_generation_failed');
+        }
+    }
+
+    public function handle_pdf_open_route()
+    {
+        $token = get_query_var('s180br_pdf_open');
+        if (!$token && isset($_GET['s180br_pdf_open'])) {
+            $token = sanitize_text_field(wp_unslash($_GET['s180br_pdf_open']));
+        }
+        if (!$token) {
+            return;
+        }
+        global $wpdb;
+        $table = $this->table('pdf_deliveries');
+        $delivery = $wpdb->get_row($wpdb->prepare("SELECT id, email_opened_at FROM {$table} WHERE token_hash = %s LIMIT 1", hash('sha256', $token)));
+        if ($delivery && empty($delivery->email_opened_at)) {
+            $ip = $this->client_ip();
+            $geo = $this->ip_geolocation($ip);
+            $wpdb->update($table, array(
+                'email_opened_at' => current_time('mysql'),
+                'open_ip_address' => $ip,
+                'open_ip_city' => $geo['city'],
+                'open_ip_country' => $geo['country'],
+                'open_device_type' => $this->device_type(),
+                'open_user_agent' => $this->user_agent(),
+                'updated_at' => current_time('mysql'),
+            ), array('id' => (int) $delivery->id));
+        }
+        nocache_headers();
+        header('Content-Type: image/gif');
+        echo base64_decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+        exit;
+    }
+
+    public function handle_pdf_download_route()
+    {
+        $token = get_query_var('s180br_pdf_download');
+        if (!$token && isset($_GET['s180br_pdf_download'])) {
+            $token = sanitize_text_field(wp_unslash($_GET['s180br_pdf_download']));
+        }
+        if (!$token) {
+            return;
+        }
+
+        global $wpdb;
+        $table = $this->table('pdf_deliveries');
+        $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE token_hash = %s LIMIT 1", hash('sha256', $token)));
+        if (!$delivery || !empty($delivery->downloaded_at) || $delivery->status === 'revoked') {
+            status_header(410);
+            wp_die(esc_html__('This private download link has expired or has already been used.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
+        }
+        if (!$this->is_private_delivery_file($delivery->file_path) || !is_readable($delivery->file_path)) {
+            status_header(404);
+            wp_die(esc_html__('The requested PDF is unavailable. Please contact Science180.', 'science180-book-review'), esc_html__('PDF unavailable', 'science180-book-review'), array('response' => 404));
+        }
+
+        $ip = $this->client_ip();
+        $geo = $this->ip_geolocation($ip);
+        $now = current_time('mysql');
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET downloaded_at = %s, status = 'downloaded', download_attempts = download_attempts + 1, ip_address = %s, ip_city = %s, ip_country = %s, device_type = %s, user_agent = %s, updated_at = %s WHERE id = %d AND downloaded_at IS NULL",
+            $now, $ip, $geo['city'], $geo['country'], $this->device_type(), $this->user_agent(), $now, (int) $delivery->id
+        ));
+        if ($updated !== 1) {
+            status_header(410);
+            wp_die(esc_html__('This private download link has already been used.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
+        }
+
+        $request = $this->get_review_request((int) $delivery->request_id);
+        $download_name = sanitize_file_name(($request ? $request->book_title : 'science180-review-copy') . '.pdf');
+        nocache_headers();
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $download_name . '"');
+        header('Content-Length: ' . filesize($delivery->file_path));
+        header('X-Content-Type-Options: nosniff');
+        readfile($delivery->file_path);
+        exit;
+    }
+
     public function handle_delete_request()
     {
         $this->require_admin_get('s180br_delete_request');
@@ -1425,10 +1687,148 @@ class S180BR_Plugin
         update_option('s180br_daily_notice_intro', $this->post_textarea('daily_notice_intro', false));
         update_option('s180br_approval_subject', $this->post_text('approval_subject', false));
         update_option('s180br_approval_body', $this->post_textarea('approval_body', false));
+        update_option('s180br_pdf_subject', $this->post_text('pdf_subject', false));
+        update_option('s180br_pdf_body', $this->post_textarea('pdf_body', false));
+        update_option('s180br_followup_days', min(3650, max(0, isset($_POST['followup_days']) ? absint($_POST['followup_days']) : 30)));
+        update_option('s180br_followup_subject', $this->post_text('followup_subject', false));
+        update_option('s180br_followup_body', $this->post_textarea('followup_body', false));
         if ($notice_hour !== $previous_notice_hour || !wp_next_scheduled('s180br_daily_review_notice')) {
             self::reschedule_daily_notice();
         }
         $this->admin_redirect('s180br-settings', 'settings_saved');
+    }
+
+    public function send_pdf_followups()
+    {
+        $days = (int) get_option('s180br_followup_days', 30);
+        if ($days < 1) {
+            return;
+        }
+
+        global $wpdb;
+        $deliveries = $this->table('pdf_deliveries');
+        $requests = $this->table('review_requests');
+        $cutoff = wp_date('Y-m-d H:i:s', current_time('timestamp') - ($days * DAY_IN_SECONDS));
+        $items = $wpdb->get_results($wpdb->prepare(
+            "SELECT d.id AS delivery_id, r.* FROM {$deliveries} d INNER JOIN {$requests} r ON r.id = d.request_id WHERE d.emailed_at IS NOT NULL AND d.emailed_at <= %s AND d.reminder_sent_at IS NULL AND d.status IN ('sent','downloaded') ORDER BY d.emailed_at ASC LIMIT 100",
+            $cutoff
+        ));
+
+        foreach ($items as $item) {
+            $data = (array) $item;
+            $data['days'] = $days;
+            $data['endorsement_url'] = '<a href="' . esc_url(home_url('/endorsement/')) . '">' . esc_html(home_url('/endorsement/')) . '</a>';
+            $subject = $this->format_template(get_option('s180br_followup_subject'), $data);
+            $body = wpautop(wp_kses_post($this->format_template(get_option('s180br_followup_body'), $data)));
+            if (wp_mail($item->email, $subject, $body, $this->mail_headers())) {
+                $wpdb->update($deliveries, array('reminder_sent_at' => current_time('mysql'), 'updated_at' => current_time('mysql')), array('id' => (int) $item->delivery_id));
+            } else {
+                $this->log_mail_failure('PDF follow-up', $item->email);
+            }
+        }
+    }
+
+    private function render_delivery_table($book_id, $request_id = 0)
+    {
+        global $wpdb;
+        $deliveries = $this->table('pdf_deliveries');
+        $requests = $this->table('review_requests');
+        $where = 'd.book_id = %d';
+        $params = array($book_id);
+        if ($request_id > 0) {
+            $where .= ' AND d.request_id = %d';
+            $params[] = $request_id;
+        }
+        $sql = "SELECT d.*, r.first_name, r.last_name, r.email FROM {$deliveries} d INNER JOIN {$requests} r ON r.id = d.request_id WHERE {$where} ORDER BY d.created_at DESC LIMIT 500";
+        $items = $wpdb->get_results($wpdb->prepare($sql, $params));
+        ?>
+        <div class="s180re-admin-panel s180re-delivery-report">
+            <h2><?php esc_html_e('PDF delivery and download statistics', 'science180-book-review'); ?></h2>
+            <?php if (!$items) : ?>
+                <p><?php esc_html_e('No PDF links have been sent for this book yet.', 'science180-book-review'); ?></p>
+            <?php else : ?>
+                <div class="s180re-table-scroll">
+                    <table class="widefat striped">
+                        <thead><tr>
+                            <th><?php esc_html_e('Recipient', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Copy', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Sent', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Email opened', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Downloaded', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('IP / location', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Device', 'science180-book-review'); ?></th>
+                            <th><?php esc_html_e('Follow-up', 'science180-book-review'); ?></th>
+                        </tr></thead>
+                        <tbody>
+                        <?php foreach ($items as $delivery) : ?>
+                            <tr>
+                                <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $delivery->request_id)); ?>"><?php echo esc_html(trim($delivery->first_name . ' ' . $delivery->last_name)); ?></a><br><a href="mailto:<?php echo esc_attr($delivery->email); ?>"><?php echo esc_html($delivery->email); ?></a></td>
+                                <td><?php echo (int) $delivery->personalized === 1 ? esc_html__('Personalized', 'science180-book-review') : esc_html__('Original', 'science180-book-review'); ?></td>
+                                <td><?php echo esc_html($delivery->emailed_at ?: __('Email failed', 'science180-book-review')); ?></td>
+                                <td><?php echo esc_html($delivery->email_opened_at ?: __('Not detected', 'science180-book-review')); ?><?php if ($delivery->email_opened_at) : ?><br><small><?php echo esc_html(trim($delivery->open_ip_address . ' ' . $delivery->open_ip_city . ' ' . $delivery->open_ip_country . ' ' . $delivery->open_device_type)); ?></small><?php endif; ?></td>
+                                <td><?php echo esc_html($delivery->downloaded_at ?: __('Not yet', 'science180-book-review')); ?></td>
+                                <td><?php echo esc_html(trim($delivery->ip_address . ' ' . $delivery->ip_city . ' ' . $delivery->ip_country)); ?></td>
+                                <td><?php echo esc_html(trim($delivery->device_type . ' ' . $delivery->user_agent)); ?></td>
+                                <td><?php echo esc_html($delivery->reminder_sent_at ?: __('Pending', 'science180-book-review')); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    private function book_pdf_path($book)
+    {
+        if (!empty($book->pdf_id)) {
+            $path = get_attached_file((int) $book->pdf_id);
+            if ($path && is_readable($path)) {
+                return $path;
+            }
+        }
+        if (!empty($book->pdf_url)) {
+            $uploads = wp_upload_dir();
+            if (strpos($book->pdf_url, $uploads['baseurl']) === 0) {
+                $relative = ltrim(substr($book->pdf_url, strlen($uploads['baseurl'])), '/');
+                $candidate = wp_normalize_path(trailingslashit($uploads['basedir']) . $relative);
+                if (is_readable($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+        return '';
+    }
+
+    private function private_pdf_dir()
+    {
+        $uploads = wp_upload_dir();
+        $directory = trailingslashit($uploads['basedir']) . 's180br-private';
+        if (!wp_mkdir_p($directory)) {
+            throw new RuntimeException(__('The private PDF directory could not be created.', 'science180-book-review'));
+        }
+        if (!file_exists(trailingslashit($directory) . '.htaccess')) {
+            file_put_contents(trailingslashit($directory) . '.htaccess', "Require all denied\nDeny from all\n");
+        }
+        if (!file_exists(trailingslashit($directory) . 'index.php')) {
+            file_put_contents(trailingslashit($directory) . 'index.php', "<?php\n// Silence is golden.\n");
+        }
+        return $directory;
+    }
+
+    private function is_private_delivery_file($path)
+    {
+        $uploads = wp_upload_dir();
+        $base = wp_normalize_path(trailingslashit($uploads['basedir']) . 's180br-private/');
+        $candidate = wp_normalize_path((string) $path);
+        return strpos($candidate, $base) === 0 && strtolower(pathinfo($candidate, PATHINFO_EXTENSION)) === 'pdf';
+    }
+
+    private function redirect_request_detail($request_id, $notice)
+    {
+        wp_safe_redirect(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . absint($request_id) . '&s180re_admin_status=' . rawurlencode($notice)));
+        exit;
     }
 
     private function require_admin_post($nonce_action)
@@ -1585,10 +1985,14 @@ class S180BR_Plugin
             'request_missing' => __('Review copy request not found.', 'science180-book-review'),
             'request_deleted' => __('Review copy request deleted.', 'science180-book-review'),
             'settings_saved' => __('Settings saved.', 'science180-book-review'),
+            'pdf_sent' => __('The private one-time PDF link was emailed successfully.', 'science180-book-review'),
+            'pdf_missing' => __('This book does not have a readable PDF. Upload it on the book page first.', 'science180-book-review'),
+            'pdf_generation_failed' => __('The PDF could not be generated. Check the server error log for details.', 'science180-book-review'),
+            'pdf_email_failed' => __('The PDF was prepared, but its email could not be sent.', 'science180-book-review'),
         );
 
         if (isset($messages[$status])) {
-            $notice_class = in_array($status, array('book_missing', 'request_missing', 'request_updated_email_failed'), true) ? 'notice-warning' : 'notice-success';
+            $notice_class = in_array($status, array('book_missing', 'request_missing', 'request_updated_email_failed', 'pdf_missing', 'pdf_generation_failed', 'pdf_email_failed'), true) ? 'notice-warning' : 'notice-success';
             echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($messages[$status]) . '</p></div>';
         }
     }
@@ -1872,6 +2276,14 @@ class S180BR_Plugin
         }
         if (!empty($_SERVER['GEOIP_COUNTRY_NAME'])) {
             $location['country'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_COUNTRY_NAME']));
+        }
+
+        if (($location['city'] === '' || $location['country'] === '') && class_exists('AdvNews_Geolocation') && defined('ADVNEWS_TABLE_PREFIX')) {
+            $advnews_location = (new AdvNews_Geolocation())->get_location($ip);
+            if (is_array($advnews_location)) {
+                $location['city'] = $location['city'] ?: sanitize_text_field($advnews_location['city'] ?? '');
+                $location['country'] = $location['country'] ?: sanitize_text_field($advnews_location['country'] ?? '');
+            }
         }
 
         return $location;
