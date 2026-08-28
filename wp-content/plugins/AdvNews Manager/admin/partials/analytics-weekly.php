@@ -80,7 +80,7 @@ for ($week_index = 0; $week_index < 12; $week_index++) {
             <thead>
                 <tr>
                     <th><?php esc_html_e('Report period', 'advnews-manager'); ?></th>
-                    <th><?php esc_html_e('Email status', 'advnews-manager'); ?></th>
+                    <th><?php esc_html_e('Report status', 'advnews-manager'); ?></th>
                     <th><?php esc_html_e('Campaigns sent', 'advnews-manager'); ?></th>
                     <th><?php esc_html_e('Emails sent', 'advnews-manager'); ?></th>
                     <th><?php esc_html_e('Avg open rate', 'advnews-manager'); ?></th>
@@ -93,15 +93,17 @@ for ($week_index = 0; $week_index < 12; $week_index++) {
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($weekly_rows as $row) : ?>
+                <?php foreach ($weekly_rows as $row_index => $row) : ?>
                     <tr>
                         <td><strong><?php echo esc_html($row['start']->format('Y-m-d') . ' to ' . $row['end']->format('Y-m-d')); ?></strong></td>
                         <td>
                             <?php if ($row['emailed']) : ?>
                                 <span class="advnews-weekly-status is-sent"><?php esc_html_e('Sent', 'advnews-manager'); ?></span>
                                 <?php if ($last_report_sent_at !== '') : ?><br><small><?php echo esc_html($last_report_sent_at); ?></small><?php endif; ?>
+                            <?php elseif ($row_index === 0) : ?>
+                                <span class="advnews-weekly-status"><?php esc_html_e('Latest completed', 'advnews-manager'); ?></span>
                             <?php else : ?>
-                                <span class="advnews-weekly-status"><?php esc_html_e('Not the emailed period', 'advnews-manager'); ?></span>
+                                <span aria-label="<?php esc_attr_e('Historical email status unavailable', 'advnews-manager'); ?>">&mdash;</span>
                             <?php endif; ?>
                         </td>
                         <td><?php echo esc_html(number_format_i18n($row['campaigns'])); ?></td>
