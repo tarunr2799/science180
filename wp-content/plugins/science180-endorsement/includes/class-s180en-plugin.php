@@ -72,10 +72,62 @@ class S180EN_Plugin
         self::create_tables();
         self::seed_options();
         self::clean_legacy_null_warnings();
+        $this->backfill_missing_ip_locations();
         self::maybe_create_pages();
         self::register_rewrites_static();
         flush_rewrite_rules(false);
         update_option('s180en_version', S180EN_VERSION);
+    }
+
+    /**
+     * Populate city/country for older endorsements that already have a stored IP.
+     */
+    private function backfill_missing_ip_locations()
+    {
+        if (!class_exists('AdvNews_Geolocation')) {
+            return;
+        }
+
+        global $wpdb;
+        $table = self::table_static('endorsements');
+        $rows = $wpdb->get_results(
+            "SELECT id, ip_address, ip_city, ip_country
+             FROM {$table}
+             WHERE ip_address != ''
+               AND (ip_city = '' OR ip_country = '')
+             ORDER BY id ASC
+             LIMIT 500"
+        );
+
+        if (!$rows) {
+            return;
+        }
+
+        $geolocation = new AdvNews_Geolocation();
+        foreach ($rows as $row) {
+            $location = $geolocation->get_location($row->ip_address);
+            if (!is_array($location)) {
+                continue;
+            }
+
+            $city = $row->ip_city ?: sanitize_text_field($location['city'] ?? '');
+            $country = $row->ip_country ?: sanitize_text_field($location['country'] ?? '');
+            if ($city === $row->ip_city && $country === $row->ip_country) {
+                continue;
+            }
+
+            $wpdb->update(
+                $table,
+                array(
+                    'ip_city' => $city,
+                    'ip_country' => $country,
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => (int) $row->id),
+                array('%s', '%s', '%s'),
+                array('%d')
+            );
+        }
     }
 
     private static function clean_legacy_null_warnings()
