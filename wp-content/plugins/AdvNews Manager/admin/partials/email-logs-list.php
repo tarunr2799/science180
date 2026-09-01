@@ -52,13 +52,15 @@ $all_campaigns = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table
                     <th><?php _e('Recipient', 'advnews-manager'); ?></th>
                     <th><?php _e('Campaign', 'advnews-manager'); ?></th>
                     <th><?php _e('Subject', 'advnews-manager'); ?></th>
-                    <th><?php _e('Date', 'advnews-manager'); ?></th>
-                    <th><?php _e('Details', 'advnews-manager'); ?></th>
+                    <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
+                    <th><?php _e('Delivered Date', 'advnews-manager'); ?></th>
+                    <th><?php _e('Opened Date', 'advnews-manager'); ?></th>
+                    <th><?php _e('Clicked Date', 'advnews-manager'); ?></th>
                 </tr>
             </thead>
             <tbody id="email-logs-body">
                 <tr>
-                    <td colspan="6" style="text-align:center; padding: 40px;">
+                    <td colspan="8" style="text-align:center; padding: 40px;">
                         <span class="spinner is-active"></span> <?php _e('Loading logs...', 'advnews-manager'); ?>
                     </td>
                 </tr>
@@ -92,7 +94,7 @@ jQuery(document).ready(function($) {
 
     function loadLogs(page) {
         const tbody = $('#email-logs-body');
-        tbody.html('<tr><td colspan="6" style="text-align:center; padding: 40px;"><span class="spinner is-active"></span> Loading...</td></tr>');
+        tbody.html('<tr><td colspan="8" style="text-align:center; padding: 40px;"><span class="spinner is-active"></span> Loading...</td></tr>');
 
         $.ajax({
             url: advnews_ajax.ajax_url,
@@ -112,11 +114,11 @@ jQuery(document).ready(function($) {
                     currentPage = response.data.page;
                     totalPages = response.data.total_pages;
                 } else {
-                    tbody.html('<tr><td colspan="6" style="text-align:center; color:red;">' + (response.data.message || 'Error loading data') + '</td></tr>');
+                    tbody.html('<tr><td colspan="8" style="text-align:center; color:red;">' + (response.data.message || 'Error loading data') + '</td></tr>');
                 }
             },
             error: function() {
-                tbody.html('<tr><td colspan="6" style="text-align:center; color:red;">Error loading data.</td></tr>');
+                tbody.html('<tr><td colspan="8" style="text-align:center; color:red;">Error loading data.</td></tr>');
             }
         });
     }
@@ -126,7 +128,7 @@ jQuery(document).ready(function($) {
         tbody.empty();
 
         if (items.length === 0) {
-            tbody.html('<tr><td colspan="6" style="text-align:center;">' + (advnews_ajax.i18n?.no_data || 'No logs found.') + '</td></tr>');
+            tbody.html('<tr><td colspan="8" style="text-align:center;">' + (advnews_ajax.i18n?.no_data || 'No logs found.') + '</td></tr>');
             return;
         }
 
@@ -162,12 +164,8 @@ jQuery(document).ready(function($) {
                 `<small>${escHtml(item.campaign_subject)}</small>` :
                 '<small style="color:#999; font-style:italic;">—</small>';
 
-            let details = '';
-            if (item.sent_at) details += '<div>Sent: ' + item.sent_at + '</div>';
-            if (item.delivered_at) details += '<div>Delivered: ' + item.delivered_at + '</div>';
-            if (item.opened_at) details += '<div>Opened: ' + item.opened_at + '</div>';
-            if (item.clicked_at) details += '<div>Clicked: ' + item.clicked_at + '</div>';
-            if (item.bounce_message) details += '<div style="color:red; font-size:11px;">' + escHtml(item.bounce_message) + '</div>';
+            const bounceMessage = item.bounce_message ?
+                `<div style="color:#d63638; font-size:11px; margin-top:4px;">${escHtml(item.bounce_message)}</div>` : '';
 
             const recipientName = item.first_name || item.last_name ?
                 `${item.first_name || ''} ${item.last_name || ''}`.trim() : '';
@@ -186,15 +184,17 @@ jQuery(document).ready(function($) {
             const emailHtml = subscriberUrl ? `<a href="${subscriberUrl}"><strong>${escHtml(item.email)}</strong></a>` : `<strong>${escHtml(item.email)}</strong>`;
             const row = `
                 <tr>
-                    <td ${statusClass}>${statusLabel}${retryButton}</td>
+                    <td ${statusClass}>${statusLabel}${retryButton}${bounceMessage}</td>
                     <td>
                         ${emailHtml}<br>
                         <small style="color:#666;">${escHtml(recipientName)}</small>
                     </td>
                     <td>${campaignLink}</td>
                     <td>${subjectLine}</td>
-                    <td><small>${item.created_at}</small></td>
-                    <td><small>${details}</small></td>
+                    <td><small>${escHtml(item.sent_at || '—')}</small></td>
+                    <td><small>${escHtml(item.delivered_at || '—')}</small></td>
+                    <td><small>${escHtml(item.opened_at || '—')}</small></td>
+                    <td><small>${escHtml(item.clicked_at || '—')}</small></td>
                 </tr>
             `;
             tbody.append(row);

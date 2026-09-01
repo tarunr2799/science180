@@ -904,14 +904,20 @@ class AdvNews_Tracking
         $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
         $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         // Get opens with geolocation
         $opens = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT
             o.*,
             c.name as campaign_name,
-            c.subject as campaign_subject
+            c.subject as campaign_subject,
+            lg.sent_at,
+            lg.delivered_at,
+            lg.opened_at as log_opened_at,
+            lg.clicked_at as log_clicked_at
             FROM $table_opens o
             INNER JOIN $table_campaigns c ON o.campaign_id = c.id
+            INNER JOIN $table_logs lg ON o.campaign_log_id = lg.id
             WHERE o.subscriber_id = %d
             ORDER BY o.opened_at DESC
             LIMIT %d",
@@ -924,10 +930,15 @@ class AdvNews_Tracking
             cl.*,
             l.original_url,
             c.name as campaign_name,
-            c.subject as campaign_subject
+            c.subject as campaign_subject,
+            lg.sent_at,
+            lg.delivered_at,
+            lg.opened_at as log_opened_at,
+            lg.clicked_at as log_clicked_at
             FROM $table_clicks cl
             INNER JOIN {$this->wpdb->prefix}{$this->table_prefix}links l ON cl.link_id = l.id
             INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
+            INNER JOIN $table_logs lg ON cl.campaign_log_id = lg.id
             WHERE cl.subscriber_id = %d
             ORDER BY cl.clicked_at DESC
             LIMIT %d",
@@ -942,6 +953,10 @@ class AdvNews_Tracking
                 'date' => $open->opened_at,
                 'campaign' => $open->campaign_name,
                 'subject' => $open->campaign_subject,
+                'sent_at' => $open->sent_at,
+                'delivered_at' => $open->delivered_at,
+                'opened_at' => $open->log_opened_at ?: $open->opened_at,
+                'clicked_at' => $open->log_clicked_at,
                 'device' => $open->device_type,
                 'browser' => $open->browser,
                 'platform' => $open->platform,
@@ -959,6 +974,10 @@ class AdvNews_Tracking
                 'campaign' => $click->campaign_name,
                 'subject' => $click->campaign_subject,
                 'url' => $click->original_url,
+                'sent_at' => $click->sent_at,
+                'delivered_at' => $click->delivered_at,
+                'opened_at' => $click->log_opened_at,
+                'clicked_at' => $click->log_clicked_at ?: $click->clicked_at,
                 'device' => $click->device_type,
                 'browser' => $click->browser,
                 'platform' => $click->platform,

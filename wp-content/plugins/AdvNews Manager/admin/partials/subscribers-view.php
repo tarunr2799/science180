@@ -215,10 +215,13 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                             <table class="wp-list-table widefat fixed striped">
                                 <thead>
                                     <tr>
-                                        <th><?php _e('Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Delivered Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Opened Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Clicked Date', 'advnews-manager'); ?></th>
                                         <th><?php _e('Type', 'advnews-manager'); ?></th>
                                         <th><?php _e('Campaign', 'advnews-manager'); ?></th>
-                                        <th><?php _e('Details', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Link / Subject', 'advnews-manager'); ?></th>
                                         <th><?php _e('IP / Device', 'advnews-manager'); ?></th>
                                         <th><?php _e('Location', 'advnews-manager'); ?></th>
                                     </tr>
@@ -226,9 +229,13 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                 <tbody>
                                     <?php foreach ($activity as $item): ?>
                                         <tr>
-                                            <td>
-                                                <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item['date']))); ?>
-                                            </td>
+                                            <?php foreach (array('sent_at', 'delivered_at', 'opened_at', 'clicked_at') as $date_field): ?>
+                                                <td>
+                                                    <?php echo !empty($item[$date_field])
+                                                        ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item[$date_field])))
+                                                        : '—'; ?>
+                                                </td>
+                                            <?php endforeach; ?>
                                             <td>
                                                 <span class="activity-badge activity-<?php echo esc_attr($item['type']); ?>" style="display:inline-block; padding:3px 8px; border-radius:3px; font-size:11px; font-weight:600; background:<?php
                                                     echo $item['type'] == 'open' ? '#d4edda; color:#155724;' :

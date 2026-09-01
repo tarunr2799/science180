@@ -1462,7 +1462,11 @@ class AdvNews_Ajax
                   INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
                   INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
                   WHERE $where_clause
-                  ORDER BY cl.created_at DESC
+                  ORDER BY cl.clicked_at DESC,
+                           cl.opened_at DESC,
+                           cl.delivered_at DESC,
+                           cl.sent_at DESC,
+                           cl.created_at DESC
                   LIMIT %d OFFSET %d";
 
         $items = $this->wpdb->get_results($this->wpdb->prepare($query, $per_page, $offset));
