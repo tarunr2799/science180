@@ -135,6 +135,23 @@ foreach ($subscriber_categories as $cat) {
                         </td>
                     </tr>
 
+                    <?php if ($subscriber_id): ?>
+                    <tr>
+                        <th scope="row"><?php _e('IP Address', 'advnews-manager'); ?></th>
+                        <td><code><?php echo esc_html($subscriber->ip_address ?: '—'); ?></code></td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Timezone', 'advnews-manager'); ?></th>
+                        <td><?php echo esc_html($subscriber->timezone ?: '—'); ?></td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><?php _e('Language', 'advnews-manager'); ?></th>
+                        <td><?php echo esc_html($subscriber->language ?: '—'); ?></td>
+                    </tr>
+                    <?php endif; ?>
+
                     <tr>
                         <th scope="row">
                             <label><?php _e('Categories', 'advnews-manager'); ?></label>
@@ -272,6 +289,8 @@ foreach ($subscriber_categories as $cat) {
                             <th><?php _e('Type', 'advnews-manager'); ?></th>
                             <th><?php _e('Campaign', 'advnews-manager'); ?></th>
                             <th><?php _e('Details', 'advnews-manager'); ?></th>
+                            <th><?php _e('IP / Device', 'advnews-manager'); ?></th>
+                            <th><?php _e('Location', 'advnews-manager'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -290,10 +309,12 @@ foreach ($subscriber_categories as $cat) {
                                     <?php else: ?>
                                         <?php echo esc_html($item['subject']); ?>
                                     <?php endif; ?>
-                                    <?php if (!empty($item['location'])): ?>
-                                        <br><small>📍 <?php echo esc_html($item['location']); ?></small>
-                                    <?php endif; ?>
                                 </td>
+                                <td>
+                                    <code><?php echo esc_html($item['ip_address'] ?? ''); ?></code>
+                                    <br><small><?php echo esc_html(trim(($item['device'] ?? '') . ' / ' . ($item['browser'] ?? '') . ' / ' . ($item['platform'] ?? ''), ' /')); ?></small>
+                                </td>
+                                <td><?php echo !empty($item['location']) ? esc_html($item['location']) : '—'; ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
