@@ -3,7 +3,7 @@
 * Plugin Name: Science180 Mail
 * Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.13
+* Version: 1.0.14
 * Author: Science180
 * Author URI: https://science180.net/
 * Text Domain: advnews-manager
@@ -17,8 +17,8 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.13');
-define('ADVNEWS_DB_VERSION', '1.0.13');
+define('ADVNEWS_VERSION', '1.0.14');
+define('ADVNEWS_DB_VERSION', '1.0.14');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ADVNEWS_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -288,6 +288,26 @@ class AdvNews_Manager
 
     private function apply_science180_option_migrations()
     {
+        $current_db_version = (string) get_option('advnews_db_version', '0');
+        if (
+            $current_db_version !== '0'
+            && version_compare($current_db_version, '1.0.14', '<')
+            && !get_option('advnews_weekly_report_guard_migrated')
+        ) {
+            $report_week = wp_date('o-W');
+            add_option(
+                'advnews_weekly_report_claim_' . sanitize_key($report_week),
+                current_time('mysql'),
+                '',
+                false
+            );
+            update_option('advnews_last_weekly_report_week', $report_week, false);
+            if (!get_option('advnews_last_weekly_report_sent_at')) {
+                update_option('advnews_last_weekly_report_sent_at', current_time('mysql'), false);
+            }
+            update_option('advnews_weekly_report_guard_migrated', 1, false);
+        }
+
         $reply_to = sanitize_email(get_option('advnews_reply_to', ''));
         if (!$reply_to || preg_match('/@science\.net$/i', $reply_to)) {
             update_option('advnews_reply_to', $reply_to ? preg_replace('/@science\.net$/i', '@science180.net', $reply_to) : 'contact@science180.net');
@@ -297,6 +317,12 @@ class AdvNews_Manager
             $email = sanitize_email(get_option($option, ''));
             if ($email && preg_match('/@science\.net$/i', $email)) {
                 update_option($option, preg_replace('/@science\.net$/i', '@science180.net', $email));
+            }
+        }
+
+        foreach (array('advnews_company_name', 'advnews_from_name') as $option) {
+            if (strcasecmp(trim((string) get_option($option, '')), 'AdvNews Manager') === 0) {
+                update_option($option, 'Science180 Mail');
             }
         }
     }

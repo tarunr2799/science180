@@ -1,6 +1,6 @@
 <?php
 /**
- * AdvNews Manager - Pure PHP MaxMind Reader
+ * Science180 Mail - Pure PHP MaxMind Reader
  * Reads .mmdb files without external libraries
  */
 if (!defined('ABSPATH')) exit;

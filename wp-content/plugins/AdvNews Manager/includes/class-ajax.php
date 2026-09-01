@@ -2882,7 +2882,7 @@ class AdvNews_Ajax
                 require_once ADVNEWS_PLUGIN_DIR . 'cron/weekly-reports.php';
                 $reports = new AdvNews_Weekly_Reports();
                 $result = $reports->execute();
-                $message = sprintf(__('Reports sent to %d recipients.', 'advnews-manager'), $result['reports_sent']);
+                $message = $result['message'];
                 break;
             default:
                 wp_send_json_error(array('message' => __('Invalid cron task.', 'advnews-manager')));

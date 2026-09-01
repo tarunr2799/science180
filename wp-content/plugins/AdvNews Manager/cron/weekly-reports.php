@@ -3,7 +3,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * AdvNews Weekly Reports Class
+ * Science180 Mail Weekly Reports Class
  * Generates and sends weekly analytics reports to administrators
  */
 class AdvNews_Weekly_Reports {
@@ -51,6 +51,14 @@ class AdvNews_Weekly_Reports {
             'engagement_stats' => array(),
             'errors' => array()
         );
+
+        if (!AdvNews_Cron::claim_weekly_report_delivery()) {
+            return array(
+                'success' => true,
+                'message' => __('The weekly report has already been sent for this period.', 'advnews-manager'),
+                'data' => $results
+            );
+        }
 
         try {
             // Get report period (last 7 days)

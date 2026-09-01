@@ -91,6 +91,41 @@ class AdvNews_Cron
         wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
     }
 
+    /**
+     * Claim the current weekly report period exactly once across every runner.
+     */
+    public static function claim_weekly_report_delivery()
+    {
+        $report_week = wp_date('o-W');
+        if ((string) get_option('advnews_last_weekly_report_week', '') === $report_week) {
+            return false;
+        }
+
+        $last_sent_at = (string) get_option('advnews_last_weekly_report_sent_at', '');
+        if ($last_sent_at !== '') {
+            try {
+                $last_sent = new DateTimeImmutable($last_sent_at, wp_timezone());
+                if ($last_sent->format('o-W') === $report_week) {
+                    update_option('advnews_last_weekly_report_week', $report_week, false);
+                    return false;
+                }
+            } catch (Exception $error) {
+                // A malformed legacy timestamp must not prevent the atomic claim below.
+            }
+        }
+
+        $claim_key = 'advnews_weekly_report_claim_' . sanitize_key($report_week);
+        if (!add_option($claim_key, current_time('mysql'), '', false)) {
+            return false;
+        }
+
+        // Claim before sending so an ambiguous mail response cannot cause retries.
+        update_option('advnews_last_weekly_report_week', $report_week, false);
+        update_option('advnews_last_weekly_report_sent_at', current_time('mysql'), false);
+
+        return true;
+    }
+
     public static function next_maxmind_update_timestamp()
     {
         $timestamp = strtotime('tomorrow 03:00:00');
@@ -513,24 +548,9 @@ class AdvNews_Cron
             return;
         }
 
-        $report_week = wp_date('o-W');
-        if (get_option('advnews_last_weekly_report_week') === $report_week) {
+        if (!self::claim_weekly_report_delivery()) {
             return;
         }
-
-        // add_option() is backed by the unique option_name database key. Unlike a
-        // transient check followed by a set, this is atomic across concurrent cron
-        // requests and guarantees that a report period is claimed only once.
-        $claim_key = 'advnews_weekly_report_claim_' . sanitize_key($report_week);
-        if (!add_option($claim_key, current_time('mysql'), '', false)) {
-            return;
-        }
-
-        // Mark the period before wp_mail(). A mail transport can deliver a message
-        // while still returning an ambiguous result, which must not trigger retries
-        // every minute.
-        update_option('advnews_last_weekly_report_week', $report_week, false);
-        update_option('advnews_last_weekly_report_sent_at', current_time('mysql'), false);
         $company_name = get_option('advnews_company_name', get_bloginfo('name'));
 
         // Get weekly statistics
@@ -601,6 +621,3 @@ add_filter('cron_schedules', array('AdvNews_Cron', 'add_cron_schedules'));
 add_action('advnews_process_queue', array('AdvNews_Cron', 'process_queue'));
 add_action('advnews_daily_maintenance', array('AdvNews_Cron', 'daily_maintenance'));
 add_action('advnews_weekly_reports', array('AdvNews_Cron', 'weekly_reports'));
-
-// IMPORTANT FIX: Schedule events on init to ensure they are always registered
-add_action('init', array('AdvNews_Cron', 'schedule_events'), 1);

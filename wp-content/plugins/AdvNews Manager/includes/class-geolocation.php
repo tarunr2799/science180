@@ -1,6 +1,6 @@
 <?php
 /**
- * AdvNews Manager - Geolocation Tracking Class
+ * Science180 Mail - Geolocation Tracking Class
  *
  * Handles IP geolocation for tracking opens and clicks
  *

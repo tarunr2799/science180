@@ -1,5 +1,5 @@
 /**
- * AdvNews Manager - Admin AJAX Handlers
+ * Science180 Mail - Admin AJAX Handlers
  * Version: 1.0.0
  */
 (function($) {
