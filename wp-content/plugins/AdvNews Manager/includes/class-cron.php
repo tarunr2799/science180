@@ -51,7 +51,11 @@ class AdvNews_Cron
     private static function next_weekly_report_timestamp()
     {
         try {
-            $next_run = new DateTimeImmutable('next monday 08:00:00', wp_timezone());
+            $now = new DateTimeImmutable('now', wp_timezone());
+            $next_run = $now->modify('monday this week')->setTime(8, 0);
+            if ($next_run <= $now) {
+                $next_run = $next_run->modify('+1 week');
+            }
             $timestamp = $next_run->getTimestamp();
         } catch (Exception $error) {
             $timestamp = time() + WEEK_IN_SECONDS;
@@ -74,6 +78,8 @@ class AdvNews_Cron
     public static function ensure_weekly_report_schedule()
     {
         $event_count = 0;
+        $scheduled_timestamp = wp_next_scheduled('advnews_weekly_reports');
+        $expected_timestamp = self::next_weekly_report_timestamp();
         $cron_array = _get_cron_array();
         if (is_array($cron_array)) {
             foreach ($cron_array as $hooks) {
@@ -83,12 +89,17 @@ class AdvNews_Cron
             }
         }
 
-        if ($event_count === 1 && wp_get_schedule('advnews_weekly_reports') === 'weekly') {
+        if (
+            $event_count === 1
+            && wp_get_schedule('advnews_weekly_reports') === 'weekly'
+            && $scheduled_timestamp
+            && abs((int) $scheduled_timestamp - $expected_timestamp) < MINUTE_IN_SECONDS
+        ) {
             return;
         }
 
         wp_clear_scheduled_hook('advnews_weekly_reports');
-        wp_schedule_event(self::next_weekly_report_timestamp(), 'weekly', 'advnews_weekly_reports');
+        wp_schedule_event($expected_timestamp, 'weekly', 'advnews_weekly_reports');
     }
 
     /**
