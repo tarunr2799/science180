@@ -3,7 +3,7 @@
 * Plugin Name: Science180 Mail
 * Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.17
+* Version: 1.0.18
 * Author: Science180
 * Author URI: https://science180.net/
 * Text Domain: advnews-manager
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.17');
+define('ADVNEWS_VERSION', '1.0.18');
 define('ADVNEWS_DB_VERSION', '1.0.14');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -205,9 +205,7 @@ class AdvNews_Manager
 
         AdvNews_Cron::ensure_weekly_report_schedule();
 
-        if (!wp_next_scheduled('advnews_update_maxmind_database')) {
-            wp_schedule_event(AdvNews_Cron::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
-        }
+        AdvNews_Cron::ensure_maxmind_update_schedule();
     }
 
     /**
@@ -797,24 +795,5 @@ class AdvNews_Manager
     }
 
 }
-// Register the daily update cron hook
-add_action('advnews_update_maxmind_database', function() {
-    if (!get_option('advnews_maxmind_auto_update', true)) {
-        return;
-    }
-
-    update_option('advnews_maxmind_last_attempt', time());
-    $tracking = new AdvNews_Tracking();
-    $result = $tracking->update_maxmind_database_safely();
-
-    if (is_wp_error($result)) {
-        update_option('advnews_maxmind_last_error', $result->get_error_message());
-        error_log('[AdvNews] MaxMind auto-update failed: ' . $result->get_error_message());
-    } else {
-        delete_option('advnews_maxmind_last_error');
-        error_log('[AdvNews] MaxMind auto-update successful: ' . $result['path']);
-    }
-});
-
 // Initialize the plugin
 AdvNews_Manager::get_instance();

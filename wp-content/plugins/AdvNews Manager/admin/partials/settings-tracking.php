@@ -15,9 +15,12 @@ $enable_utm_tracking = get_option('advnews_enable_utm_tracking', false);
 $utm_parameters = get_option('advnews_utm_parameters', 'utm_source,utm_medium,utm_campaign,utm_term,utm_content');
 
 // MaxMind Specific Options
+$maxmind_account_id = get_option('advnews_maxmind_account_id', '');
 $maxmind_license_key = get_option('advnews_maxmind_license_key', '');
 $maxmind_auto_update = get_option('advnews_maxmind_auto_update', true);
 $maxmind_db_path = get_option('advnews_maxmind_db_path', '');
+$maxmind_last_attempt = (int) get_option('advnews_maxmind_last_attempt', 0);
+$maxmind_last_error = get_option('advnews_maxmind_last_error', '');
 if (empty($maxmind_db_path) || !file_exists($maxmind_db_path)) {
     $upload_dir = wp_upload_dir();
     $default_maxmind_db_path = $upload_dir['basedir'] . '/advnews-maxmind/GeoLite2-City.mmdb';
@@ -127,14 +130,20 @@ $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('
                         <div id="maxmind-settings-field" style="margin-top:15px; background:#f8f9fa; padding:15px; border-radius:4px; border:1px solid #e9ecef; <?php echo $geolocation_service !== 'maxmind' ? 'display:none;' : ''; ?>">
                             <h4 style="margin-top:0;"><?php _e('MaxMind Configuration', 'advnews-manager'); ?></h4>
 
-                            <!-- 1. License Key Field -->
+                            <div style="margin-bottom:15px;">
+                                <label for="advnews_maxmind_account_id"><strong><?php _e('Account ID:', 'advnews-manager'); ?></strong></label>
+                                <input type="text" id="advnews_maxmind_account_id" name="advnews_maxmind_account_id"
+                                    value="<?php echo esc_attr($maxmind_account_id); ?>"
+                                    class="regular-text" placeholder="<?php _e('Enter your MaxMind Account ID', 'advnews-manager'); ?>">
+                            </div>
+
                             <div style="margin-bottom:15px;">
                                 <label for="advnews_maxmind_license_key"><strong><?php _e('License Key:', 'advnews-manager'); ?></strong></label>
-                                <input type="text" id="advnews_maxmind_license_key" name="advnews_maxmind_license_key"
+                                <input type="password" id="advnews_maxmind_license_key" name="advnews_maxmind_license_key" autocomplete="new-password"
                                     value="<?php echo esc_attr($maxmind_license_key); ?>"
                                     class="regular-text" placeholder="<?php _e('Enter your MaxMind License Key', 'advnews-manager'); ?>">
                                 <p class="description">
-                                    <?php _e('Required for downloading the GeoLite2 database. Get a free key at maxmind.com.', 'advnews-manager'); ?>
+                                    <?php _e('The Account ID and License Key are both required for downloading GeoLite2.', 'advnews-manager'); ?>
                                     <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank"><?php _e('Get Free Key', 'advnews-manager'); ?></a>
                                 </p>
                             </div>
@@ -144,7 +153,7 @@ $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('
                                 <label>
                                     <input type="checkbox" name="advnews_maxmind_auto_update" value="1"
                                     <?php checked($maxmind_auto_update, 1); ?>>
-                                    <?php _e('Automatically update database weekly via Cron', 'advnews-manager'); ?>
+                                    <?php _e('Automatically update database daily via Cron', 'advnews-manager'); ?>
                                 </label>
                             </div>
 
@@ -164,6 +173,12 @@ $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('
                                         <span style="color:red;">✘ <?php _e('No Database Found', 'advnews-manager'); ?></span>
                                     <?php endif; ?>
                                 </p>
+                                <?php if ($maxmind_last_attempt): ?>
+                                    <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_attempt))); ?></p>
+                                <?php endif; ?>
+                                <?php if ($maxmind_last_error): ?>
+                                    <p class="description" style="color:#d63638;"><?php printf(esc_html__('Last error: %s', 'advnews-manager'), esc_html($maxmind_last_error)); ?></p>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <!-- END MAXMIND SETTINGS -->
@@ -354,10 +369,11 @@ jQuery(document).ready(function($) {
         var btn = $(this);
         var spinner = $('#maxmind-update-spinner');
         var res = $('#maxmind-update-result');
+        var accountId = $('#advnews_maxmind_account_id').val();
         var licenseKey = $('#advnews_maxmind_license_key').val();
 
-        if (!licenseKey) {
-            res.html('<span style="color:#d63638;">✘ <?php _e('Please enter a License Key first.', 'advnews-manager'); ?></span>');
+        if (!accountId || !licenseKey) {
+            res.html('<span style="color:#d63638;">✘ <?php _e('Please enter the Account ID and License Key first.', 'advnews-manager'); ?></span>');
             return;
         }
 
@@ -371,6 +387,7 @@ jQuery(document).ready(function($) {
             data: {
                 action: 'advnews_update_maxmind_db',
                 nonce: advnews_ajax.nonce,
+                account_id: accountId,
                 license_key: licenseKey // Send key directly to avoid needing to click "Save Changes" first
             },
             success: function(response) {

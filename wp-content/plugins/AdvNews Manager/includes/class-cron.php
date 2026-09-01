@@ -24,9 +24,7 @@ class AdvNews_Cron
 
         self::ensure_weekly_report_schedule();
 
-        if (!wp_next_scheduled('advnews_update_maxmind_database')) {
-            wp_schedule_event(self::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
-        }
+        self::ensure_maxmind_update_schedule();
 
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[AdvNews Cron] Events checked successfully');
@@ -102,6 +100,33 @@ class AdvNews_Cron
         wp_schedule_event($expected_timestamp, 'weekly', 'advnews_weekly_reports');
     }
 
+    public static function ensure_maxmind_update_schedule()
+    {
+        $event_count = 0;
+        $scheduled_timestamp = wp_next_scheduled('advnews_update_maxmind_database');
+        $expected_timestamp = self::next_maxmind_update_timestamp();
+        $cron_array = _get_cron_array();
+        if (is_array($cron_array)) {
+            foreach ($cron_array as $hooks) {
+                if (isset($hooks['advnews_update_maxmind_database']) && is_array($hooks['advnews_update_maxmind_database'])) {
+                    $event_count += count($hooks['advnews_update_maxmind_database']);
+                }
+            }
+        }
+
+        if (
+            $event_count === 1
+            && wp_get_schedule('advnews_update_maxmind_database') === 'daily'
+            && $scheduled_timestamp
+            && abs((int) $scheduled_timestamp - $expected_timestamp) < MINUTE_IN_SECONDS
+        ) {
+            return;
+        }
+
+        wp_clear_scheduled_hook('advnews_update_maxmind_database');
+        wp_schedule_event($expected_timestamp, 'daily', 'advnews_update_maxmind_database');
+    }
+
     /**
      * Claim the current weekly report period exactly once across every runner.
      */
@@ -139,8 +164,12 @@ class AdvNews_Cron
 
     public static function next_maxmind_update_timestamp()
     {
-        $timestamp = strtotime('tomorrow 03:00:00');
-        return ($timestamp && $timestamp > time()) ? $timestamp : time() + DAY_IN_SECONDS;
+        try {
+            $now = new DateTimeImmutable('now', wp_timezone());
+            return $now->modify('tomorrow')->setTime(3, 0)->getTimestamp();
+        } catch (Exception $error) {
+            return time() + DAY_IN_SECONDS;
+        }
     }
 
     /**
@@ -268,17 +297,7 @@ class AdvNews_Cron
             }
         }
 
-        // 3. ✅ NEW: Auto-update MaxMind GeoIP2 Local Database
-        if (get_option('advnews_maxmind_auto_update') && get_option('advnews_maxmind_license_key')) {
-            $last_update = intval(get_option('advnews_maxmind_last_update', 0));
-            if (!$last_update || (time() - $last_update) >= DAY_IN_SECONDS) {
-                if (self::update_maxmind_db_silent()) {
-                    update_option('advnews_maxmind_last_update', time());
-                }
-            }
-        }
-
-        // 4. Backfill missing click geolocation for rows created before the IP was cached.
+        // 3. Backfill missing click geolocation for rows created before the IP was cached.
         if (get_option('advnews_track_geolocation', true)) {
             require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
             $tracking_class = new AdvNews_Tracking();
@@ -293,7 +312,7 @@ class AdvNews_Cron
             }
         }
 
-        // 5. Clean up old tracking data
+        // 4. Clean up old tracking data
         $retention_days = get_option('advnews_tracking_retention_days', 365);
         if ($retention_days > 0) {
             $cutoff_date = date('Y-m-d', strtotime("-$retention_days days"));
@@ -309,228 +328,46 @@ class AdvNews_Cron
         }
     }
 
-
     /**
-    * Get remote file size via cURL (follows redirects)
-    */
-    private static function get_remote_file_size($url) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HEADER, true);
-        curl_setopt($ch, CURLOPT_NOBODY, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-
-        curl_exec($ch);
-        $size = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($http_code >= 400 || $size <= 0) {
+     * Run the single authenticated MaxMind updater for cron and maintenance fallback.
+     */
+    public static function update_maxmind_database()
+    {
+        if (
+            get_option('advnews_geolocation_service', 'maxmind') !== 'maxmind'
+            || !get_option('advnews_maxmind_auto_update', true)
+        ) {
             return false;
         }
 
-        return (int) $size;
-    }
-
-    /**
-    * Download file with resume capability and strict size verification
-    */
-    private static function download_file_resumable($url, $destination, $expected_size) {
-        $dir = dirname($destination);
-        if (!is_dir($dir)) {
-            wp_mkdir_p($dir);
-        }
-
-        // 'a+' mode allows us to resume if the file was partially downloaded
-        $fp = fopen($destination, 'a+');
-        if (!$fp) {
-            return new WP_Error('file_open_failed', 'Cannot open destination file for writing.');
-        }
-
-        $current_size = filesize($destination);
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_FILE, $fp);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 600); // 10 minutes for large files
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-
-        // Attempt to resume if we have a partial file
-        if ($current_size > 0 && $current_size < $expected_size) {
-            curl_setopt($ch, CURLOPT_RESUME_FROM, $current_size);
-        } elseif ($current_size >= $expected_size) {
-            // File is already fully downloaded
-            fclose($fp);
+        $last_update = (int) get_option('advnews_maxmind_last_update', 0);
+        if ($last_update && (time() - $last_update) < DAY_IN_SECONDS) {
             return true;
         }
 
-        $success = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        fclose($fp);
-
-        if (!$success || ($http_code != 200 && $http_code != 206)) {
-            return new WP_Error('download_failed', 'cURL download failed with HTTP code: ' . $http_code);
+        if (get_transient('advnews_maxmind_update_lock')) {
+            return false;
         }
 
-        // Verify final size
-        clearstatcache();
-        $final_size = filesize($destination);
+        set_transient('advnews_maxmind_update_lock', 1, 10 * MINUTE_IN_SECONDS);
+        update_option('advnews_maxmind_last_attempt', time());
 
-        if ($final_size !== $expected_size) {
-            // If the server doesn't support resume, it might have appended the file.
-            // Delete it so the next run starts fresh.
-            @unlink($destination);
-            return new WP_Error('size_mismatch', sprintf(
-                'Downloaded file size (%d bytes) does not match expected remote size (%d bytes). Partial file deleted.',
-                $final_size,
-                $expected_size
-            ));
+        require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
+        $tracking = new AdvNews_Tracking();
+        $result = $tracking->update_maxmind_database_safely();
+        delete_transient('advnews_maxmind_update_lock');
+
+        if (is_wp_error($result)) {
+            update_option('advnews_maxmind_last_error', $result->get_error_message());
+            error_log('[Science180 Mail] MaxMind auto-update failed: ' . $result->get_error_message());
+            return $result;
         }
 
+        delete_option('advnews_maxmind_last_error');
+        error_log('[Science180 Mail] MaxMind database updated successfully.');
         return true;
     }
 
-
-
-    /**
-    * Silently download and update MaxMind database without dying (Safe for Cron)
-    * Includes remote size verification and resumable chunked downloading.
-    */
-    private static function update_maxmind_db_silent() {
-        $license_key = get_option('advnews_maxmind_license_key', '');
-        if (empty($license_key)) return false;
-
-        $upload_dir = wp_upload_dir();
-        $db_dir = $upload_dir['basedir'] . '/advnews-maxmind/';
-        if (!wp_mkdir_p($db_dir)) {
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] Cannot create MaxMind upload directory.');
-            return false;
-        }
-
-        $gz_url = "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={$license_key}&suffix=tar.gz";
-        $temp_file = $db_dir . 'geolite2-city-temp.tar.gz';
-        $final_db_path = $db_dir . 'GeoLite2-City.mmdb';
-
-        // 1. Get remote file size BEFORE downloading
-        $remote_size = self::get_remote_file_size($gz_url);
-        if (!$remote_size) {
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Could not determine remote file size. MaxMind may be blocking the request or the license key is invalid.');
-            return false;
-        }
-
-        // 2. Download file (resumable chunked download)
-        $download_result = self::download_file_resumable($gz_url, $temp_file, $remote_size);
-        if (is_wp_error($download_result)) {
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: ' . $download_result->get_error_message());
-            return false; // Temp file is kept so it can be resumed on the next cron run
-        }
-
-        // 3. STRICT CHECK: Verify size before extraction
-        // If the downloaded file is 62.8MB but the remote .tar.gz is ~35MB, this catches it immediately.
-        clearstatcache();
-        if (filesize($temp_file) !== $remote_size) {
-            @unlink($temp_file);
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Final file size mismatch after download. File corrupted.');
-            return false;
-        }
-
-        // 4. Extract to temporary directory (ONLY if size matches perfectly)
-        $extract_dir = $db_dir . 'temp_extract_' . time() . '/';
-        if (!is_dir($extract_dir)) {
-            wp_mkdir_p($extract_dir);
-        }
-
-        try {
-            $phar = new PharData($temp_file);
-            $phar->extractTo($extract_dir, null, true);
-        } catch (Exception $e) {
-            @unlink($temp_file);
-            self::delete_directory($extract_dir);
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed (Extraction): ' . $e->getMessage());
-            return false;
-        }
-
-        // Clean up the archive after successful extraction
-        @unlink($temp_file);
-
-        // 5. Find the .mmdb file inside the extracted folder
-        $mmdb_path = null;
-        if (class_exists('RecursiveIteratorIterator')) {
-            $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($extract_dir, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::SELF_FIRST
-            );
-            foreach ($iterator as $file) {
-                if ($file->isFile() && strtolower($file->getExtension()) === 'mmdb') {
-                    $mmdb_path = $file->getPathname();
-                    break;
-                }
-            }
-        } else {
-            $files = glob($extract_dir . '/*/GeoLite2-City.mmdb');
-            if (!empty($files)) $mmdb_path = $files[0];
-        }
-
-        if (!$mmdb_path) {
-            self::delete_directory($extract_dir);
-            if (defined('WP_DEBUG') && WP_DEBUG) error_log('[AdvNews] MaxMind update failed: Could not find .mmdb file in archive.');
-            return false;
-        }
-
-        // 6. STRICT SIZE CHECK ON EXTRACTED MMDB: A valid GeoLite2-City.mmdb is ALWAYS > 10MB.
-        $mmdb_size = filesize($mmdb_path);
-        if ($mmdb_size < 10000000) { // 10 MB
-            self::delete_directory($extract_dir);
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[AdvNews] MaxMind update FAILED: Extracted .mmdb file is too small (' . $mmdb_size . ' bytes). File is corrupted or invalid. OLD DATABASE PRESERVED.');
-            }
-            return false; // ABORT: Do NOT overwrite the existing good database!
-        }
-
-        // 7. Validation passed! Safely replace the old database.
-        if (file_exists($final_db_path)) {
-            @unlink($final_db_path);
-        }
-        if (!rename($mmdb_path, $final_db_path)) {
-            // Fallback to copy if rename fails (e.g., across different mount points)
-            copy($mmdb_path, $final_db_path);
-            @unlink($mmdb_path);
-        }
-
-        // 8. Cleanup and update option
-        self::delete_directory($extract_dir);
-        update_option('advnews_maxmind_db_path', $final_db_path);
-
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[AdvNews] MaxMind database successfully updated via daily cron. New size: ' . size_format($mmdb_size));
-        }
-
-        return true;
-    }
-
-
-    /**
-    * Helper to delete a directory recursively
-    */
-    private static function delete_directory($dir) {
-        if (!is_dir($dir)) return;
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($files as $fileinfo) {
-            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
-            @$todo($fileinfo->getRealPath());
-        }
-        @rmdir($dir);
-    }
 
     /**
      * Correct the known Science180 admin email typo before weekly reports are sent.
@@ -632,3 +469,4 @@ add_filter('cron_schedules', array('AdvNews_Cron', 'add_cron_schedules'));
 add_action('advnews_process_queue', array('AdvNews_Cron', 'process_queue'));
 add_action('advnews_daily_maintenance', array('AdvNews_Cron', 'daily_maintenance'));
 add_action('advnews_weekly_reports', array('AdvNews_Cron', 'weekly_reports'));
+add_action('advnews_update_maxmind_database', array('AdvNews_Cron', 'update_maxmind_database'));

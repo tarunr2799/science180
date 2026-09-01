@@ -3112,28 +3112,34 @@ class AdvNews_Ajax
         $this->verify_nonce();
         $this->check_capability();
 
+        $account_id = isset($_POST['account_id']) ? sanitize_text_field($_POST['account_id']) : get_option('advnews_maxmind_account_id', '');
         $license_key = isset($_POST['license_key']) ? sanitize_text_field($_POST['license_key']) : get_option('advnews_maxmind_license_key', '');
 
-        if (empty($license_key)) {
+        if (empty($account_id) || empty($license_key)) {
             wp_send_json_error(array(
-                'message' => __('MaxMind License Key is required.', 'advnews-manager')
+                'message' => __('MaxMind Account ID and License Key are required.', 'advnews-manager')
             ));
         }
 
-        // Update license key if provided
+        if (isset($_POST['account_id'])) {
+            update_option('advnews_maxmind_account_id', $account_id);
+        }
         if (isset($_POST['license_key'])) {
             update_option('advnews_maxmind_license_key', $license_key);
         }
 
+        update_option('advnews_maxmind_last_attempt', time());
         $tracking = new AdvNews_Tracking();
-        $result = $tracking->update_maxmind_database_safely($license_key);
+        $result = $tracking->update_maxmind_database_safely($account_id, $license_key);
 
         if (is_wp_error($result)) {
+            update_option('advnews_maxmind_last_error', $result->get_error_message());
             wp_send_json_error(array(
                 'message' => __('Update failed: ', 'advnews-manager') . $result->get_error_message()
             ));
         }
 
+        delete_option('advnews_maxmind_last_error');
         wp_send_json_success(array(
             'message' => $result['message'],
             'path' => $result['path']
