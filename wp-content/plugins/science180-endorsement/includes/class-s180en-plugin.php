@@ -106,6 +106,7 @@ class S180EN_Plugin
             country_origin varchar(120) NOT NULL,
             country_residence varchar(120) NOT NULL,
             organization varchar(255) NOT NULL,
+            profile_url varchar(255) DEFAULT '',
             comment longtext NOT NULL,
             photo_id bigint(20) unsigned DEFAULT 0,
             photo_url text NULL,
@@ -356,6 +357,9 @@ class S180EN_Plugin
             <div class="s180re-public-heading">
                 <p class="s180re-eyebrow"><?php esc_html_e('Public endorsement', 'science180-endorsement'); ?></p>
                 <h1><?php esc_html_e('Share an Endorsement', 'science180-endorsement'); ?></h1>
+                <?php if (trim((string) get_option('s180en_form_intro')) !== '') : ?>
+                    <p class="s180re-form-intro"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
+                <?php endif; ?>
             </div>
 
             <form class="s180re-form s180re-form-compact" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -388,6 +392,11 @@ class S180EN_Plugin
                     <label for="s180re-endorsement-org"><?php esc_html_e('Organization', 'science180-endorsement'); ?> <span>*</span></label>
                     <input id="s180re-endorsement-org" type="text" name="organization" required placeholder="<?php esc_attr_e('If none, put your name', 'science180-endorsement'); ?>">
                 </div>
+                <div class="s180re-field">
+                    <label for="s180re-endorsement-profile-url"><?php esc_html_e('Website or social media URL', 'science180-endorsement'); ?> <small><?php esc_html_e('(optional)', 'science180-endorsement'); ?></small></label>
+                    <input id="s180re-endorsement-profile-url" type="text" name="profile_url" placeholder="example.com/profile" autocomplete="url" inputmode="url" aria-describedby="s180re-endorsement-profile-url-note">
+                    <p id="s180re-endorsement-profile-url-note" class="s180re-field-note"><?php esc_html_e('Enter a website or social media profile with or without https://. It will be corrected automatically.', 'science180-endorsement'); ?></p>
+                </div>
                 <div class="s180re-field s180re-field-full">
                     <label for="s180re-endorsement-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?> <span>*</span></label>
                     <textarea id="s180re-endorsement-comment" name="comment" rows="6" required></textarea>
@@ -402,9 +411,6 @@ class S180EN_Plugin
                 </div>
 
                 <button class="s180re-button" type="submit"><?php esc_html_e('Submit', 'science180-endorsement'); ?></button>
-                <?php if (trim((string) get_option('s180en_form_intro')) !== '') : ?>
-                    <p class="s180re-form-intro s180re-form-intro-after-submit"><?php echo esc_html(get_option('s180en_form_intro')); ?></p>
-                <?php endif; ?>
             </form>
             <div class="s180re-after-submit-nav">
                 <?php $this->render_endorsement_nav('submit'); ?>
@@ -624,6 +630,7 @@ class S180EN_Plugin
             'country_origin' => $this->post_text('country_origin', true),
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $organization,
+            'profile_url' => $this->normalize_https_url($this->post_raw('profile_url')),
             'address' => $this->post_textarea('address', false),
             'comment' => $this->post_textarea('comment', true),
             'verification_code_hash' => $this->verification_code_hash($verification_code),
@@ -1159,6 +1166,7 @@ class S180EN_Plugin
                 'country_origin' => sanitize_text_field($data['country_origin']),
                 'country_residence' => sanitize_text_field($data['country_residence']),
                 'organization' => sanitize_text_field($data['organization']),
+                'profile_url' => esc_url_raw($data['profile_url'] ?? '', array('https')),
                 'address' => sanitize_textarea_field($data['address'] ?? ''),
                 'comment' => sanitize_textarea_field($data['comment']),
                 'photo_id' => isset($photo['id']) ? (int) $photo['id'] : 0,
@@ -1177,7 +1185,7 @@ class S180EN_Plugin
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         if (!$inserted) {
@@ -1292,6 +1300,9 @@ class S180EN_Plugin
                         <?php $public_address = $this->clean_optional_text($endorsement->address ?? ''); ?>
                         <?php if ($public_address !== '') : ?>
                             <p class="s180re-detail-address"><strong><?php esc_html_e('Address:', 'science180-endorsement'); ?></strong><br><?php echo nl2br(esc_html($public_address)); ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($endorsement->profile_url)) : ?>
+                            <p class="s180re-detail-profile"><strong><?php esc_html_e('Website / social media:', 'science180-endorsement'); ?></strong> <a href="<?php echo esc_url($endorsement->profile_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($endorsement->profile_url); ?></a></p>
                         <?php endif; ?>
                         <div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($endorsement->comment)); ?></div>
                         <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
@@ -1685,6 +1696,7 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country of origin', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_origin); ?></td></tr>
                             <tr><th><?php esc_html_e('Country of residence', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->country_residence); ?></td></tr>
                             <tr><th><?php esc_html_e('Organization', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->organization); ?></td></tr>
+                            <tr><th><?php esc_html_e('Website / social media', 'science180-endorsement'); ?></th><td><?php if (!empty($item->profile_url)) : ?><a href="<?php echo esc_url($item->profile_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->profile_url); ?></a><?php else : ?><?php esc_html_e('Not provided', 'science180-endorsement'); ?><?php endif; ?></td></tr>
                             <?php $admin_address = $this->clean_optional_text($item->address ?? ''); ?>
                             <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $admin_address !== '' ? nl2br(esc_html($admin_address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($item->comment)); ?></div></td></tr>
@@ -1733,6 +1745,9 @@ class S180EN_Plugin
 
                 <label for="s180re-edit-org"><?php esc_html_e('Organization', 'science180-endorsement'); ?></label>
                 <input id="s180re-edit-org" class="regular-text" type="text" name="organization" value="<?php echo esc_attr($item->organization); ?>" required>
+
+                <label for="s180re-edit-profile-url"><?php esc_html_e('Website or social media URL', 'science180-endorsement'); ?></label>
+                <input id="s180re-edit-profile-url" class="regular-text" type="text" name="profile_url" value="<?php echo esc_attr($item->profile_url ?? ''); ?>" placeholder="example.com/profile">
 
                 <label for="s180re-edit-address"><?php esc_html_e('Address', 'science180-endorsement'); ?></label>
                 <textarea id="s180re-edit-address" class="large-text" name="address" rows="3"><?php echo esc_textarea($this->clean_optional_text($item->address ?? '')); ?></textarea>
@@ -2079,6 +2094,7 @@ class S180EN_Plugin
             'country_origin' => $this->post_text('country_origin', true),
             'country_residence' => $this->post_text('country_residence', true),
             'organization' => $this->post_text('organization', true),
+            'profile_url' => $this->normalize_https_url($this->post_raw('profile_url')),
             'address' => $this->post_textarea('address', false),
             'comment' => $comment,
             'photo_id' => $remove_photo ? 0 : (isset($_POST['photo_id']) ? absint($_POST['photo_id']) : 0),
@@ -2096,7 +2112,7 @@ class S180EN_Plugin
         }
 
         global $wpdb;
-        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s');
         if (isset($data['slug'])) {
             $formats[] = '%s';
         }
@@ -2357,6 +2373,10 @@ class S180EN_Plugin
             $parts[] = sprintf(__('From %s', 'science180-endorsement'), $endorsement->country_origin);
         }
 
+        if (!empty($endorsement->ip_city)) {
+            $parts[] = sprintf(__('City: %s', 'science180-endorsement'), $endorsement->ip_city);
+        }
+
         if (!empty($endorsement->organization)) {
             $parts[] = $endorsement->organization;
         }
@@ -2487,6 +2507,22 @@ class S180EN_Plugin
         return $value;
     }
 
+    private function normalize_https_url($value)
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('#^(?:(?:https?):/*)+#i', '', $value);
+        $value = ltrim($value, "/\\ \t\n\r\0\x0B");
+        if ($value === '') {
+            return '';
+        }
+
+        return esc_url_raw('https://' . $value, array('https'));
+    }
+
     private function post_textarea($key, $required)
     {
         $value = sanitize_textarea_field($this->post_raw($key));
@@ -2505,10 +2541,11 @@ class S180EN_Plugin
 
     private function submission_tracking_data()
     {
-        $location = $this->ip_geolocation();
+        $ip = $this->client_ip();
+        $location = $this->ip_geolocation($ip);
 
         return array(
-            'ip_address' => $this->client_ip(),
+            'ip_address' => $ip,
             'ip_city' => $location['city'],
             'ip_country' => $location['country'],
             'user_agent' => $this->user_agent(),
@@ -2564,7 +2601,7 @@ class S180EN_Plugin
         return $candidates[0] ?? '';
     }
 
-    private function ip_geolocation()
+    private function ip_geolocation($ip)
     {
         $location = array('city' => '', 'country' => '');
 
@@ -2579,6 +2616,14 @@ class S180EN_Plugin
         }
         if (!empty($_SERVER['GEOIP_COUNTRY_NAME'])) {
             $location['country'] = sanitize_text_field(wp_unslash($_SERVER['GEOIP_COUNTRY_NAME']));
+        }
+
+        if (($location['city'] === '' || $location['country'] === '') && $ip && class_exists('AdvNews_Geolocation') && defined('ADVNEWS_TABLE_PREFIX')) {
+            $advnews_location = (new AdvNews_Geolocation())->get_location($ip);
+            if (is_array($advnews_location)) {
+                $location['city'] = $location['city'] ?: sanitize_text_field($advnews_location['city'] ?? '');
+                $location['country'] = $location['country'] ?: sanitize_text_field($advnews_location['country'] ?? '');
+            }
         }
 
         return $location;
