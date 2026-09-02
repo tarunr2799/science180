@@ -193,3 +193,15 @@
         grid-template-columns: 1fr;
     }
 }
+
+.s180br-book-title-cell a {
+    font-size: 17px;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.s180br-request-detail-label,
+.s180re-admin-panel .s180br-request-detail-label {
+    color: #7a287d;
+    font-weight: 700;
+}
