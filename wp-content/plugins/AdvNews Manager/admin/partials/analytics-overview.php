@@ -484,7 +484,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
             <p>
                 <strong><?php _e('Privacy Notice:', 'advnews-manager'); ?></strong>
                 <?php _e('IP addresses are anonymized for GDPR compliance. Last octet is removed from IPv4 addresses.', 'advnews-manager'); ?>
-                <a href="<?php echo admin_url('admin.php?page=advnews-settings&tab=tracking'); ?>" target="_blank">
+                <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-settings&tab=tracking')); ?>" target="_blank" rel="noopener noreferrer">
                     <?php _e('Manage Settings', 'advnews-manager'); ?>
                 </a>
             </p>
@@ -546,7 +546,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         </td>
                         <td>
                             <?php if ($subscriber_email && $subscriber_email !== '—'): ?>
-                            <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $ip_record->subscriber_id); ?>">
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&action=view&id=' . $ip_record->subscriber_id)); ?>" target="_blank" rel="noopener noreferrer">
                                 <?php echo esc_html($subscriber_email); ?>
                             </a>
                             <?php else: ?>
@@ -565,7 +565,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         <td><?php echo esc_html($ip_record->browser ?: '—'); ?></td>
                         <td>
                             <?php if ($campaign_name && $campaign_name !== '—'): ?>
-                            <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $ip_record->campaign_id); ?>">
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $ip_record->campaign_id)); ?>" target="_blank" rel="noopener noreferrer">
                                 <?php echo esc_html($campaign_name); ?>
                             </a>
                             <?php else: ?>
@@ -627,7 +627,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                 <tr>
                     <td>
                         <strong>
-                            <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id); ?>">
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id)); ?>" target="_blank" rel="noopener noreferrer">
                                 <?php echo esc_html($campaign->name); ?>
                             </a>
                         </strong>
@@ -641,7 +641,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         <span class="rate-medium"><?php echo esc_html($campaign->click_rate); ?>%</span>
                     </td>
                     <td>
-                        <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id); ?>" class="button button-small">
+                        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id)); ?>" class="button button-small" target="_blank" rel="noopener noreferrer">
                             <?php _e('View Report', 'advnews-manager'); ?>
                         </a>
                     </td>

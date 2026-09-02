@@ -332,7 +332,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                                 ?>
                                 <tr>
                                     <td>
-                                        <a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($recipient->email); ?></a>
+                                        <a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($recipient->email); ?></a>
                                         <?php if ($recipient_name): ?>
                                             <br><span class="description"><?php echo esc_html($recipient_name); ?></span>
                                         <?php endif; ?>
@@ -844,7 +844,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             ?>
                             <tr>
                                 <td>
-                                    <a href="<?php echo esc_url($link->original_url); ?>" target="_blank" title="<?php echo esc_attr($link->original_url); ?>">
+                                    <a href="<?php echo esc_url($link->original_url); ?>" target="_blank" rel="noopener noreferrer" title="<?php echo esc_attr($link->original_url); ?>">
                                         <?php echo esc_html(wp_trim_words($link->original_url, 8, '...')); ?>
                                     </a>
                                 </td>

@@ -1741,7 +1741,7 @@ class AdvNews_Ajax
                 <td><code style="background: #f0f0f1; padding: 2px 6px; border-radius: 3px;"><?php echo esc_html($row->ip_address); ?></code></td>
                 <td>
                     <?php if ($subscriber_url && $row->subscriber_email): ?>
-                        <a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($row->subscriber_email); ?></a>
+                        <a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($row->subscriber_email); ?></a>
                     <?php else: ?>
                         <span style="color: #999;">—</span>
                     <?php endif; ?>
@@ -1756,7 +1756,7 @@ class AdvNews_Ajax
                 <td><?php echo esc_html($row->browser ?: '—'); ?></td>
                 <td>
                     <?php if ($campaign_url && $row->campaign_name): ?>
-                        <a href="<?php echo esc_url($campaign_url); ?>"><?php echo esc_html($row->campaign_name); ?></a>
+                        <a href="<?php echo esc_url($campaign_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($row->campaign_name); ?></a>
                     <?php else: ?>
                         <span style="color: #999;">—</span>
                     <?php endif; ?>

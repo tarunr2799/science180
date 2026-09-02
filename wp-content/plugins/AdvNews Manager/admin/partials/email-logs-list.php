@@ -156,7 +156,7 @@ jQuery(document).ready(function($) {
             // Handle missing campaign data gracefully
             const campaignName = item.campaign_name ? item.campaign_name : '<span style="color:#999; font-style:italic;">Campaign Deleted</span>';
             const campaignLink = item.campaign_id ?
-                `<a href="?page=advnews-campaigns&action=edit&id=${item.campaign_id}">${campaignName}</a>` :
+                `<a href="?page=advnews-campaigns&action=edit&id=${item.campaign_id}" target="_blank" rel="noopener noreferrer">${campaignName}</a>` :
                 campaignName;
 
             // Handle missing subject data gracefully
@@ -181,7 +181,7 @@ jQuery(document).ready(function($) {
             ` : '';
 
             const subscriberUrl = item.subscriber_id ? `?page=advnews-subscribers&action=view&id=${item.subscriber_id}` : '';
-            const emailHtml = subscriberUrl ? `<a href="${subscriberUrl}"><strong>${escHtml(item.email)}</strong></a>` : `<strong>${escHtml(item.email)}</strong>`;
+            const emailHtml = subscriberUrl ? `<a href="${subscriberUrl}" target="_blank" rel="noopener noreferrer"><strong>${escHtml(item.email)}</strong></a>` : `<strong>${escHtml(item.email)}</strong>`;
             const row = `
                 <tr>
                     <td ${statusClass}>${statusLabel}${retryButton}${bounceMessage}</td>

@@ -81,6 +81,26 @@ class AdvNews_Queue_Processor {
 			// Process the queue
 			$result = $queue->process_queue($batch_size);
 
+			if (!empty($result['throttled'])) {
+				$wait_seconds = max(1, absint($result['wait_seconds'] ?? 0));
+				return array(
+					'success' => true,
+					'message' => sprintf(
+						__('Batch limit respected. The next batch can run in %s.', 'advnews-manager'),
+						human_time_diff(time(), time() + $wait_seconds)
+					),
+					'data' => $result
+				);
+			}
+
+			if (!empty($result['processing_locked'])) {
+				return array(
+					'success' => true,
+					'message' => __('Another queue process is already running.', 'advnews-manager'),
+					'data' => $result
+				);
+			}
+
 			// Debug logging
 			if (defined('WP_DEBUG') && WP_DEBUG) {
 				error_log(sprintf(

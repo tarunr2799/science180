@@ -8,6 +8,7 @@ class AdvNews_Queue
 {
     private $wpdb;
     private $table_prefix;
+    private $processing_lock_token = '';
 
     public function __construct()
     {
@@ -115,6 +116,92 @@ class AdvNews_Queue
     {
         $batch_size = max(1, min(500, absint($batch_size)));
 
+        if (!$this->acquire_processing_lock()) {
+            return $this->deferred_queue_result(array('processing_locked' => true));
+        }
+
+        try {
+            $wait_seconds = $this->seconds_until_next_batch();
+            if ($wait_seconds > 0) {
+                return $this->deferred_queue_result(array(
+                    'throttled' => true,
+                    'wait_seconds' => $wait_seconds,
+                    'next_batch_at' => time() + $wait_seconds,
+                ));
+            }
+
+            return $this->process_queue_batch($batch_size);
+        } finally {
+            $this->release_processing_lock();
+        }
+    }
+
+    private function acquire_processing_lock()
+    {
+        $option = 'advnews_queue_processing_lock';
+        $now = time();
+        $existing = get_option($option, array());
+        $acquired_at = is_array($existing) ? absint($existing['acquired_at'] ?? 0) : absint($existing);
+
+        if ($acquired_at && ($now - $acquired_at) < (15 * MINUTE_IN_SECONDS)) {
+            return false;
+        }
+
+        if ($existing) {
+            delete_option($option);
+        }
+
+        $this->processing_lock_token = wp_generate_uuid4();
+        return add_option($option, array(
+            'token' => $this->processing_lock_token,
+            'acquired_at' => $now,
+        ), '', false);
+    }
+
+    private function release_processing_lock()
+    {
+        if ($this->processing_lock_token === '') {
+            return;
+        }
+
+        $lock = get_option('advnews_queue_processing_lock', array());
+        if (is_array($lock) && hash_equals($this->processing_lock_token, (string) ($lock['token'] ?? ''))) {
+            delete_option('advnews_queue_processing_lock');
+        }
+        $this->processing_lock_token = '';
+    }
+
+    private function seconds_until_next_batch()
+    {
+        $minutes = max(1, min(120, absint(get_option('advnews_minutes_between_batches', 20))));
+        $last_batch = absint(get_option('advnews_last_batch_processed_at', 0));
+        if (!$last_batch) {
+            return 0;
+        }
+
+        return max(0, ($last_batch + ($minutes * MINUTE_IN_SECONDS)) - time());
+    }
+
+    private function deferred_queue_result($extra = array())
+    {
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+        $current_time = current_time('mysql', true);
+        $remaining = (int) $this->wpdb->get_var("SELECT COUNT(*) FROM $table_logs WHERE status = 'queued'");
+        $on_cooldown = (int) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_logs WHERE status = 'queued' AND send_after IS NOT NULL AND send_after > %s AND send_after != '0000-00-00 00:00:00'",
+            $current_time
+        ));
+
+        return array_merge(array(
+            'sent' => 0,
+            'failed' => 0,
+            'remaining' => $remaining,
+            'on_cooldown' => $on_cooldown,
+        ), $extra);
+    }
+
+    private function process_queue_batch($batch_size)
+    {
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
@@ -167,6 +254,8 @@ class AdvNews_Queue
 
             return array('sent' => 0, 'failed' => 0, 'remaining' => intval($remaining), 'on_cooldown' => intval($on_cooldown));
         }
+
+        update_option('advnews_last_batch_processed_at', time(), false);
 
         $sent = 0;
         $failed = 0;
