@@ -17,6 +17,26 @@
         input.value = value;
     }
 
+    function refreshReviewNonce(form) {
+        if (!window.s180reFrontend || !window.s180reFrontend.ajaxUrl || !window.fetch) {
+            return;
+        }
+
+        var requestUrl = window.s180reFrontend.ajaxUrl + (window.s180reFrontend.ajaxUrl.indexOf('?') === -1 ? '?' : '&') + 'action=s180br_review_nonce';
+        window.fetch(requestUrl, { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (response) { return response.json(); })
+            .then(function (response) {
+                if (!response || !response.success || !response.data || !response.data.nonce) {
+                    return;
+                }
+                var nonceInput = form.querySelector('input[name="s180re_nonce"]');
+                if (nonceInput) {
+                    nonceInput.value = response.data.nonce;
+                }
+            })
+            .catch(function () {});
+    }
+
     function setSelected(shell, id, title, cover, description) {
         var select = shell.querySelector('[data-s180re-book-select]');
         var titleNode = shell.querySelector('[data-s180re-selected-title]');
@@ -115,9 +135,12 @@
                     normalizeHttpsField(websiteInput);
                 });
             }
-            if (reviewForm && websiteInput) {
+            if (reviewForm) {
+                refreshReviewNonce(reviewForm);
                 reviewForm.addEventListener('submit', function () {
-                    normalizeHttpsField(websiteInput);
+                    if (websiteInput) {
+                        normalizeHttpsField(websiteInput);
+                    }
                 });
             }
         });

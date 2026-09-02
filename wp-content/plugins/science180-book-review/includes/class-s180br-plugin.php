@@ -24,6 +24,8 @@ class S180BR_Plugin
         add_action('init', array($this, 'register_rewrites'));
         add_filter('query_vars', array($this, 'register_query_vars'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
+        add_action('wp_ajax_s180br_review_nonce', array($this, 'send_review_nonce'));
+        add_action('wp_ajax_nopriv_s180br_review_nonce', array($this, 'send_review_nonce'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
         add_action('admin_menu', array($this, 'register_admin_menu'));
         add_action('template_redirect', array($this, 'handle_review_verification_route'), 5);
@@ -145,6 +147,7 @@ class S180BR_Plugin
             delivery_type varchar(40) NOT NULL DEFAULT '',
             verification_token varchar(80) DEFAULT '',
             token_expires datetime DEFAULT NULL,
+            verification_reminder_sent_at datetime DEFAULT NULL,
             verified_at datetime DEFAULT NULL,
             ip_hash varchar(64) DEFAULT '',
             ip_address varchar(45) DEFAULT '',
@@ -157,6 +160,8 @@ class S180BR_Plugin
             PRIMARY KEY  (id),
             UNIQUE KEY book_email (book_id,email),
             KEY status (status),
+            KEY verification_token (verification_token),
+            KEY token_expires (token_expires),
             KEY created_at (created_at)
         ) {$charset};";
 
@@ -432,6 +437,17 @@ class S180BR_Plugin
     {
         wp_enqueue_style('s180re-frontend', S180BR_PLUGIN_URL . 'assets/css/frontend.css', array(), S180BR_VERSION);
         wp_enqueue_script('s180re-frontend', S180BR_PLUGIN_URL . 'assets/js/frontend.js', array(), S180BR_VERSION, true);
+        wp_localize_script('s180re-frontend', 's180reFrontend', array(
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+        ));
+    }
+
+    public function send_review_nonce()
+    {
+        nocache_headers();
+        wp_send_json_success(array(
+            'nonce' => wp_create_nonce('s180re_review_request'),
+        ));
     }
 
     public function enqueue_admin_assets($hook)
@@ -710,6 +726,7 @@ class S180BR_Plugin
         }
 
         $requests_table = $this->table('review_requests');
+
         $exists = (int) $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$requests_table} WHERE book_id = %d AND email = %s",
@@ -826,6 +843,28 @@ class S180BR_Plugin
 
         global $wpdb;
         $requests_table = $this->table('review_requests');
+        if (!empty($data['_pending_request_id'])) {
+            $updated = $wpdb->update(
+                $requests_table,
+                array(
+                    'status' => 'email_verified',
+                    'verification_token' => '',
+                    'token_expires' => null,
+                    'verified_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql'),
+                ),
+                array('id' => (int) $data['_pending_request_id'], 'verification_token' => $token, 'status' => 'pending_verification'),
+                array('%s', '%s', '%s', '%s', '%s'),
+                array('%d', '%s', '%s')
+            );
+
+            if ($updated !== 1) {
+                $this->redirect_to_review_page('review_verify_invalid');
+            }
+
+            $this->redirect_to_review_page('review_verified');
+        }
+
         $exists = (int) $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$requests_table} WHERE book_id = %d AND email = %s",
@@ -936,13 +975,42 @@ class S180BR_Plugin
 
     public function send_pending_verification_reminders()
     {
+        global $wpdb;
+
+        $reminder_after = max(1, (int) get_option('s180br_verification_reminder_hours', 12)) * HOUR_IN_SECONDS;
+        $requests_table = $this->table('review_requests');
+        $now = current_time('mysql');
+        $reminder_cutoff = date('Y-m-d H:i:s', current_time('timestamp') - $reminder_after);
+        $pending_requests = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$requests_table} WHERE status = 'pending_verification' AND verification_token <> '' AND token_expires > %s AND created_at <= %s AND verification_reminder_sent_at IS NULL ORDER BY created_at ASC LIMIT 100",
+            $now,
+            $reminder_cutoff
+        ));
+
+        foreach ((array) $pending_requests as $request) {
+            $book = $this->get_book((int) $request->book_id);
+            if (!$book) {
+                continue;
+            }
+
+            if ($this->send_review_verification_email((array) $request, $book, $request->verification_token, true)) {
+                $wpdb->update(
+                    $requests_table,
+                    array('verification_reminder_sent_at' => $now, 'updated_at' => $now),
+                    array('id' => (int) $request->id),
+                    array('%s', '%s'),
+                    array('%d')
+                );
+            }
+        }
+
+        // Retain support for verification links created before pending requests moved to the database.
         $directory = $this->pending_review_dir();
         if (!is_dir($directory)) {
             return;
         }
 
-        $reminder_after = max(1, (int) get_option('s180br_verification_reminder_hours', 12)) * HOUR_IN_SECONDS;
-        $now = time();
+        $file_now = time();
         $processed = 0;
         foreach ((array) glob(trailingslashit($directory) . '*.json') as $path) {
             if ($processed >= 100) {
@@ -955,7 +1023,7 @@ class S180BR_Plugin
             if (!is_array($payload)) {
                 continue;
             }
-            if (!empty($payload['expires']) && (int) $payload['expires'] < $now) {
+            if (!empty($payload['expires']) && (int) $payload['expires'] < $file_now) {
                 wp_delete_file($path);
                 continue;
             }
@@ -963,7 +1031,7 @@ class S180BR_Plugin
                 continue;
             }
             $created = isset($payload['created_at']) ? (int) $payload['created_at'] : 0;
-            if ($created < 1 || ($created + $reminder_after) > $now || !empty($payload['reminder_sent_at'])) {
+            if ($created < 1 || ($created + $reminder_after) > $file_now || !empty($payload['reminder_sent_at'])) {
                 continue;
             }
 
@@ -972,7 +1040,7 @@ class S180BR_Plugin
                 continue;
             }
             if ($this->send_review_verification_email($payload['data'], $book, $payload['token'], true)) {
-                $payload['reminder_sent_at'] = $now;
+                $payload['reminder_sent_at'] = $file_now;
                 if (is_file($path)) {
                     file_put_contents($path, wp_json_encode($payload), LOCK_EX);
                 }
@@ -2181,42 +2249,46 @@ class S180BR_Plugin
 
     private function save_pending_review($token, $data)
     {
-        $dir = $this->pending_review_dir();
-        if (!wp_mkdir_p($dir)) {
-            return false;
+        global $wpdb;
+
+        $data['status'] = 'pending_verification';
+        $data['verification_token'] = $token;
+        $data['token_expires'] = date('Y-m-d H:i:s', current_time('timestamp') + (2 * DAY_IN_SECONDS));
+        $data['verification_reminder_sent_at'] = null;
+        $data['updated_at'] = current_time('mysql');
+
+        $inserted = $wpdb->insert($this->table('review_requests'), $data);
+        if (!$inserted) {
+            error_log('Science180 Book Review pending request save failed: ' . $wpdb->last_error);
         }
 
-        if (!file_exists(trailingslashit($dir) . '.htaccess')) {
-            file_put_contents(trailingslashit($dir) . '.htaccess', "Require all denied\nDeny from all\n");
-        }
-        if (!file_exists(trailingslashit($dir) . 'index.php')) {
-            file_put_contents(trailingslashit($dir) . 'index.php', "<?php\n// Silence is golden.\n");
-        }
-
-        $payload = array(
-            'expires' => time() + (2 * DAY_IN_SECONDS),
-            'created_at' => time(),
-            'reminder_sent_at' => 0,
-            'token' => $token,
-            'data' => $data,
-        );
-
-        return (bool) file_put_contents($this->pending_review_path($token), wp_json_encode($payload), LOCK_EX);
+        return (bool) $inserted;
     }
 
     private function load_pending_review($token)
     {
+        global $wpdb;
+
+        $requests_table = $this->table('review_requests');
+        $request = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$requests_table} WHERE verification_token = %s AND status = 'pending_verification' AND token_expires > %s LIMIT 1",
+            $token,
+            current_time('mysql')
+        ));
+        if ($request) {
+            $data = (array) $request;
+            $data['_pending_request_id'] = (int) $request->id;
+            return $data;
+        }
+
+        // Backward compatibility for verification links created before database storage.
         $path = $this->pending_review_path($token);
         if (!is_readable($path)) {
             return false;
         }
 
         $payload = json_decode((string) file_get_contents($path), true);
-        if (!is_array($payload) || empty($payload['data']) || empty($payload['expires'])) {
-            return false;
-        }
-
-        if ((int) $payload['expires'] < time()) {
+        if (!is_array($payload) || empty($payload['data']) || empty($payload['expires']) || (int) $payload['expires'] < time()) {
             $this->delete_pending_review($token);
             return false;
         }
@@ -2226,6 +2298,9 @@ class S180BR_Plugin
 
     private function delete_pending_review($token)
     {
+        global $wpdb;
+        $wpdb->delete($this->table('review_requests'), array('verification_token' => $token, 'status' => 'pending_verification'));
+
         $path = $this->pending_review_path($token);
         if (is_file($path)) {
             wp_delete_file($path);
