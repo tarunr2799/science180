@@ -924,7 +924,7 @@ class S180BR_Plugin
             $data['email'],
             ($is_reminder ? __('Reminder: ', 'science180-book-review') : '') . get_option('s180br_verification_subject', 'Verify your Science180 review copy request'),
             $message,
-            $this->mail_headers('', $full_name)
+            $this->mail_headers($data['email'], $full_name)
         );
 
         if (!$sent) {
@@ -1078,8 +1078,14 @@ class S180BR_Plugin
         $from_email = $this->sender_email();
         $from_name = $this->sender_name();
         $from_override = null;
+        $mail_error = null;
+        $capture_error = function ($error) use (&$mail_error) {
+            $mail_error = $error;
+        };
 
-        if ($from_email && is_email($from_email)) {
+        // Science180 Mail configures the authenticated SMTP sender globally.
+        // Do not override it with a Book Review-specific sender.
+        if (!get_option('advnews_smtp_host') && $from_email && is_email($from_email)) {
             $from_override = function ($phpmailer) use ($from_email, $from_name) {
                 if (method_exists($phpmailer, 'setFrom')) {
                     $phpmailer->setFrom($from_email, $from_name, false);
@@ -1091,13 +1097,21 @@ class S180BR_Plugin
             add_action('phpmailer_init', $from_override, PHP_INT_MAX);
         }
 
+        add_action('wp_mail_failed', $capture_error);
         try {
-            return wp_mail($to, $subject, $message, $headers);
+            $sent = wp_mail($to, $subject, $message, $headers);
         } finally {
+            remove_action('wp_mail_failed', $capture_error);
             if ($from_override) {
                 remove_action('phpmailer_init', $from_override, PHP_INT_MAX);
             }
         }
+
+        if (!$sent && $mail_error instanceof WP_Error) {
+            error_log('Science180 Book Review wp_mail failed: ' . $mail_error->get_error_message());
+        }
+
+        return $sent;
     }
 
     private function log_mail_failure($context, $recipient)
@@ -1131,12 +1145,18 @@ class S180BR_Plugin
 
     private function sender_email()
     {
-        $candidates = array(
+        $candidates = array();
+
+        if (get_option('advnews_smtp_host')) {
+            $candidates[] = get_option('advnews_smtp_from_email');
+            $candidates[] = get_option('advnews_smtp_username');
+        }
+
+        $candidates = array_merge($candidates, array(
             get_option('s180re_from_email'),
-            get_option('advnews_smtp_from_email'),
             get_option('advnews_from_email'),
             get_option('admin_email'),
-        );
+        ));
 
         foreach ($candidates as $candidate) {
             $candidate = self::normalize_email_domain($candidate);
