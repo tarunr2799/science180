@@ -414,7 +414,7 @@ class S180EN_Plugin
                 <?php endif; ?>
             </div>
 
-            <form class="s180re-form s180re-form-compact" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <form class="s180re-form s180re-form-compact" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-s180en-endorsement-form>
                 <input type="hidden" name="action" value="s180re_endorsement_submit">
                 <input type="hidden" name="form_started" value="<?php echo esc_attr(time()); ?>">
                 <input type="text" name="company_website" value="" class="s180re-hp" tabindex="-1" autocomplete="off">
@@ -446,8 +446,11 @@ class S180EN_Plugin
                 </div>
                 <div class="s180re-field">
                     <label for="s180re-endorsement-profile-url"><?php esc_html_e('Website or social media URL', 'science180-endorsement'); ?> <small><?php esc_html_e('(optional)', 'science180-endorsement'); ?></small></label>
-                    <input id="s180re-endorsement-profile-url" type="text" name="profile_url" placeholder="example.com/profile" autocomplete="url" inputmode="url" aria-describedby="s180re-endorsement-profile-url-note">
-                    <p id="s180re-endorsement-profile-url-note" class="s180re-field-note"><?php esc_html_e('Enter a website or social media profile with or without https://. It will be corrected automatically.', 'science180-endorsement'); ?></p>
+                    <div class="s180re-url-input">
+                        <span class="s180re-url-prefix" aria-hidden="true">https://</span>
+                        <input id="s180re-endorsement-profile-url" type="text" name="profile_url" placeholder="science180.com/profile" autocomplete="url" inputmode="url" aria-describedby="s180re-endorsement-profile-url-note" data-s180en-url-input>
+                    </div>
+                    <p id="s180re-endorsement-profile-url-note" class="s180re-field-note"><?php esc_html_e('Enter the part after https:// (for example, science180.com/profile). You may also paste a complete URL; it will be corrected automatically.', 'science180-endorsement'); ?></p>
                 </div>
                 <div class="s180re-field s180re-field-full">
                     <label for="s180re-endorsement-comment"><?php esc_html_e('Endorsement description / comment', 'science180-endorsement'); ?> <span>*</span></label>

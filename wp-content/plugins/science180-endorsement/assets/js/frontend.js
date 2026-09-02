@@ -9,7 +9,32 @@
         }
     }
 
+    function normalizeHttpsField(input) {
+        var value = input.value.trim();
+        if (!value) {
+            return;
+        }
+
+        value = value.replace(/^(?:(?:https?):\/*)+/i, '').replace(/^\/+/, '');
+        input.value = value;
+    }
+
     ready(function () {
+        var profileInput = document.querySelector('[data-s180en-url-input]');
+        var endorsementForm = document.querySelector('[data-s180en-endorsement-form]');
+
+        if (profileInput) {
+            profileInput.addEventListener('blur', function () {
+                normalizeHttpsField(profileInput);
+            });
+        }
+
+        if (endorsementForm && profileInput) {
+            endorsementForm.addEventListener('submit', function () {
+                normalizeHttpsField(profileInput);
+            });
+        }
+
         var triggers = document.querySelectorAll('.s180re-photo-lightbox-trigger');
         if (!triggers.length) {
             return;
