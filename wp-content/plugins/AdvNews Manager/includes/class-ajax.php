@@ -1419,8 +1419,9 @@ class AdvNews_Ajax
         $this->verify_nonce();
         $this->check_capability();
 
-        $paged = isset($_POST['paged']) ? intval($_POST['paged']) : 1;
-        $per_page = 20;
+        $paged = isset($_POST['paged']) ? max(1, absint($_POST['paged'])) : 1;
+        $per_page = (int) get_user_option('advnews_email_logs_per_page', get_current_user_id());
+        $per_page = $per_page > 0 ? min(500, $per_page) : 20;
         $offset = ($paged - 1) * $per_page;
 
         $status_filter = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
