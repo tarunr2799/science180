@@ -1711,21 +1711,44 @@ class AdvNews_Ajax
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
 
+        $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+        $campaign_id = isset($_POST['campaign_id']) ? absint($_POST['campaign_id']) : 0;
+        $country = isset($_POST['country']) ? sanitize_text_field(wp_unslash($_POST['country'])) : '';
+        $city = isset($_POST['city']) ? sanitize_text_field(wp_unslash($_POST['city'])) : '';
+
+        $where = array('tc.clicked_at BETWEEN %s AND %s', "tc.ip_address != ''");
+        $params = array($start_date, $end_date);
+        if ($search !== '') {
+            $like = '%' . $this->wpdb->esc_like($search) . '%';
+            $where[] = '(tc.ip_address LIKE %s OR s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR c.name LIKE %s)';
+            array_push($params, $like, $like, $like, $like, $like);
+        }
+        if ($campaign_id > 0) {
+            $where[] = 'tc.campaign_id = %d';
+            $params[] = $campaign_id;
+        }
+        if ($country !== '') {
+            $where[] = 'tc.country = %s';
+            $params[] = $country;
+        }
+        if ($city !== '') {
+            $where[] = 'tc.city = %s';
+            $params[] = $city;
+        }
+        $where_sql = implode(' AND ', $where);
+        $query_params = array_merge($params, array($limit, $offset));
+
         $rows = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT tc.ip_address, tc.subscriber_id, tc.country, tc.country_code, tc.city,
-                    tc.device_type, tc.browser, tc.platform, tc.clicked_at as event_at,
-                    tc.campaign_id, s.email as subscriber_email, c.name as campaign_name
+                    tc.device_type, tc.browser, tc.platform, tc.clicked_at AS event_at,
+                    tc.campaign_id, s.email AS subscriber_email, c.name AS campaign_name
              FROM $table_clicks tc
              LEFT JOIN $table_subscribers s ON tc.subscriber_id = s.id
              LEFT JOIN $table_campaigns c ON tc.campaign_id = c.id
-             WHERE tc.clicked_at BETWEEN %s AND %s
-             AND tc.ip_address != ''
+             WHERE {$where_sql}
              ORDER BY tc.clicked_at DESC
              LIMIT %d OFFSET %d",
-            $start_date,
-            $end_date,
-            $limit,
-            $offset
+            $query_params
         ));
 
         ob_start();

@@ -44,6 +44,15 @@ switch ($period) {
         $start_date = date('Y-m-d H:i:s', strtotime('-30 days'));
 }
 
+$ip_search = isset($_GET['ip_search']) ? sanitize_text_field(wp_unslash($_GET['ip_search'])) : '';
+$ip_campaign = isset($_GET['ip_campaign']) ? absint($_GET['ip_campaign']) : 0;
+$ip_country = isset($_GET['ip_country']) ? sanitize_text_field(wp_unslash($_GET['ip_country'])) : '';
+$ip_city = isset($_GET['ip_city']) ? sanitize_text_field(wp_unslash($_GET['ip_city'])) : '';
+$geo_country = isset($_GET['geo_country']) ? sanitize_text_field(wp_unslash($_GET['geo_country'])) : '';
+$geo_city = isset($_GET['geo_city']) ? sanitize_text_field(wp_unslash($_GET['geo_city'])) : '';
+$geo_page = isset($_GET['geo_page']) ? max(1, absint($_GET['geo_page'])) : 1;
+$geo_per_page = 50;
+
 // Top Countries from clicks. Open-pixel locations can be email proxy locations.
 $top_countries = $wpdb->get_results($wpdb->prepare(
     "SELECT country, country_code, COUNT(*) as opens, COUNT(DISTINCT subscriber_id) as unique_visitors
@@ -83,27 +92,119 @@ $device_data = $wpdb->get_results($wpdb->prepare(
     $end_date
 ));
 
+$table_clicks = $wpdb->prefix . $table_prefix . 'tracking_clicks';
+$table_subscribers = $wpdb->prefix . $table_prefix . 'subscribers';
+$table_campaigns = $wpdb->prefix . $table_prefix . 'campaigns';
+
+$ip_where = array('tc.clicked_at BETWEEN %s AND %s', "tc.ip_address != ''");
+$ip_params = array($start_date, $end_date);
+if ($ip_search !== '') {
+    $like = '%' . $wpdb->esc_like($ip_search) . '%';
+    $ip_where[] = '(tc.ip_address LIKE %s OR s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR c.name LIKE %s)';
+    array_push($ip_params, $like, $like, $like, $like, $like);
+}
+if ($ip_campaign > 0) {
+    $ip_where[] = 'tc.campaign_id = %d';
+    $ip_params[] = $ip_campaign;
+}
+if ($ip_country !== '') {
+    $ip_where[] = 'tc.country = %s';
+    $ip_params[] = $ip_country;
+}
+if ($ip_city !== '') {
+    $ip_where[] = 'tc.city = %s';
+    $ip_params[] = $ip_city;
+}
+$ip_where_sql = implode(' AND ', $ip_where);
+
 // IP Address Data from clicks for a closer recipient signal than open-pixel proxy IPs.
+$ip_query_params = array_merge($ip_params, array(50));
 $ip_data = $wpdb->get_results($wpdb->prepare(
-    "SELECT
-    ip_address,
-    subscriber_id,
-    country,
-    country_code,
-    city,
-    device_type,
-    browser,
-    platform,
-    clicked_at as event_at,
-    campaign_id
-    FROM {$wpdb->prefix}{$table_prefix}tracking_clicks
-    WHERE clicked_at BETWEEN %s AND %s
-    AND ip_address != ''
-    ORDER BY clicked_at DESC
-    LIMIT 50",
+    "SELECT tc.ip_address, tc.subscriber_id, tc.country, tc.country_code, tc.city,
+            tc.device_type, tc.browser, tc.platform, tc.clicked_at AS event_at,
+            tc.campaign_id, s.email AS subscriber_email, c.name AS campaign_name
+     FROM {$table_clicks} tc
+     LEFT JOIN {$table_subscribers} s ON tc.subscriber_id = s.id
+     LEFT JOIN {$table_campaigns} c ON tc.campaign_id = c.id
+     WHERE {$ip_where_sql}
+     ORDER BY tc.clicked_at DESC
+     LIMIT %d",
+    $ip_query_params
+));
+
+$ip_total = (int) $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*)
+     FROM {$table_clicks} tc
+     LEFT JOIN {$table_subscribers} s ON tc.subscriber_id = s.id
+     LEFT JOIN {$table_campaigns} c ON tc.campaign_id = c.id
+     WHERE {$ip_where_sql}",
+    $ip_params
+));
+
+$ip_filter_countries = $wpdb->get_col($wpdb->prepare(
+    "SELECT DISTINCT country FROM {$table_clicks}
+     WHERE clicked_at BETWEEN %s AND %s
+       AND country != '' AND country != 'Local' AND country != 'Unknown'
+     ORDER BY country",
     $start_date,
     $end_date
 ));
+$ip_filter_cities = $wpdb->get_col($wpdb->prepare(
+    "SELECT DISTINCT city FROM {$table_clicks}
+     WHERE clicked_at BETWEEN %s AND %s
+       AND city != '' AND city != 'Local' AND city != 'Unknown'
+     ORDER BY city",
+    $start_date,
+    $end_date
+));
+$ip_filter_campaigns = $wpdb->get_results($wpdb->prepare(
+    "SELECT DISTINCT c.id, c.name
+     FROM {$table_clicks} tc
+     INNER JOIN {$table_campaigns} c ON tc.campaign_id = c.id
+     WHERE tc.clicked_at BETWEEN %s AND %s
+     ORDER BY c.name",
+    $start_date,
+    $end_date
+));
+
+$geo_recipients = array();
+$geo_total = 0;
+$geo_pages = 0;
+if ($geo_country !== '') {
+    $geo_where = array('tc.clicked_at BETWEEN %s AND %s', 'tc.country = %s');
+    $geo_params = array($start_date, $end_date, $geo_country);
+    if ($geo_city !== '') {
+        $geo_where[] = 'tc.city = %s';
+        $geo_params[] = $geo_city;
+    }
+    $geo_where_sql = implode(' AND ', $geo_where);
+    $geo_total = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM (
+            SELECT tc.subscriber_id, tc.campaign_id
+            FROM {$table_clicks} tc
+            WHERE {$geo_where_sql}
+            GROUP BY tc.subscriber_id, tc.campaign_id, tc.country, tc.city
+        ) engagements",
+        $geo_params
+    ));
+    $geo_pages = (int) ceil($geo_total / $geo_per_page);
+    $geo_offset = ($geo_page - 1) * $geo_per_page;
+    $geo_query_params = array_merge($geo_params, array($geo_per_page, $geo_offset));
+    $geo_recipients = $wpdb->get_results($wpdb->prepare(
+        "SELECT tc.subscriber_id, tc.campaign_id, tc.country, tc.city,
+                s.email, s.first_name, s.last_name, c.name AS campaign_name,
+                COUNT(*) AS click_count, MAX(tc.clicked_at) AS last_clicked_at
+         FROM {$table_clicks} tc
+         LEFT JOIN {$table_subscribers} s ON tc.subscriber_id = s.id
+         LEFT JOIN {$table_campaigns} c ON tc.campaign_id = c.id
+         WHERE {$geo_where_sql}
+         GROUP BY tc.subscriber_id, tc.campaign_id, tc.country, tc.city,
+                  s.email, s.first_name, s.last_name, c.name
+         ORDER BY last_clicked_at DESC
+         LIMIT %d OFFSET %d",
+        $geo_query_params
+    ));
+}
 
 // Get categories for distribution chart
 $categories = $wpdb->get_results("
@@ -348,15 +449,21 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                         <?php else: ?>
                         <?php foreach ($top_countries as $country):
                             $percentage = $total_opens > 0 ? round(($country->opens / $total_opens) * 100, 1) : 0;
+                            $country_url = add_query_arg(array(
+                                'page' => 'advnews-analytics',
+                                'tab' => 'overview',
+                                'period' => $period,
+                                'geo_country' => $country->country,
+                            ), admin_url('admin.php')) . '#advnews-geographic-recipients';
                         ?>
                         <tr>
                             <td>
                                 <?php if (!empty($country->country_code)): ?>
-                                <img src="https://flagcdn.com/24x18/<?php echo strtolower($country->country_code); ?>.png"
+                                <img src="https://flagcdn.com/24x18/<?php echo esc_attr(strtolower($country->country_code)); ?>.png"
                                     alt="<?php echo esc_attr($country->country); ?>"
                                     style="vertical-align: middle; margin-right: 5px;">
                                 <?php endif; ?>
-                                <?php echo esc_html($country->country); ?>
+                                <a href="<?php echo esc_url($country_url); ?>"><?php echo esc_html($country->country); ?></a>
                             </td>
                             <td><?php echo esc_html(number_format($country->opens)); ?></td>
                             <td><?php echo esc_html(number_format($country->unique_visitors ?? 0)); ?></td>
@@ -384,15 +491,23 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                             <td colspan="3"><?php _e('No click-based city data available.', 'advnews-manager'); ?></td>
                         </tr>
                         <?php else: ?>
-                        <?php foreach ($top_cities as $city): ?>
+                        <?php foreach ($top_cities as $city):
+                            $city_url = add_query_arg(array(
+                                'page' => 'advnews-analytics',
+                                'tab' => 'overview',
+                                'period' => $period,
+                                'geo_country' => $city->country,
+                                'geo_city' => $city->city,
+                            ), admin_url('admin.php')) . '#advnews-geographic-recipients';
+                        ?>
                         <tr>
                             <td>
                                 <?php if (!empty($city->country_code)): ?>
-                                <img src="https://flagcdn.com/16x12/<?php echo strtolower($city->country_code); ?>.png"
+                                <img src="https://flagcdn.com/16x12/<?php echo esc_attr(strtolower($city->country_code)); ?>.png"
                                     alt="<?php echo esc_attr($city->country); ?>"
                                     style="vertical-align: middle; margin-right: 5px;">
                                 <?php endif; ?>
-                                <?php echo esc_html($city->city); ?>
+                                <a href="<?php echo esc_url($city_url); ?>"><?php echo esc_html($city->city); ?></a>
                             </td>
                             <td><?php echo esc_html($city->country); ?></td>
                             <td><?php echo esc_html(number_format($city->opens)); ?></td>
@@ -403,6 +518,85 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                 </table>
             </div>
         </div>
+
+        <?php if ($geo_country !== ''):
+            $geo_label = $geo_city !== '' ? $geo_city . ', ' . $geo_country : $geo_country;
+            $clear_geo_url = add_query_arg(array(
+                'page' => 'advnews-analytics',
+                'tab' => 'overview',
+                'period' => $period,
+            ), admin_url('admin.php'));
+        ?>
+        <section id="advnews-geographic-recipients" class="geo-recipient-results">
+            <div class="geo-recipient-header">
+                <div>
+                    <h4><?php echo esc_html(sprintf(__('Recipients clicking from %s', 'advnews-manager'), $geo_label)); ?></h4>
+                    <p class="description"><?php echo esc_html(sprintf(_n('%d recipient/campaign result', '%d recipient/campaign results', $geo_total, 'advnews-manager'), $geo_total)); ?></p>
+                </div>
+                <a class="button" href="<?php echo esc_url($clear_geo_url); ?>"><?php _e('Close results', 'advnews-manager'); ?></a>
+            </div>
+            <div class="geo-recipient-table">
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Name', 'advnews-manager'); ?></th>
+                            <th><?php _e('Email', 'advnews-manager'); ?></th>
+                            <th><?php _e('City', 'advnews-manager'); ?></th>
+                            <th><?php _e('Country', 'advnews-manager'); ?></th>
+                            <th><?php _e('Campaign', 'advnews-manager'); ?></th>
+                            <th><?php _e('Clicks', 'advnews-manager'); ?></th>
+                            <th><?php _e('Last Click', 'advnews-manager'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($geo_recipients)): ?>
+                            <tr><td colspan="7"><?php _e('No matching recipients found for the selected period.', 'advnews-manager'); ?></td></tr>
+                        <?php else: ?>
+                            <?php foreach ($geo_recipients as $recipient):
+                                $recipient_name = trim((string) $recipient->first_name . ' ' . (string) $recipient->last_name);
+                            ?>
+                            <tr>
+                                <td><?php echo esc_html($recipient_name !== '' ? $recipient_name : '-'); ?></td>
+                                <td>
+                                    <?php if ($recipient->subscriber_id && $recipient->email): ?>
+                                        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $recipient->subscriber_id)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($recipient->email); ?></a>
+                                    <?php else: ?>
+                                        <span aria-label="<?php esc_attr_e('Unavailable', 'advnews-manager'); ?>">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html($recipient->city ?: '-'); ?></td>
+                                <td><?php echo esc_html($recipient->country ?: '-'); ?></td>
+                                <td>
+                                    <?php if ($recipient->campaign_id && $recipient->campaign_name): ?>
+                                        <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . (int) $recipient->campaign_id)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($recipient->campaign_name); ?></a>
+                                    <?php else: ?>
+                                        <span aria-label="<?php esc_attr_e('Unavailable', 'advnews-manager'); ?>">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo esc_html(number_format((int) $recipient->click_count)); ?></td>
+                                <td><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($recipient->last_clicked_at))); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php if ($geo_pages > 1): ?>
+                <div class="tablenav"><div class="tablenav-pages">
+                    <?php echo wp_kses_post(paginate_links(array(
+                        'base' => str_replace(
+                            '999999999',
+                            '%#%',
+                            esc_url(add_query_arg('geo_page', '999999999'))
+                        ) . '#advnews-geographic-recipients',
+                        'format' => '',
+                        'current' => $geo_page,
+                        'total' => $geo_pages,
+                    ))); ?>
+                </div></div>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
     </div>
 
     <!-- Device & Browser Analytics -->
@@ -490,6 +684,49 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
             </p>
         </div>
         <?php endif; ?>
+
+        <form class="advnews-ip-filters" method="get" action="<?php echo esc_url(admin_url('admin.php') . '#ip-tracking-table'); ?>">
+            <input type="hidden" name="page" value="advnews-analytics">
+            <input type="hidden" name="tab" value="overview">
+            <input type="hidden" name="period" value="<?php echo esc_attr($period); ?>">
+            <div class="advnews-ip-filter-field advnews-ip-filter-search">
+                <label for="advnews-ip-search"><?php _e('Search', 'advnews-manager'); ?></label>
+                <input id="advnews-ip-search" type="search" name="ip_search" value="<?php echo esc_attr($ip_search); ?>" placeholder="<?php esc_attr_e('Email, name, IP, or campaign', 'advnews-manager'); ?>">
+            </div>
+            <div class="advnews-ip-filter-field">
+                <label for="advnews-ip-campaign"><?php _e('Campaign', 'advnews-manager'); ?></label>
+                <select id="advnews-ip-campaign" name="ip_campaign">
+                    <option value="0"><?php _e('All campaigns', 'advnews-manager'); ?></option>
+                    <?php foreach ($ip_filter_campaigns as $filter_campaign): ?>
+                        <option value="<?php echo esc_attr((int) $filter_campaign->id); ?>" <?php selected($ip_campaign, (int) $filter_campaign->id); ?>><?php echo esc_html($filter_campaign->name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="advnews-ip-filter-field">
+                <label for="advnews-ip-country"><?php _e('Country', 'advnews-manager'); ?></label>
+                <select id="advnews-ip-country" name="ip_country">
+                    <option value=""><?php _e('All countries', 'advnews-manager'); ?></option>
+                    <?php foreach ($ip_filter_countries as $filter_country): ?>
+                        <option value="<?php echo esc_attr($filter_country); ?>" <?php selected($ip_country, $filter_country); ?>><?php echo esc_html($filter_country); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="advnews-ip-filter-field">
+                <label for="advnews-ip-city"><?php _e('City', 'advnews-manager'); ?></label>
+                <select id="advnews-ip-city" name="ip_city">
+                    <option value=""><?php _e('All cities', 'advnews-manager'); ?></option>
+                    <?php foreach ($ip_filter_cities as $filter_city): ?>
+                        <option value="<?php echo esc_attr($filter_city); ?>" <?php selected($ip_city, $filter_city); ?>><?php echo esc_html($filter_city); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="advnews-ip-filter-actions">
+                <button class="button button-primary" type="submit"><?php _e('Filter', 'advnews-manager'); ?></button>
+                <?php if ($ip_search !== '' || $ip_campaign > 0 || $ip_country !== '' || $ip_city !== ''): ?>
+                    <a class="button" href="<?php echo esc_url(add_query_arg(array('page' => 'advnews-analytics', 'tab' => 'overview', 'period' => $period), admin_url('admin.php')) . '#ip-tracking-table'); ?>"><?php _e('Reset', 'advnews-manager'); ?></a>
+                <?php endif; ?>
+            </div>
+        </form>
         <div class="ip-table-container">
             <table class="wp-list-table widefat fixed striped" id="ip-tracking-table">
                 <thead>
@@ -510,24 +747,8 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                     </tr>
                     <?php else: ?>
                     <?php foreach ($ip_data as $ip_record):
-                        // Get subscriber email
-                        $subscriber_email = '';
-                        if ($ip_record->subscriber_id) {
-                            $subscriber = $wpdb->get_var($wpdb->prepare(
-                                "SELECT email FROM {$wpdb->prefix}{$table_prefix}subscribers WHERE id = %d",
-                                $ip_record->subscriber_id
-                            ));
-                            $subscriber_email = $subscriber ? $subscriber : '—';
-                        }
-                        // Get campaign name
-                        $campaign_name = '';
-                        if ($ip_record->campaign_id) {
-                            $campaign = $wpdb->get_var($wpdb->prepare(
-                                "SELECT name FROM {$wpdb->prefix}{$table_prefix}campaigns WHERE id = %d",
-                                $ip_record->campaign_id
-                            ));
-                            $campaign_name = $campaign ? $campaign : '—';
-                        }
+                        $subscriber_email = $ip_record->subscriber_email ?: '-';
+                        $campaign_name = $ip_record->campaign_name ?: '-';
                         // Format location
                         $location = trim($ip_record->city . ', ' . $ip_record->country, ', ');
                         if (empty($location)) {
@@ -585,21 +806,19 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
         </div>
         <div class="ip-tracking-footer">
             <p class="description">
-                <?php printf(
-                    _n(
-                        'Showing the %d most recent clicked IP address for the selected period.',
-                        'Showing the %d most recent clicked IP addresses for the selected period.',
-                        count($ip_data),
-                        'advnews-manager'
-                    ),
-                    count($ip_data)
-                ); ?>
+                <?php echo esc_html(sprintf(
+                    __('Showing %1$d of %2$d matching click records for the selected period.', 'advnews-manager'),
+                    count($ip_data),
+                    $ip_total
+                )); ?>
             </p>
+            <?php if (count($ip_data) < $ip_total): ?>
             <div class="ip-tracking-pagination">
-                <button type="button" class="button button-small" id="load-more-ips" data-offset="50">
+                <button type="button" class="button button-small" id="load-more-ips" data-offset="<?php echo esc_attr(count($ip_data)); ?>">
                     <?php _e('Load More', 'advnews-manager'); ?>
                 </button>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -706,6 +925,10 @@ jQuery(document).ready(function($) {
                 offset: offset,
                 limit: 50,
                 period: '<?php echo esc_js($period); ?>',
+                search: '<?php echo esc_js($ip_search); ?>',
+                campaign_id: <?php echo (int) $ip_campaign; ?>,
+                country: '<?php echo esc_js($ip_country); ?>',
+                city: '<?php echo esc_js($ip_city); ?>',
                 nonce: advnews_ajax.nonce
             },
             success: function(response) {
@@ -1344,6 +1567,57 @@ jQuery(document).ready(function($) {
     width: 100%;
 }
 
+.geo-recipient-results {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #ccd0d4;
+}
+
+.geo-recipient-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.geo-recipient-header h4 {
+    margin: 0 0 4px;
+}
+
+.geo-recipient-table {
+    overflow-x: auto;
+}
+
+.advnews-ip-filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 1fr)) auto;
+    align-items: end;
+    gap: 12px;
+    margin: 16px 0;
+    padding: 14px 0;
+    border-top: 1px solid #dcdcde;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.advnews-ip-filter-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.advnews-ip-filter-field input,
+.advnews-ip-filter-field select {
+    width: 100%;
+    min-height: 32px;
+}
+
+.advnews-ip-filter-actions {
+    display: flex;
+    gap: 6px;
+    padding-bottom: 1px;
+}
+
 /* IP Tracking */
 .advnews-ip-tracking {
     background: #fff;
@@ -1495,6 +1769,14 @@ jQuery(document).ready(function($) {
         grid-template-columns: 1fr;
     }
 
+    .advnews-ip-filters {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
+    .advnews-ip-filter-actions {
+        align-self: end;
+    }
+
     .ip-tracking-header {
         flex-direction: column;
         gap: 15px;
@@ -1536,6 +1818,14 @@ jQuery(document).ready(function($) {
     .chart-container,
     .distribution-chart-container {
         height: 250px;
+    }
+
+    .advnews-ip-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .geo-recipient-header {
+        flex-direction: column;
     }
 
     .ip-tracking-footer {
