@@ -212,7 +212,8 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                         <?php if (empty($activity)): ?>
                             <p><?php _e('No recent activity.', 'advnews-manager'); ?></p>
                         <?php else: ?>
-                            <table class="wp-list-table widefat fixed striped">
+                            <div class="advnews-activity-table-wrap">
+                                <table class="wp-list-table widefat striped advnews-subscriber-activity-table">
                                 <thead>
                                     <tr>
                                         <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
@@ -271,7 +272,8 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
-                            </table>
+                                </table>
+                            </div>
                             <p class="description">
                                 <?php
                                 $activity_first = $activity_total > 0 ? $activity_offset + 1 : 0;

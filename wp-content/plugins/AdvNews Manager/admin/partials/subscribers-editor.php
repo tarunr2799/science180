@@ -282,7 +282,8 @@ foreach ($subscriber_categories as $cat) {
             if (empty($activity)): ?>
                 <p><?php _e('No recent activity for this subscriber.', 'advnews-manager'); ?></p>
             <?php else: ?>
-                <table class="wp-list-table widefat fixed striped">
+                <div class="advnews-activity-table-wrap">
+                    <table class="wp-list-table widefat striped advnews-subscriber-activity-table">
                     <thead>
                         <tr>
                             <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
@@ -327,7 +328,8 @@ foreach ($subscriber_categories as $cat) {
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
-                </table>
+                    </table>
+                </div>
             <?php endif; ?>
         </div>
     </div>

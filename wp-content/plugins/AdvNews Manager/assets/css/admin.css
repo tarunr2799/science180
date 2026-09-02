@@ -252,3 +252,60 @@
     font-weight: 500;
     margin: 2px;
 }
+
+
+/* Subscriber activity tables remain readable on narrow admin content areas. */
+.advnews-activity-table-wrap {
+    overflow-x: auto;
+    margin: 0 -12px;
+    padding: 0 12px;
+}
+
+.advnews-subscriber-activity-table {
+    min-width: 1180px;
+    table-layout: auto;
+}
+
+.advnews-subscriber-activity-table th,
+.advnews-subscriber-activity-table td {
+    vertical-align: top;
+    white-space: normal;
+}
+
+.advnews-subscriber-activity-table th:nth-child(-n+4),
+.advnews-subscriber-activity-table td:nth-child(-n+4) {
+    min-width: 94px;
+}
+
+.advnews-subscriber-activity-table th:nth-child(5),
+.advnews-subscriber-activity-table td:nth-child(5) {
+    min-width: 72px;
+}
+
+.advnews-subscriber-activity-table th:nth-child(6),
+.advnews-subscriber-activity-table td:nth-child(6) {
+    min-width: 230px;
+}
+
+.advnews-subscriber-activity-table th:nth-child(7),
+.advnews-subscriber-activity-table td:nth-child(7) {
+    min-width: 170px;
+}
+
+.advnews-subscriber-activity-table th:nth-child(8),
+.advnews-subscriber-activity-table td:nth-child(8) {
+    min-width: 150px;
+}
+
+.advnews-subscriber-activity-table th:nth-child(9),
+.advnews-subscriber-activity-table td:nth-child(9) {
+    min-width: 125px;
+}
+
+.advnews-subscriber-activity-table td:nth-child(6) {
+    line-height: 1.45;
+}
+
+.advnews-subscriber-activity-table td:nth-child(7) a {
+    overflow-wrap: anywhere;
+}
