@@ -1100,6 +1100,18 @@ class S180BR_Plugin
         }
     }
 
+    private function log_mail_failure($context, $recipient)
+    {
+        $context = sanitize_text_field((string) $context);
+        $recipient = sanitize_email((string) $recipient);
+
+        error_log(sprintf(
+            'Science180 Book Review email failed: %1$s (recipient: %2$s).',
+            $context ?: 'unknown context',
+            $recipient ?: 'unknown recipient'
+        ));
+    }
+
     private function mail_headers($reply_to_email = '', $reply_to_name = '')
     {
         $headers = array('Content-Type: text/html; charset=UTF-8', 'MIME-Version: 1.0');
