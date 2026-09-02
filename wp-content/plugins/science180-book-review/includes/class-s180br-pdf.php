@@ -47,7 +47,7 @@ class S180BR_Protected_PDF extends FpdiProtection
 
 class S180BR_PDF
 {
-    public static function generate($source, $destination, $recipient, $message, $color, $position, $personalized = true)
+    public static function generate($source, $destination, $recipient, $message, $color, $position, $personalized = true, $margin_font_size = 7, $footer_font_size = 8)
     {
         if (!is_readable($source)) {
             throw new RuntimeException(__('The source PDF cannot be read.', 'science180-book-review'));
@@ -60,6 +60,8 @@ class S180BR_PDF
         $pdf->SetMargins(0, 0, 0);
         $page_count = $pdf->setSourceFile($source);
         $rgb = self::hex_to_rgb($color);
+        $margin_font_size = max(5, min(24, (int) $margin_font_size));
+        $footer_font_size = max(5, min(24, (int) $footer_font_size));
 
         for ($page_number = 1; $page_number <= $page_count; $page_number++) {
             $template = $pdf->importPage($page_number);
@@ -71,13 +73,13 @@ class S180BR_PDF
 
             if ($personalized) {
                 $footer = trim($recipient['name'] . ' - ' . $recipient['email']);
-                $pdf->SetFont('Arial', '', 8);
+                $pdf->SetFont('Arial', '', $footer_font_size);
                 $pdf->SetXY(8, max(0, $size['height'] - 8));
                 $pdf->Cell(max(10, $size['width'] - 16), 4, self::pdf_text($footer), 0, 0, 'C');
             }
 
             if (trim($message) !== '') {
-                self::write_margin_message($pdf, $message, $position, $size['width'], $size['height']);
+                self::write_margin_message($pdf, $message, $position, $size['width'], $size['height'], $margin_font_size);
             }
         }
 
@@ -91,10 +93,10 @@ class S180BR_PDF
         return $page_count;
     }
 
-    private static function write_margin_message($pdf, $message, $position, $width, $height)
+    private static function write_margin_message($pdf, $message, $position, $width, $height, $font_size)
     {
         $message = self::pdf_text(wp_strip_all_tags($message));
-        $pdf->SetFont('Arial', '', 7);
+        $pdf->SetFont('Arial', '', $font_size);
 
         if ($position === 'left') {
             $pdf->rotate(90, 4, $height - 8);

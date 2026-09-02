@@ -604,3 +604,8 @@ body.s180re-plugin-page .wp-site-blocks > .wp-block-group:first-child .wp-block-
     }
 
 }
+
+.s180re-download-form {
+    grid-template-columns: 1fr;
+    max-width: 620px;
+}

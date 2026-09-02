@@ -79,6 +79,20 @@
 
     ready(function () {
         document.querySelectorAll('[data-s180re-review]').forEach(function (shell) {
+            shell.querySelectorAll('.s180re-book-choice').forEach(function (choice) {
+                choice.addEventListener('click', function (event) {
+                    var input = choice.querySelector('input[type="radio"]');
+                    if (!input) {
+                        return;
+                    }
+                    if (event.target && event.target.closest && event.target.closest('.s180re-book-title')) {
+                        event.preventDefault();
+                    }
+                    setSelected(shell, input.value, input.getAttribute('data-title'), input.getAttribute('data-cover'), input.getAttribute('data-description'));
+                    scrollToReviewForm(shell);
+                });
+            });
+
             shell.querySelectorAll('.s180re-book-choice input[type="radio"]').forEach(function (input) {
                 input.addEventListener('change', function () {
                     setSelected(shell, input.value, input.getAttribute('data-title'), input.getAttribute('data-cover'), input.getAttribute('data-description'));
