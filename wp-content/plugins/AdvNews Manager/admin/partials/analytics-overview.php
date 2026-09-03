@@ -725,12 +725,12 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
             </div>
             <div class="advnews-ip-filter-field">
                 <label for="advnews-ip-address"><?php _e('IP address', 'advnews-manager'); ?></label>
-                <input id="advnews-ip-address" type="search" name="ip_address" value="<?php echo esc_attr($ip_address); ?>" list="advnews-ip-address-options" placeholder="<?php esc_attr_e('Select or enter an IP', 'advnews-manager'); ?>" autocomplete="off">
-                <datalist id="advnews-ip-address-options">
+                <select id="advnews-ip-address" name="ip_address">
+                    <option value=""><?php _e('All IP addresses', 'advnews-manager'); ?></option>
                     <?php foreach ($ip_filter_addresses as $filter_ip): ?>
-                        <option value="<?php echo esc_attr($filter_ip); ?>"></option>
+                        <option value="<?php echo esc_attr($filter_ip); ?>" <?php selected($ip_address, $filter_ip); ?>><?php echo esc_html($filter_ip); ?></option>
                     <?php endforeach; ?>
-                </datalist>
+                </select>
             </div>
             <div class="advnews-ip-filter-field">
                 <label for="advnews-ip-campaign"><?php _e('Campaign', 'advnews-manager'); ?></label>
