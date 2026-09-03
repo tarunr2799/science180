@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Science180 Endorsement
  * Description: Email-verified public endorsements, moderation, public endorsement pages, and daily admin review notices for Science180.
- * Version: 1.0.27
+ * Version: 1.0.28
  * Author: Science180
  * Text Domain: science180-endorsement
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('S180EN_VERSION', '1.0.27');
+define('S180EN_VERSION', '1.0.28');
 define('S180EN_PLUGIN_FILE', __FILE__);
 define('S180EN_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('S180EN_PLUGIN_URL', plugin_dir_url(__FILE__));

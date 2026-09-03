@@ -1359,6 +1359,10 @@ class S180EN_Plugin
                         <?php if (!empty($endorsement->profile_url)) : ?>
                             <p class="s180re-detail-profile"><strong><?php esc_html_e('Website / social media:', 'science180-endorsement'); ?></strong> <a href="<?php echo esc_url($endorsement->profile_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($endorsement->profile_url); ?></a></p>
                         <?php endif; ?>
+                        <?php $profile_location = $this->endorsement_location($endorsement); ?>
+                        <?php if ($profile_location !== '') : ?>
+                            <p class="s180re-detail-location"><strong><?php esc_html_e('Location:', 'science180-endorsement'); ?></strong> <?php echo esc_html($profile_location); ?></p>
+                        <?php endif; ?>
                         <div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($endorsement->comment)); ?></div>
                         <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
                     </div>
@@ -2428,8 +2432,9 @@ class S180EN_Plugin
             $parts[] = sprintf(__('From %s', 'science180-endorsement'), $endorsement->country_origin);
         }
 
-        if (!empty($endorsement->ip_city)) {
-            $parts[] = sprintf(__('City: %s', 'science180-endorsement'), $endorsement->ip_city);
+        $location = $this->endorsement_location($endorsement);
+        if ($location !== '') {
+            $parts[] = sprintf(__('Location: %s', 'science180-endorsement'), $location);
         }
 
         if (!empty($endorsement->organization)) {
@@ -2437,6 +2442,18 @@ class S180EN_Plugin
         }
 
         return implode(' | ', $parts);
+    }
+
+    private function endorsement_location($endorsement)
+    {
+        $city = trim((string) ($endorsement->ip_city ?? ''));
+        $country = trim((string) ($endorsement->ip_country ?? ''));
+
+        if ($city !== '' && $country !== '') {
+            return $city . ', ' . $country;
+        }
+
+        return $city !== '' ? $city : $country;
     }
 
     private function endorsement_public_title($endorsement)
