@@ -1147,35 +1147,16 @@ class S180BR_Plugin
 
     private function send_mail($to, $subject, $message, $headers = array())
     {
-        $from_email = $this->sender_email();
-        $from_name = $this->sender_name();
-        $from_override = null;
         $mail_error = null;
         $capture_error = function ($error) use (&$mail_error) {
             $mail_error = $error;
         };
-
-        $book_review_from_email = self::normalize_email_domain(get_option('s180re_from_email'));
-        if ($book_review_from_email && is_email($book_review_from_email)) {
-            $from_override = function ($phpmailer) use ($from_email, $from_name) {
-                if (method_exists($phpmailer, 'setFrom')) {
-                    $phpmailer->setFrom($from_email, $from_name, false);
-                } else {
-                    $phpmailer->From = $from_email;
-                    $phpmailer->FromName = $from_name;
-                }
-            };
-            add_action('phpmailer_init', $from_override, PHP_INT_MAX);
-        }
 
         add_action('wp_mail_failed', $capture_error);
         try {
             $sent = wp_mail($to, $subject, $message, $headers);
         } finally {
             remove_action('wp_mail_failed', $capture_error);
-            if ($from_override) {
-                remove_action('phpmailer_init', $from_override, PHP_INT_MAX);
-            }
         }
 
         if (!$sent && $mail_error instanceof WP_Error) {
@@ -1216,21 +1197,34 @@ class S180BR_Plugin
 
     private function sender_email()
     {
-        $candidates = array(
-            get_option('s180re_from_email'),
-        );
-
-        if (get_option('advnews_smtp_host')) {
-            $candidates[] = get_option('advnews_smtp_from_email');
-            $candidates[] = get_option('advnews_smtp_username');
+        $smtp_sender = $this->smtp_sender_email();
+        if ($smtp_sender !== '') {
+            return $smtp_sender;
         }
 
-        $candidates = array_merge($candidates, array(
+        $candidates = array(
+            get_option('s180re_from_email'),
             get_option('advnews_from_email'),
             get_option('admin_email'),
-        ));
+        );
 
         foreach ($candidates as $candidate) {
+            $candidate = self::normalize_email_domain($candidate);
+            if ($candidate && is_email($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    private function smtp_sender_email()
+    {
+        if (!get_option('advnews_smtp_host')) {
+            return '';
+        }
+
+        foreach (array(get_option('advnews_smtp_from_email'), get_option('advnews_smtp_username')) as $candidate) {
             $candidate = self::normalize_email_domain($candidate);
             if ($candidate && is_email($candidate)) {
                 return $candidate;
@@ -1586,9 +1580,9 @@ class S180BR_Plugin
                 <label><?php esc_html_e('From name', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="text" name="from_name" value="<?php echo esc_attr(get_option('s180re_from_name')); ?>">
 
-                <label><?php esc_html_e('From email override', 'science180-book-review'); ?></label>
+                <label><?php esc_html_e('From email fallback', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="email" name="from_email" value="<?php echo esc_attr(get_option('s180re_from_email')); ?>" placeholder="<?php echo esc_attr($this->sender_email()); ?>">
-                <p class="description"><?php esc_html_e('Leave empty to use the existing Science180 Mail SMTP sender or the WordPress admin email. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
+                <p class="description"><?php esc_html_e('Used only when Science180 Mail SMTP is not configured. When SMTP is active, its authorized sender is used to prevent provider rejection. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
 
                 <h2><?php esc_html_e('Daily pending-review notice', 'science180-book-review'); ?></h2>
                 <p class="description">
