@@ -75,6 +75,7 @@ class S180BR_Plugin
     public function maybe_upgrade()
     {
         if (get_option('s180br_version') === S180BR_VERSION) {
+            self::schedule_daily_notice();
             self::schedule_verification_reminders();
             return;
         }
@@ -1154,9 +1155,8 @@ class S180BR_Plugin
             $mail_error = $error;
         };
 
-        // Science180 Mail configures the authenticated SMTP sender globally.
-        // Do not override it with a Book Review-specific sender.
-        if (!get_option('advnews_smtp_host') && $from_email && is_email($from_email)) {
+        $book_review_from_email = self::normalize_email_domain(get_option('s180re_from_email'));
+        if ($book_review_from_email && is_email($book_review_from_email)) {
             $from_override = function ($phpmailer) use ($from_email, $from_name) {
                 if (method_exists($phpmailer, 'setFrom')) {
                     $phpmailer->setFrom($from_email, $from_name, false);
@@ -1216,7 +1216,9 @@ class S180BR_Plugin
 
     private function sender_email()
     {
-        $candidates = array();
+        $candidates = array(
+            get_option('s180re_from_email'),
+        );
 
         if (get_option('advnews_smtp_host')) {
             $candidates[] = get_option('advnews_smtp_from_email');
@@ -1224,7 +1226,6 @@ class S180BR_Plugin
         }
 
         $candidates = array_merge($candidates, array(
-            get_option('s180re_from_email'),
             get_option('advnews_from_email'),
             get_option('admin_email'),
         ));
