@@ -88,6 +88,7 @@ class AdvNews_Ajax
         // =====================================================
         add_action('wp_ajax_advnews_get_analytics', array($this, 'ajax_get_analytics'));
         add_action('wp_ajax_advnews_export_analytics', array($this, 'ajax_export_analytics'));
+        add_action('wp_ajax_advnews_export_ip_data', array($this, 'ajax_export_ip_data'));
         add_action('wp_ajax_advnews_load_more_analytics', array($this, 'ajax_load_more_analytics'));
         add_action('wp_ajax_advnews_load_more_ips', array($this, 'ajax_load_more_ips'));
         add_action('wp_ajax_advnews_update_analytics_range', array($this, 'ajax_update_analytics_range'));
@@ -1599,6 +1600,101 @@ class AdvNews_Ajax
         }
     }
 
+    public function ajax_export_ip_data()
+    {
+        $this->check_capability();
+
+        if (!isset($_GET['nonce']) || !wp_verify_nonce($_GET['nonce'], 'advnews_export')) {
+            wp_die(__('Security check failed.', 'advnews-manager'));
+        }
+
+        $period = isset($_GET['period']) ? sanitize_text_field(wp_unslash($_GET['period'])) : '30days';
+        $end_date = current_time('mysql');
+        switch ($period) {
+            case '7days':
+                $start_date = date('Y-m-d H:i:s', strtotime('-7 days'));
+                break;
+            case '90days':
+                $start_date = date('Y-m-d H:i:s', strtotime('-90 days'));
+                break;
+            case 'year':
+                $start_date = date('Y-m-d H:i:s', strtotime('-1 year'));
+                break;
+            case '30days':
+            default:
+                $period = '30days';
+                $start_date = date('Y-m-d H:i:s', strtotime('-30 days'));
+                break;
+        }
+
+        $search = isset($_GET['ip_search']) ? sanitize_text_field(wp_unslash($_GET['ip_search'])) : '';
+        $ip_address = isset($_GET['ip_address']) ? sanitize_text_field(wp_unslash($_GET['ip_address'])) : '';
+        $campaign_id = isset($_GET['ip_campaign']) ? absint($_GET['ip_campaign']) : 0;
+        $country = isset($_GET['ip_country']) ? sanitize_text_field(wp_unslash($_GET['ip_country'])) : '';
+        $city = isset($_GET['ip_city']) ? sanitize_text_field(wp_unslash($_GET['ip_city'])) : '';
+
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $where = array('tc.clicked_at BETWEEN %s AND %s', "tc.ip_address != ''");
+        $params = array($start_date, $end_date);
+
+        if ($search !== '') {
+            $like = '%' . $this->wpdb->esc_like($search) . '%';
+            $where[] = '(tc.ip_address LIKE %s OR s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR c.name LIKE %s)';
+            array_push($params, $like, $like, $like, $like, $like);
+        }
+        if ($ip_address !== '') {
+            $where[] = 'tc.ip_address = %s';
+            $params[] = $ip_address;
+        }
+        if ($campaign_id > 0) {
+            $where[] = 'tc.campaign_id = %d';
+            $params[] = $campaign_id;
+        }
+        if ($country !== '') {
+            $where[] = 'tc.country = %s';
+            $params[] = $country;
+        }
+        if ($city !== '') {
+            $where[] = 'tc.city = %s';
+            $params[] = $city;
+        }
+
+        $where_sql = implode(' AND ', $where);
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT tc.ip_address, tc.country, tc.country_code, tc.city, tc.device_type, tc.browser, tc.platform, tc.clicked_at, s.email AS subscriber_email, c.name AS campaign_name
+             FROM {$table_clicks} tc
+             LEFT JOIN {$table_subscribers} s ON tc.subscriber_id = s.id
+             LEFT JOIN {$table_campaigns} c ON tc.campaign_id = c.id
+             WHERE {$where_sql}
+             ORDER BY tc.clicked_at DESC",
+            $params
+        ));
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=ip-tracking-' . $period . '-' . date('Y-m-d-H-i-s') . '.csv');
+
+        $output = fopen('php://output', 'w');
+        fputcsv($output, array('IP Address', 'Recipient Email', 'City', 'Country', 'Country Code', 'Device', 'Browser', 'Platform', 'Campaign', 'Clicked Date'));
+        foreach ($rows as $row) {
+            fputcsv($output, array(
+                $row->ip_address,
+                $row->subscriber_email,
+                $row->city,
+                $row->country,
+                $row->country_code,
+                $row->device_type,
+                $row->browser,
+                $row->platform,
+                $row->campaign_name,
+                $row->clicked_at,
+            ));
+        }
+        fclose($output);
+        exit;
+    }
     private function export_system_analytics($analytics, $type)
     {
         $filename = 'analytics-system-' . $type . '-' . date('Y-m-d-H-i-s') . '.csv';

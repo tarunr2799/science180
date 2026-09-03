@@ -947,8 +947,13 @@ jQuery(document).ready(function($) {
 
     // Export IP Data
     $('#export-ip-data').on('click', function() {
-        var period = $('#analytics-period').val();
-        window.location.href = '<?php echo admin_url('admin-ajax.php?action=advnews_export_ip_data&period='); ?>' + period + '&nonce=<?php echo wp_create_nonce('advnews_export'); ?>';
+        var filters = $('.advnews-ip-filters').serialize();
+        var exportUrl = '<?php echo admin_url('admin-ajax.php?action=advnews_export_ip_data'); ?>'
+            + '&nonce=<?php echo wp_create_nonce('advnews_export'); ?>';
+        if (filters) {
+            exportUrl += '&' + filters;
+        }
+        window.location.href = exportUrl;
     });
 
     // Load More IPs
