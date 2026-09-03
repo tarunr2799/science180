@@ -45,6 +45,7 @@ switch ($period) {
 }
 
 $ip_search = isset($_GET['ip_search']) ? sanitize_text_field(wp_unslash($_GET['ip_search'])) : '';
+$ip_address = isset($_GET['ip_address']) ? sanitize_text_field(wp_unslash($_GET['ip_address'])) : '';
 $ip_campaign = isset($_GET['ip_campaign']) ? absint($_GET['ip_campaign']) : 0;
 $ip_country = isset($_GET['ip_country']) ? sanitize_text_field(wp_unslash($_GET['ip_country'])) : '';
 $ip_city = isset($_GET['ip_city']) ? sanitize_text_field(wp_unslash($_GET['ip_city'])) : '';
@@ -102,6 +103,10 @@ if ($ip_search !== '') {
     $like = '%' . $wpdb->esc_like($ip_search) . '%';
     $ip_where[] = '(tc.ip_address LIKE %s OR s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR c.name LIKE %s)';
     array_push($ip_params, $like, $like, $like, $like, $like);
+}
+if ($ip_address !== '') {
+    $ip_where[] = 'tc.ip_address = %s';
+    $ip_params[] = $ip_address;
 }
 if ($ip_campaign > 0) {
     $ip_where[] = 'tc.campaign_id = %d';
@@ -163,6 +168,18 @@ $ip_filter_campaigns = $wpdb->get_results($wpdb->prepare(
      INNER JOIN {$table_campaigns} c ON tc.campaign_id = c.id
      WHERE tc.clicked_at BETWEEN %s AND %s
      ORDER BY c.name",
+    $start_date,
+    $end_date
+));
+
+$ip_filter_addresses = $wpdb->get_col($wpdb->prepare(
+    "SELECT ip_address
+     FROM {$table_clicks}
+     WHERE clicked_at BETWEEN %s AND %s
+       AND ip_address != ''
+     GROUP BY ip_address
+     ORDER BY MAX(clicked_at) DESC
+     LIMIT 500",
     $start_date,
     $end_date
 ));
@@ -694,6 +711,15 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                 <input id="advnews-ip-search" type="search" name="ip_search" value="<?php echo esc_attr($ip_search); ?>" placeholder="<?php esc_attr_e('Email, name, IP, or campaign', 'advnews-manager'); ?>">
             </div>
             <div class="advnews-ip-filter-field">
+                <label for="advnews-ip-address"><?php _e('IP address', 'advnews-manager'); ?></label>
+                <input id="advnews-ip-address" type="search" name="ip_address" value="<?php echo esc_attr($ip_address); ?>" list="advnews-ip-address-options" placeholder="<?php esc_attr_e('Select or enter an IP', 'advnews-manager'); ?>" autocomplete="off">
+                <datalist id="advnews-ip-address-options">
+                    <?php foreach ($ip_filter_addresses as $filter_ip): ?>
+                        <option value="<?php echo esc_attr($filter_ip); ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+            </div>
+            <div class="advnews-ip-filter-field">
                 <label for="advnews-ip-campaign"><?php _e('Campaign', 'advnews-manager'); ?></label>
                 <select id="advnews-ip-campaign" name="ip_campaign">
                     <option value="0"><?php _e('All campaigns', 'advnews-manager'); ?></option>
@@ -722,7 +748,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
             </div>
             <div class="advnews-ip-filter-actions">
                 <button class="button button-primary" type="submit"><?php _e('Filter', 'advnews-manager'); ?></button>
-                <?php if ($ip_search !== '' || $ip_campaign > 0 || $ip_country !== '' || $ip_city !== ''): ?>
+                <?php if ($ip_search !== '' || $ip_address !== '' || $ip_campaign > 0 || $ip_country !== '' || $ip_city !== ''): ?>
                     <a class="button" href="<?php echo esc_url(add_query_arg(array('page' => 'advnews-analytics', 'tab' => 'overview', 'period' => $period), admin_url('admin.php')) . '#ip-tracking-table'); ?>"><?php _e('Reset', 'advnews-manager'); ?></a>
                 <?php endif; ?>
             </div>
@@ -926,6 +952,7 @@ jQuery(document).ready(function($) {
                 limit: 50,
                 period: '<?php echo esc_js($period); ?>',
                 search: '<?php echo esc_js($ip_search); ?>',
+                ip_address: '<?php echo esc_js($ip_address); ?>',
                 campaign_id: <?php echo (int) $ip_campaign; ?>,
                 country: '<?php echo esc_js($ip_country); ?>',
                 city: '<?php echo esc_js($ip_city); ?>',

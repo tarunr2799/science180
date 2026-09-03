@@ -1712,6 +1712,7 @@ class AdvNews_Ajax
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
 
         $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+        $ip_address = isset($_POST['ip_address']) ? sanitize_text_field(wp_unslash($_POST['ip_address'])) : '';
         $campaign_id = isset($_POST['campaign_id']) ? absint($_POST['campaign_id']) : 0;
         $country = isset($_POST['country']) ? sanitize_text_field(wp_unslash($_POST['country'])) : '';
         $city = isset($_POST['city']) ? sanitize_text_field(wp_unslash($_POST['city'])) : '';
@@ -1722,6 +1723,10 @@ class AdvNews_Ajax
             $like = '%' . $this->wpdb->esc_like($search) . '%';
             $where[] = '(tc.ip_address LIKE %s OR s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s OR c.name LIKE %s)';
             array_push($params, $like, $like, $like, $like, $like);
+        }
+        if ($ip_address !== '') {
+            $where[] = 'tc.ip_address = %s';
+            $params[] = $ip_address;
         }
         if ($campaign_id > 0) {
             $where[] = 'tc.campaign_id = %d';
