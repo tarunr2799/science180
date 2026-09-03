@@ -205,6 +205,7 @@ if ($geo_country !== '') {
         $geo_params
     ));
     $geo_pages = (int) ceil($geo_total / $geo_per_page);
+    $geo_page = min($geo_page, max(1, $geo_pages));
     $geo_offset = ($geo_page - 1) * $geo_per_page;
     $geo_query_params = array_merge($geo_params, array($geo_per_page, $geo_offset));
     $geo_recipients = $wpdb->get_results($wpdb->prepare(
@@ -598,17 +599,24 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                     </tbody>
                 </table>
             </div>
-            <?php if ($geo_pages > 1): ?>
+            <?php if ($geo_pages > 1):
+                $geo_pagination_base = add_query_arg(array(
+                    'page' => 'advnews-analytics',
+                    'tab' => 'overview',
+                    'period' => $period,
+                    'geo_country' => $geo_country,
+                    'geo_city' => $geo_city,
+                    'geo_page' => 999999999,
+                ), admin_url('admin.php'));
+            ?>
                 <div class="tablenav"><div class="tablenav-pages">
                     <?php echo wp_kses_post(paginate_links(array(
-                        'base' => str_replace(
-                            '999999999',
-                            '%#%',
-                            esc_url(add_query_arg('geo_page', '999999999'))
-                        ) . '#advnews-geographic-recipients',
+                        'base' => str_replace('999999999', '%#%', $geo_pagination_base) . '#advnews-geographic-recipients',
                         'format' => '',
                         'current' => $geo_page,
                         'total' => $geo_pages,
+                        'prev_text' => __('Previous', 'advnews-manager'),
+                        'next_text' => __('Next', 'advnews-manager'),
                     ))); ?>
                 </div></div>
             <?php endif; ?>
