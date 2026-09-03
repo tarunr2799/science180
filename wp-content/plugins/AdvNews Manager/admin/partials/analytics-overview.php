@@ -609,16 +609,21 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                     'geo_page' => 999999999,
                 ), admin_url('admin.php'));
             ?>
-                <div class="tablenav"><div class="tablenav-pages">
-                    <?php echo wp_kses_post(paginate_links(array(
-                        'base' => str_replace('999999999', '%#%', $geo_pagination_base) . '#advnews-geographic-recipients',
-                        'format' => '',
-                        'current' => $geo_page,
-                        'total' => $geo_pages,
-                        'prev_text' => __('Previous', 'advnews-manager'),
-                        'next_text' => __('Next', 'advnews-manager'),
-                    ))); ?>
-                </div></div>
+                <nav class="geo-recipient-pagination" aria-label="<?php esc_attr_e('Geographic recipient results pages', 'advnews-manager'); ?>">
+                    <span class="geo-page-summary">
+                        <?php echo esc_html(sprintf(__('Page %1$d of %2$d', 'advnews-manager'), $geo_page, $geo_pages)); ?>
+                    </span>
+                    <div class="geo-page-links">
+                        <?php echo wp_kses_post(paginate_links(array(
+                            'base' => str_replace('999999999', '%#%', $geo_pagination_base) . '#advnews-geographic-recipients',
+                            'format' => '',
+                            'current' => $geo_page,
+                            'total' => $geo_pages,
+                            'prev_text' => __('Previous', 'advnews-manager'),
+                            'next_text' => __('Next', 'advnews-manager'),
+                        ))); ?>
+                    </div>
+                </nav>
             <?php endif; ?>
         </section>
         <?php endif; ?>
@@ -1622,6 +1627,72 @@ jQuery(document).ready(function($) {
 
 .geo-recipient-table {
     overflow-x: auto;
+}
+
+.geo-recipient-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.geo-page-summary {
+    color: #50575e;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.geo-page-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.geo-page-links .page-numbers {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid #2271b1;
+    border-radius: 4px;
+    background: #fff;
+    color: #135e96;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.geo-page-links .page-numbers:hover,
+.geo-page-links .page-numbers:focus {
+    background: #f0f6fc;
+    color: #0a4b78;
+}
+
+.geo-page-links .page-numbers.current {
+    border-color: #2271b1;
+    background: #2271b1;
+    color: #fff;
+}
+
+.geo-page-links .page-numbers.prev,
+.geo-page-links .page-numbers.next {
+    min-width: auto;
+}
+
+@media screen and (max-width: 782px) {
+    .geo-recipient-pagination {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .geo-page-links .page-numbers {
+        min-height: 42px;
+    }
 }
 
 .advnews-ip-filters {
