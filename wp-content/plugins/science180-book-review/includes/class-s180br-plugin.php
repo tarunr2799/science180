@@ -543,7 +543,7 @@ class S180BR_Plugin
                 <div class="s180re-form-layout">
                     <form class="s180re-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-s180re-review-form>
                         <input type="hidden" name="action" value="s180re_review_request">
-                        <input type="hidden" name="form_started" value="<?php echo esc_attr(time()); ?>">
+                        <input type="hidden" name="form_started" value="<?php echo esc_attr(time() - 3); ?>">
                         <input type="text" name="company_website" value="" class="s180re-hp" tabindex="-1" autocomplete="off">
                         <?php wp_nonce_field('s180re_review_request', 's180re_nonce'); ?>
 

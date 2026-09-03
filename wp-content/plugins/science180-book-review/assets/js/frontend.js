@@ -19,22 +19,21 @@
 
     function refreshReviewNonce(form) {
         if (!window.s180reFrontend || !window.s180reFrontend.ajaxUrl || !window.fetch) {
-            return;
+            return Promise.reject(new Error('The verification service is unavailable.'));
         }
 
         var requestUrl = window.s180reFrontend.ajaxUrl + (window.s180reFrontend.ajaxUrl.indexOf('?') === -1 ? '?' : '&') + 'action=s180br_review_nonce';
-        window.fetch(requestUrl, { credentials: 'same-origin', cache: 'no-store' })
+        return window.fetch(requestUrl, { credentials: 'same-origin', cache: 'no-store' })
             .then(function (response) { return response.json(); })
             .then(function (response) {
                 if (!response || !response.success || !response.data || !response.data.nonce) {
-                    return;
+                    throw new Error('The verification service returned an invalid response.');
                 }
                 var nonceInput = form.querySelector('input[name="s180re_nonce"]');
                 if (nonceInput) {
                     nonceInput.value = response.data.nonce;
                 }
-            })
-            .catch(function () {});
+            });
     }
 
     function setSelected(shell, id, title, cover, description) {
@@ -136,11 +135,34 @@
                 });
             }
             if (reviewForm) {
-                refreshReviewNonce(reviewForm);
-                reviewForm.addEventListener('submit', function () {
+                var isSubmitting = false;
+                refreshReviewNonce(reviewForm).catch(function () {});
+                reviewForm.addEventListener('submit', function (event) {
                     if (websiteInput) {
                         normalizeHttpsField(websiteInput);
                     }
+
+                    if (isSubmitting) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    var submitButton = reviewForm.querySelector('button[type="submit"], input[type="submit"]');
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                    }
+
+                    refreshReviewNonce(reviewForm)
+                        .then(function () {
+                            isSubmitting = true;
+                            reviewForm.submit();
+                        })
+                        .catch(function () {
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                            }
+                            window.alert('Unable to verify the form right now. Please refresh the page and try again.');
+                        });
                 });
             }
         });
