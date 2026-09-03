@@ -333,7 +333,6 @@ class AdvNews_Admin
         register_setting('advnews_gdpr_settings', 'advnews_minimum_age', 'intval');
 
 
-        register_setting('advnews_tracking_settings', 'advnews_maxmind_account_id', 'sanitize_text_field');
         register_setting('advnews_tracking_settings', 'advnews_maxmind_license_key', 'sanitize_text_field');
         register_setting('advnews_tracking_settings', 'advnews_maxmind_auto_update', 'intval');
         register_setting('advnews_tracking_settings', 'advnews_maxmind_db_path', 'sanitize_text_field');
@@ -1423,7 +1422,6 @@ class AdvNews_Admin
         $description = isset($args['description']) ? $args['description'] : '';
 
         // MaxMind specific options
-        $maxmind_account_id = get_option('advnews_maxmind_account_id', '');
         $maxmind_license_key = get_option('advnews_maxmind_license_key', '');
         $maxmind_auto_update = get_option('advnews_maxmind_auto_update', true);
         $maxmind_db_path = get_option('advnews_maxmind_db_path', '');
@@ -1461,19 +1459,14 @@ class AdvNews_Admin
         <!-- MAXMIND SPECIFIC SETTINGS -->
         <div id="maxmind-settings-field" style="margin-top:15px; background:#f8f9fa; padding:15px; border-radius:4px; border:1px solid #e9ecef; <?php echo $service !== 'maxmind' ? 'display:none;' : ''; ?>">
             <h4 style="margin-top:0;"><?php _e('MaxMind Configuration', 'advnews-manager'); ?></h4>
-            <div style="margin-bottom:15px;">
-                <label for="advnews_maxmind_account_id"><strong><?php _e('Account ID:', 'advnews-manager'); ?></strong></label>
-                <input type="text" id="advnews_maxmind_account_id" name="advnews_maxmind_account_id"
-                value="<?php echo esc_attr($maxmind_account_id); ?>"
-                class="regular-text" placeholder="<?php _e('Enter your MaxMind Account ID', 'advnews-manager'); ?>">
-            </div>
+
             <div style="margin-bottom:15px;">
                 <label for="advnews_maxmind_license_key"><strong><?php _e('License Key:', 'advnews-manager'); ?></strong></label>
                 <input type="password" id="advnews_maxmind_license_key" name="advnews_maxmind_license_key" autocomplete="new-password"
                 value="<?php echo esc_attr($maxmind_license_key); ?>"
                 class="regular-text" placeholder="<?php _e('Enter your MaxMind License Key', 'advnews-manager'); ?>">
                 <p class="description">
-                <?php _e('The Account ID and License Key are both required for downloading GeoLite2.', 'advnews-manager'); ?>
+                <?php _e('A MaxMind License Key is required for downloading the GeoLite2 database.', 'advnews-manager'); ?>
                 <a href="https://www.maxmind.com/en/geolite2/signup" target="_blank"><?php _e('Get Free Key', 'advnews-manager'); ?></a>
                 </p>
             </div>
@@ -1537,10 +1530,9 @@ class AdvNews_Admin
                 var btn = $(this);
                 var spinner = $('#maxmind-update-spinner');
                 var res = $('#maxmind-update-result');
-                var accountId = $('#advnews_maxmind_account_id').val();
                 var licenseKey = $('#advnews_maxmind_license_key').val();
-                if (!accountId || !licenseKey) {
-                    res.html('<span style="color:#d63638;">✘ <?php _e('Please enter the Account ID and License Key first.', 'advnews-manager'); ?></span>');
+                if (!licenseKey) {
+                    res.html('<span style="color:#d63638;">✘ <?php _e('Please enter the License Key first.', 'advnews-manager'); ?></span>');
                     return;
                 }
                 btn.prop('disabled', true);
@@ -1552,7 +1544,6 @@ class AdvNews_Admin
                     data: {
                         action: 'advnews_update_maxmind_db',
                         nonce: advnews_ajax.nonce,
-                        account_id: accountId,
                         license_key: licenseKey
                     },
                     success: function(response) {

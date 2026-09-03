@@ -1296,24 +1296,20 @@ class AdvNews_Tracking
     * Safely update MaxMind database with strict integrity checks.
     * NO fallback to ip-api. Keeps the old DB if the new one is invalid.
     */
-    public function update_maxmind_database_safely($account_id = null, $license_key = null) {
+    public function update_maxmind_database_safely($license_key = null) {
         require_once ABSPATH . 'wp-admin/includes/file.php';
 
-        if (!$account_id) {
-            $account_id = get_option('advnews_maxmind_account_id');
-        }
         if (!$license_key) {
             $license_key = get_option('advnews_maxmind_license_key');
         }
 
-        if (!$account_id || !$license_key) {
-            return new WP_Error('missing_credentials', __('MaxMind Account ID and License Key are required.', 'advnews-manager'));
+        if (!$license_key) {
+            return new WP_Error('missing_credentials', __('MaxMind License Key is required.', 'advnews-manager'));
         }
 
         $upload_dir = wp_upload_dir();
         $db_dir = $upload_dir['basedir'] . '/advnews-maxmind/';
 
-        // Ensure directory exists
         if (!wp_mkdir_p($db_dir)) {
             return new WP_Error('dir_failed', __('Cannot create database directory.', 'advnews-manager'));
         }
@@ -1321,46 +1317,11 @@ class AdvNews_Tracking
         $current_db_path = $db_dir . 'GeoLite2-City.mmdb';
         $temp_extract_dir = $db_dir . 'temp-extract-' . time() . '/';
 
-        $download_url = 'https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz';
-        $temp_archive = wp_tempnam('GeoLite2-City.tar.gz');
-        if (!$temp_archive) {
-            return new WP_Error('temp_file_failed', __('Could not create a temporary download file.', 'advnews-manager'));
-        }
-
-        // Authenticate only to MaxMind. Its redirect is a pre-signed URL and must not receive credentials.
-        $response = wp_safe_remote_get($download_url, array(
-            'headers' => array(
-                'Authorization' => 'Basic ' . base64_encode($account_id . ':' . $license_key),
-                'User-Agent' => 'Science180 Mail/' . ADVNEWS_VERSION,
-            ),
-            'redirection' => 0,
-            'timeout' => 60,
-            'stream' => true,
-            'filename' => $temp_archive,
-        ));
-
-        if (is_wp_error($response)) {
-            @unlink($temp_archive);
-            return new WP_Error('download_failed', $response->get_error_message());
-        }
-
-        $response_code = (int) wp_remote_retrieve_response_code($response);
-        if (in_array($response_code, array(301, 302, 303, 307, 308), true)) {
-            $redirect_url = wp_remote_retrieve_header($response, 'location');
-            @unlink($temp_archive);
-            if (!$redirect_url) {
-                return new WP_Error('missing_redirect', __('MaxMind returned an invalid download redirect.', 'advnews-manager'));
-            }
-            $temp_archive = download_url($redirect_url, 120);
-            if (is_wp_error($temp_archive)) {
-                return new WP_Error('download_failed', $temp_archive->get_error_message());
-            }
-        } elseif ($response_code === 401) {
-            @unlink($temp_archive);
-            return new WP_Error('unauthorized', __('MaxMind rejected the Account ID or License Key. Verify both credentials in your MaxMind account.', 'advnews-manager'));
-        } elseif ($response_code !== 200) {
-            @unlink($temp_archive);
-            return new WP_Error('download_http_error', sprintf(__('MaxMind download failed with HTTP status %d.', 'advnews-manager'), $response_code));
+        // This is the license-key-only GeoLite2 download endpoint used by the prior working plugin.
+        $download_url = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=' . rawurlencode($license_key) . '&suffix=tar.gz';
+        $temp_archive = download_url($download_url, 120);
+        if (is_wp_error($temp_archive)) {
+            return new WP_Error('download_failed', $temp_archive->get_error_message());
         }
 
         // STEP 2: STRICT SIZE CHECK on Archive
