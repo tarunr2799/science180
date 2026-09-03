@@ -1109,11 +1109,14 @@ class S180BR_Plugin
             $message .= '<p>' . sprintf(esc_html__('Your review copy request status is now: %s.', 'science180-book-review'), esc_html($status_label)) . '</p>';
         }
 
-        if (!empty($request->book_title)) {
-            $message .= '<p><strong>' . esc_html__('Book:', 'science180-book-review') . '</strong> ' . esc_html($request->book_title) . '</p>';
-        }
+        $uses_configured_template = $status === 'qualified' || ($status === 'sent' && isset($request->delivery_type) && $request->delivery_type === 'paperback');
+        if (!$uses_configured_template) {
+            if (!empty($request->book_title)) {
+                $message .= '<p><strong>' . esc_html__('Book:', 'science180-book-review') . '</strong> ' . esc_html($request->book_title) . '</p>';
+            }
 
-        $message .= '<p>' . esc_html__('Thank you for your interest in Science180.', 'science180-book-review') . '</p>';
+            $message .= '<p>' . esc_html__('Thank you for your interest in Science180.', 'science180-book-review') . '</p>';
+        }
 
         $sent = $this->send_mail($request->email, $subject, $message, $this->mail_headers());
         if (!$sent) {
