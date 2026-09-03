@@ -481,7 +481,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                                     alt="<?php echo esc_attr($country->country); ?>"
                                     style="vertical-align: middle; margin-right: 5px;">
                                 <?php endif; ?>
-                                <a href="<?php echo esc_url($country_url); ?>"><?php echo esc_html($country->country); ?></a>
+                                <a href="<?php echo esc_url($country_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($country->country); ?></a>
                             </td>
                             <td><?php echo esc_html(number_format($country->opens)); ?></td>
                             <td><?php echo esc_html(number_format($country->unique_visitors ?? 0)); ?></td>
@@ -525,7 +525,7 @@ $subscriber_growth_data = $wpdb->get_results($wpdb->prepare(
                                     alt="<?php echo esc_attr($city->country); ?>"
                                     style="vertical-align: middle; margin-right: 5px;">
                                 <?php endif; ?>
-                                <a href="<?php echo esc_url($city_url); ?>"><?php echo esc_html($city->city); ?></a>
+                                <a href="<?php echo esc_url($city_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($city->city); ?></a>
                             </td>
                             <td><?php echo esc_html($city->country); ?></td>
                             <td><?php echo esc_html(number_format($city->opens)); ?></td>
