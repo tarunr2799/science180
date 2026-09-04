@@ -1921,22 +1921,36 @@ class S180BR_Plugin
     private function render_pdf_download_confirmation($delivery, $token)
     {
         $request = $this->get_review_request((int) $delivery->request_id);
+        $book_title = $request && !empty($request->book_title) ? $request->book_title : __('Science180 review copy', 'science180-book-review');
+
         nocache_headers();
-        get_header();
+        status_header(200);
         ?>
-        <main class="s180re-shell s180re-download-shell">
-            <div class="s180re-public-heading">
-                <p class="s180re-eyebrow"><?php esc_html_e('Private review copy', 'science180-book-review'); ?></p>
-                <h1><?php echo esc_html($request && !empty($request->book_title) ? $request->book_title : __('Science180 review copy', 'science180-book-review')); ?></h1>
-                <p class="s180re-book-note"><?php esc_html_e('Please confirm below to download your private PDF review copy.', 'science180-book-review'); ?></p>
-            </div>
-            <form class="s180re-form s180re-download-form" method="post">
-                <input type="hidden" name="s180br_pdf_confirm" value="1">
-                <button class="s180re-button" type="submit"><?php esc_html_e('CLICK HERE TO DOWNLOAD THE BOOK', 'science180-book-review'); ?></button>
-            </form>
-        </main>
+<!doctype html>
+<html <?php language_attributes(); ?>>
+<head>
+    <meta charset="<?php bloginfo('charset'); ?>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?php echo esc_html($book_title); ?></title>
+    <?php wp_head(); ?>
+</head>
+<body <?php body_class('s180re-plugin-page s180re-download-page'); ?>>
+<?php wp_body_open(); ?>
+<main class="s180re-shell s180re-download-shell">
+    <div class="s180re-public-heading">
+        <p class="s180re-eyebrow"><?php esc_html_e('Private review copy', 'science180-book-review'); ?></p>
+        <h1><?php echo esc_html($book_title); ?></h1>
+        <p class="s180re-book-note"><?php esc_html_e('Please confirm below to download your private PDF review copy.', 'science180-book-review'); ?></p>
+    </div>
+    <form class="s180re-form s180re-download-form" method="post">
+        <input type="hidden" name="s180br_pdf_confirm" value="1">
+        <button class="s180re-button" type="submit"><?php esc_html_e('CLICK HERE TO DOWNLOAD THE BOOK', 'science180-book-review'); ?></button>
+    </form>
+</main>
+<?php wp_footer(); ?>
+</body>
+</html>
         <?php
-        get_footer();
         exit;
     }
 
