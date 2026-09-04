@@ -1714,7 +1714,7 @@ class AdvNews_Admin
             <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin:15px 0;">
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#2271b1;"><?php echo esc_html($queue_status['queued']); ?></span>
-                    <span style="display:block; font-size:12px; color:#666;"><?php _e('Queued', 'advnews-manager'); ?></span>
+                    <span style="display:block; font-size:12px; color:#666;"><?php _e('Total queued', 'advnews-manager'); ?></span>
                 </div>
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#f0c33c;"><?php echo esc_html($queue_status['on_cooldown']); ?></span>
@@ -1768,7 +1768,7 @@ class AdvNews_Admin
             }
             if (!empty($queue_notes)) : ?>
                 <p style="margin:8px 0 15px; color:#50575e;">
-                    <?php echo esc_html(sprintf(__('Not ready to send: %s.', 'advnews-manager'), implode(', ', $queue_notes))); ?>
+                    <?php echo esc_html(sprintf(__('Still queued but not ready to send: %s. Process Queue Now only sends emails shown as Ready to send.', 'advnews-manager'), implode(', ', $queue_notes))); ?>
                 </p>
             <?php endif; ?>
             <div style="display:flex; gap:10px; justify-content:flex-end;">

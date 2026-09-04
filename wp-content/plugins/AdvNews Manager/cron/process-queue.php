@@ -150,7 +150,7 @@ class AdvNews_Queue_Processor {
     {
         $reasons = array();
         $labels = array(
-            'waiting_schedule' => __('waiting for their campaign schedule', 'advnews-manager'),
+            'waiting_schedule' => __('still queued until their scheduled campaign time', 'advnews-manager'),
             'paused_campaign' => __('in paused campaigns', 'advnews-manager'),
             'inactive_campaign' => __('in campaigns that must be started first', 'advnews-manager'),
             'on_cooldown' => __('waiting for the Days Between Emails cooldown', 'advnews-manager'),
@@ -168,7 +168,7 @@ class AdvNews_Queue_Processor {
             return __('No emails are currently eligible to send. Review the campaign status and schedule.', 'advnews-manager');
         }
 
-        return sprintf(__('No emails were sent: %s.', 'advnews-manager'), implode(', ', $reasons));
+        return sprintf(__('No emails were sent: %s. These emails will remain in Total queued until they become Ready to send.', 'advnews-manager'), implode(', ', $reasons));
     }
 	/**
 	* Get emails sent today
