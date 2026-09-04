@@ -14,6 +14,8 @@ class AdvNews_Cron
     {
         add_filter('cron_schedules', array(__CLASS__, 'add_cron_schedules'));
 
+        self::weekly_report_company_name();
+
         if (!wp_next_scheduled('advnews_process_queue')) {
             wp_schedule_event(time() + MINUTE_IN_SECONDS, 'advnews_every_minute', 'advnews_process_queue');
         }
@@ -98,6 +100,25 @@ class AdvNews_Cron
 
         wp_clear_scheduled_hook('advnews_weekly_reports');
         wp_schedule_event($expected_timestamp, 'weekly', 'advnews_weekly_reports');
+    }
+
+    /**
+     * Return the current mail brand and repair the legacy plugin name in saved settings.
+     */
+    public static function weekly_report_company_name()
+    {
+        $company_name = trim((string) get_option('advnews_company_name', ''));
+        if ($company_name === '' || strcasecmp($company_name, 'AdvNews Manager') === 0) {
+            $company_name = 'Science180 Mail';
+            update_option('advnews_company_name', $company_name, false);
+        }
+
+        $from_name = trim((string) get_option('advnews_from_name', ''));
+        if (strcasecmp($from_name, 'AdvNews Manager') === 0) {
+            update_option('advnews_from_name', 'Science180 Mail', false);
+        }
+
+        return $company_name;
     }
 
     public static function ensure_maxmind_update_schedule()
@@ -399,7 +420,7 @@ class AdvNews_Cron
         if (!self::claim_weekly_report_delivery()) {
             return;
         }
-        $company_name = get_option('advnews_company_name', get_bloginfo('name'));
+        $company_name = self::weekly_report_company_name();
 
         // Get weekly statistics
         global $wpdb;

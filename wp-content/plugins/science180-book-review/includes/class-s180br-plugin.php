@@ -49,6 +49,7 @@ class S180BR_Plugin
         add_action('admin_post_s180br_send_pdf', array($this, 'handle_send_pdf'));
         add_action('admin_post_s180br_delete_request', array($this, 'handle_delete_request'));
         add_action('admin_post_s180br_save_settings', array($this, 'handle_save_settings'));
+        add_action('admin_post_s180br_run_pdf_followups', array($this, 'handle_run_pdf_followups'));
     }
 
     public static function activate()
@@ -1654,6 +1655,10 @@ class S180BR_Plugin
 
                 <p><button type="submit" class="button button-primary"><?php esc_html_e('Save settings', 'science180-book-review'); ?></button></p>
             </form>
+            <p>
+                <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_run_pdf_followups'), 's180br_run_pdf_followups')); ?>"><?php esc_html_e('Run due PDF follow-ups now', 'science180-book-review'); ?></a>
+                <span class="description"><?php esc_html_e('This checks only deliveries that have reached the configured number of days and have not already received a follow-up.', 'science180-book-review'); ?></span>
+            </p>
         </div>
         <?php
     }
@@ -2012,11 +2017,25 @@ class S180BR_Plugin
         $this->admin_redirect('s180br-settings', 'settings_saved');
     }
 
+    public function handle_run_pdf_followups()
+    {
+        $this->require_admin_get('s180br_run_pdf_followups');
+        $result = $this->send_pdf_followups();
+
+        wp_safe_redirect(add_query_arg(array(
+            'page' => 's180br-settings',
+            's180re_admin_status' => 'followups_processed',
+            'sent' => (int) $result['sent'],
+            'failed' => (int) $result['failed'],
+        ), admin_url('admin.php')));
+        exit;
+    }
+
     public function send_pdf_followups()
     {
         $days = (int) get_option('s180br_followup_days', 30);
         if ($days < 1) {
-            return;
+            return array('sent' => 0, 'failed' => 0);
         }
 
         global $wpdb;
@@ -2028,6 +2047,7 @@ class S180BR_Plugin
             $cutoff
         ));
 
+        $result = array('sent' => 0, 'failed' => 0);
         foreach ($items as $item) {
             $data = (array) $item;
             $data['days'] = $days;
@@ -2036,10 +2056,14 @@ class S180BR_Plugin
             $body = wpautop(wp_kses_post($this->format_template(get_option('s180br_followup_body'), $data)));
             if ($this->send_mail($item->email, $subject, $body, $this->mail_headers())) {
                 $wpdb->update($deliveries, array('reminder_sent_at' => current_time('mysql'), 'updated_at' => current_time('mysql')), array('id' => (int) $item->delivery_id));
+                $result['sent']++;
             } else {
                 $this->log_mail_failure('PDF follow-up', $item->email);
+                $result['failed']++;
             }
         }
+
+        return $result;
     }
 
     private function render_delivery_table($book_id, $request_id = 0)
@@ -2379,6 +2403,11 @@ class S180BR_Plugin
             'request_missing' => __('Review copy request not found.', 'science180-book-review'),
             'request_deleted' => __('Review copy request deleted.', 'science180-book-review'),
             'settings_saved' => __('Settings saved.', 'science180-book-review'),
+            'followups_processed' => sprintf(
+                __('Due PDF follow-ups checked: %1$d sent, %2$d failed.', 'science180-book-review'),
+                isset($_GET['sent']) ? absint($_GET['sent']) : 0,
+                isset($_GET['failed']) ? absint($_GET['failed']) : 0
+            ),
             'pdf_sent' => __('The private one-time PDF link was emailed successfully.', 'science180-book-review'),
             'pdf_missing' => __('This book does not have a readable PDF. Upload it on the book page first.', 'science180-book-review'),
             'pdf_generation_failed' => __('The PDF could not be generated. Check the server error log for details.', 'science180-book-review'),

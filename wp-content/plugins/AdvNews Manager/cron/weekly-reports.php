@@ -285,7 +285,7 @@ class AdvNews_Weekly_Reports {
      * Generate report HTML
      */
     private function generate_report_html($data, $start_date, $end_date) {
-        $company_name = get_option('advnews_company_name', get_bloginfo('name'));
+        $company_name = AdvNews_Cron::weekly_report_company_name();
         $date_range = date_i18n(get_option('date_format'), strtotime($start_date)) . ' - ' .
                       date_i18n(get_option('date_format'), strtotime($end_date));
 
@@ -359,7 +359,7 @@ class AdvNews_Weekly_Reports {
     private function send_report($recipient, $html, $data) {
         $subject = sprintf(
             '[%s] Weekly Newsletter Report - %s',
-            get_bloginfo('name'),
+            AdvNews_Cron::weekly_report_company_name(),
             date_i18n(get_option('date_format'))
         );
 
