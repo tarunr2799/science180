@@ -2569,7 +2569,7 @@ class S180BR_Plugin
 
         $status = sanitize_key($status);
         if ($status === 'sent' && $request && !empty($request->delivery_type)) {
-            return sprintf(__('Sent: %s', 'science180-book-review'), $this->delivery_type_label($request->delivery_type));
+            return $this->delivery_type_label($request->delivery_type);
         }
 
         return isset($labels[$status]) ? $labels[$status] : ucwords(str_replace('_', ' ', $status));
