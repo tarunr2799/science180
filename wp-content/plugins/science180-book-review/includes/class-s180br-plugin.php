@@ -1164,11 +1164,22 @@ class S180BR_Plugin
             $mail_error = $error;
         };
 
+        // Science180 Mail configures SMTP at a late priority. Apply the Book Review
+        // display name afterward while retaining its authorized SMTP address.
+        $configure_sender = function ($phpmailer) {
+            $from_name = $this->sender_name();
+            if ($from_name !== '') {
+                $phpmailer->FromName = $from_name;
+            }
+        };
+
         add_action('wp_mail_failed', $capture_error);
+        add_action('phpmailer_init', $configure_sender, 10000);
         try {
             $sent = wp_mail($to, $subject, $message, $headers);
         } finally {
             remove_action('wp_mail_failed', $capture_error);
+            remove_action('phpmailer_init', $configure_sender, 10000);
         }
 
         if (!$sent && $mail_error instanceof WP_Error) {
@@ -1200,6 +1211,10 @@ class S180BR_Plugin
             $headers[] = 'From: ' . $this->format_mailbox($from_email, $from_name);
         }
 
+        if (!$reply_to_email) {
+            $reply_to_email = self::normalize_email_domain(get_option('s180re_from_email'));
+            $reply_to_name = $from_name;
+        }
         if ($reply_to_email && is_email($reply_to_email)) {
             $headers[] = 'Reply-To: ' . $this->format_mailbox($reply_to_email, $reply_to_name);
         }
@@ -1592,9 +1607,9 @@ class S180BR_Plugin
                 <label><?php esc_html_e('From name', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="text" name="from_name" value="<?php echo esc_attr(get_option('s180re_from_name')); ?>">
 
-                <label><?php esc_html_e('From email fallback', 'science180-book-review'); ?></label>
+                <label><?php esc_html_e('Reply-to email (From fallback when SMTP is off)', 'science180-book-review'); ?></label>
                 <input class="regular-text" type="email" name="from_email" value="<?php echo esc_attr(get_option('s180re_from_email')); ?>" placeholder="<?php echo esc_attr($this->sender_email()); ?>">
-                <p class="description"><?php esc_html_e('Used only when Science180 Mail SMTP is not configured. When SMTP is active, its authorized sender is used to prevent provider rejection. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
+                <p class="description"><?php esc_html_e('When Science180 Mail SMTP is active, its authorized address remains the From address and this address receives replies. When SMTP is not active, this address is used as the From fallback. The plugin never stores SMTP passwords.', 'science180-book-review'); ?></p>
 
                 <h2><?php esc_html_e('Daily pending-review notice', 'science180-book-review'); ?></h2>
                 <p class="description">
