@@ -239,10 +239,21 @@ class S180BR_Plugin
     private static function migrate_default_options()
     {
         $pdf_body = (string) get_option('s180br_pdf_body', '');
-        $duplicate_download_intro = "CLICK HERE TO DOWNLOAD THE BOOK:\n{download_url}";
-        if (strpos($pdf_body, $duplicate_download_intro) !== false) {
-            update_option('s180br_pdf_body', str_replace($duplicate_download_intro, '{download_url}', $pdf_body));
+        $normalized_pdf_body = self::normalize_pdf_download_template($pdf_body);
+        if ($normalized_pdf_body !== $pdf_body) {
+            update_option('s180br_pdf_body', $normalized_pdf_body);
         }
+    }
+
+    private static function normalize_pdf_download_template($template)
+    {
+        $normalized = preg_replace(
+            '/(^|\R)[\t ]*CLICK HERE TO DOWNLOAD THE BOOK[\t ]*:?[\t ]*(?:\R[\t ]*)?\{download_url\}/i',
+            '$1{download_url}',
+            (string) $template
+        );
+
+        return is_string($normalized) ? $normalized : (string) $template;
     }
 
     private static function normalize_email_domain($email)
@@ -1991,7 +2002,7 @@ class S180BR_Plugin
         update_option('s180br_paperback_subject', $this->post_text('paperback_subject', false));
         update_option('s180br_paperback_body', $this->post_textarea('paperback_body', false));
         update_option('s180br_pdf_subject', $this->post_text('pdf_subject', false));
-        update_option('s180br_pdf_body', $this->post_textarea('pdf_body', false));
+        update_option('s180br_pdf_body', self::normalize_pdf_download_template($this->post_textarea('pdf_body', false)));
         update_option('s180br_followup_days', min(3650, max(0, isset($_POST['followup_days']) ? absint($_POST['followup_days']) : 30)));
         update_option('s180br_followup_subject', $this->post_text('followup_subject', false));
         update_option('s180br_followup_body', $this->post_textarea('followup_body', false));
