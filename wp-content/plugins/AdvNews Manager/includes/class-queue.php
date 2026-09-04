@@ -252,7 +252,13 @@ class AdvNews_Queue
                 $current_time
             ));
 
-            return array('sent' => 0, 'failed' => 0, 'remaining' => intval($remaining), 'on_cooldown' => intval($on_cooldown));
+            return array(
+                'sent' => 0,
+                'failed' => 0,
+                'remaining' => intval($remaining),
+                'on_cooldown' => intval($on_cooldown),
+                'blockers' => $this->get_queue_blockers($current_time),
+            );
         }
 
         update_option('advnews_last_batch_processed_at', time(), false);
@@ -278,7 +284,8 @@ class AdvNews_Queue
                 continue;
             }
 
-            $cooldown_until = $this->subscriber_cooldown_until($email->subscriber_id, !empty($email->respect_cooldown));
+            $bypass_cooldown = $this->consume_cooldown_bypass($email->log_id);
+            $cooldown_until = $bypass_cooldown ? '' : $this->subscriber_cooldown_until($email->subscriber_id, !empty($email->respect_cooldown));
             if ($cooldown_until !== '') {
                 $this->wpdb->update(
                     $table_logs,
@@ -407,7 +414,13 @@ class AdvNews_Queue
             error_log('[AdvNews Queue] Final result - Sent: ' . $sent . ', Failed: ' . $failed . ', Remaining: ' . $remaining);
         }
 
-        return array('sent' => $sent, 'failed' => $failed, 'remaining' => $remaining, 'on_cooldown' => $on_cooldown);
+        return array(
+            'sent' => $sent,
+            'failed' => $failed,
+            'remaining' => $remaining,
+            'on_cooldown' => $on_cooldown,
+            'blockers' => $this->get_queue_blockers($current_time),
+        );
     }
 
     /**
@@ -460,10 +473,16 @@ class AdvNews_Queue
             $params[] = $campaign_id;
         }
 
+        $query = "SELECT id FROM $table_logs WHERE $where";
+        $log_ids = $this->wpdb->get_col($this->wpdb->prepare($query, $params));
         $result = $this->wpdb->query($this->wpdb->prepare(
             "UPDATE $table_logs SET send_after = NULL WHERE $where",
             $params
         ));
+
+        if ($result > 0) {
+            $this->add_cooldown_bypasses($log_ids);
+        }
 
         if ($result > 0 && $campaign_id) {
             $this->wpdb->update(
@@ -476,6 +495,50 @@ class AdvNews_Queue
         return $result !== false ? $result : 0;
     }
 
+    /**
+     * Store explicit one-time cooldown overrides for queue records selected by
+     * the administrator. They are consumed immediately before an email sends.
+     */
+    private function add_cooldown_bypasses($log_ids)
+    {
+        $log_ids = array_filter(array_map('absint', (array) $log_ids));
+        if (empty($log_ids)) {
+            return;
+        }
+
+        $option = get_option('advnews_cooldown_bypasses', array());
+        $option = is_array($option) ? $option : array();
+        $now = time();
+        foreach ($option as $stored_id => $stored_expiry) {
+            if (absint($stored_expiry) < $now) {
+                unset($option[$stored_id]);
+            }
+        }
+        $expires_at = $now + (30 * DAY_IN_SECONDS);
+        foreach ($log_ids as $log_id) {
+            $option[(string) $log_id] = $expires_at;
+        }
+        update_option('advnews_cooldown_bypasses', $option, false);
+    }
+
+    private function consume_cooldown_bypass($log_id)
+    {
+        $option = get_option('advnews_cooldown_bypasses', array());
+        if (!is_array($option)) {
+            return false;
+        }
+
+        $key = (string) absint($log_id);
+        if (!isset($option[$key])) {
+            return false;
+        }
+
+        $bypass = absint($option[$key]) >= time();
+        unset($option[$key]);
+        update_option('advnews_cooldown_bypasses', $option, false);
+
+        return $bypass;
+    }
     /**
      * Add tracking pixel
      */
@@ -606,7 +669,9 @@ class AdvNews_Queue
         $status = array(
             'queued' => 0, 'sending' => 0, 'sent' => 0, 'delivered' => 0,
             'opened' => 0, 'clicked' => 0, 'bounced' => 0, 'failed' => 0,
-            'on_cooldown' => 0
+            'on_cooldown' => 0, 'ready' => 0, 'waiting_schedule' => 0,
+            'paused_campaign' => 0, 'inactive_campaign' => 0,
+            'missing_campaign' => 0, 'missing_recipient' => 0
         );
 
         $counts = $this->wpdb->get_results(
@@ -616,14 +681,7 @@ class AdvNews_Queue
             $status[$count->status] = intval($count->count);
         }
 
-        $status['on_cooldown'] = intval($this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_logs
-            WHERE status = 'queued'
-            AND send_after IS NOT NULL
-            AND send_after > %s
-            AND send_after != '0000-00-00 00:00:00'",
-            $current_time
-        )));
+        $status = array_merge($status, $this->get_queue_blockers($current_time));
 
         $active_campaigns = $this->wpdb->get_var(
             "SELECT COUNT(*) FROM $table_campaigns WHERE status IN ('scheduled', 'sending', 'paused')"
@@ -634,12 +692,50 @@ class AdvNews_Queue
     }
 
     /**
+     * Explain why queued records are not currently eligible to send.
+     */
+    private function get_queue_blockers($current_time)
+    {
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $row = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT
+                SUM(CASE WHEN c.id IS NULL THEN 1 ELSE 0 END) AS missing_campaign,
+                SUM(CASE WHEN c.id IS NOT NULL AND s.id IS NULL THEN 1 ELSE 0 END) AS missing_recipient,
+                SUM(CASE WHEN c.status = 'paused' THEN 1 ELSE 0 END) AS paused_campaign,
+                SUM(CASE WHEN c.id IS NOT NULL AND s.id IS NOT NULL AND c.status NOT IN ('scheduled', 'sending', 'sent', 'paused') THEN 1 ELSE 0 END) AS inactive_campaign,
+                SUM(CASE WHEN c.status IN ('scheduled', 'sending', 'sent') AND c.scheduled_for IS NOT NULL AND c.scheduled_for != '0000-00-00 00:00:00' AND c.scheduled_for > %s THEN 1 ELSE 0 END) AS waiting_schedule,
+                SUM(CASE WHEN c.status IN ('scheduled', 'sending', 'sent') AND (c.scheduled_for IS NULL OR c.scheduled_for <= %s OR c.scheduled_for = '0000-00-00 00:00:00') AND cl.send_after IS NOT NULL AND cl.send_after != '0000-00-00 00:00:00' AND cl.send_after > %s THEN 1 ELSE 0 END) AS on_cooldown,
+                SUM(CASE WHEN c.status IN ('scheduled', 'sending', 'sent') AND s.id IS NOT NULL AND (c.scheduled_for IS NULL OR c.scheduled_for <= %s OR c.scheduled_for = '0000-00-00 00:00:00') AND (cl.send_after IS NULL OR cl.send_after <= %s OR cl.send_after = '0000-00-00 00:00:00') THEN 1 ELSE 0 END) AS ready
+            FROM $table_logs cl
+            LEFT JOIN $table_campaigns c ON cl.campaign_id = c.id
+            LEFT JOIN $table_subscribers s ON cl.subscriber_id = s.id
+            WHERE cl.status = 'queued'",
+            $current_time,
+            $current_time,
+            $current_time,
+            $current_time,
+            $current_time
+        ));
+
+        $keys = array('ready', 'on_cooldown', 'waiting_schedule', 'paused_campaign', 'inactive_campaign', 'missing_campaign', 'missing_recipient');
+        $result = array();
+        foreach ($keys as $key) {
+            $result[$key] = $row ? intval($row->$key) : 0;
+        }
+
+        return $result;
+    }
+
+    /**
     * Clear stuck emails - UPDATED: More aggressive & handles status mismatches
     */
     public function clear_stuck_emails()
     {
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
         $thirty_mins_ago = date('Y-m-d H:i:s', strtotime('-30 minutes'));
         $one_hour_ago = date('Y-m-d H:i:s', strtotime('-1 hour'));
         $cleared = 0;
@@ -652,13 +748,18 @@ class AdvNews_Queue
         ));
         $cleared += $stuck_sent;
 
-        // 2. Clear 'queued' emails older than 30 mins that belong to active campaigns
+        // 2. Only fail genuinely orphaned queue records. Valid scheduled, paused,
+        // batch-limited, and cooldown-limited emails must remain queued.
         $orphaned_queued = $this->wpdb->query($this->wpdb->prepare(
             "UPDATE $table_logs cl
-            SET cl.status = 'failed', cl.retry_count = cl.retry_count + 1
+            LEFT JOIN $table_campaigns c ON cl.campaign_id = c.id
+            LEFT JOIN $table_subscribers s ON cl.subscriber_id = s.id
+            SET cl.status = 'failed', cl.retry_count = cl.retry_count + 1,
+                cl.bounce_message = %s
             WHERE cl.status = 'queued'
             AND cl.created_at < %s
-            AND cl.send_after <= NOW()",
+            AND (c.id IS NULL OR s.id IS NULL)",
+            __('Queue record is missing its campaign or subscriber', 'advnews-manager'),
             $thirty_mins_ago
         ));
         $cleared += $orphaned_queued;

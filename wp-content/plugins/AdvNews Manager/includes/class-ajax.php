@@ -184,7 +184,7 @@ class AdvNews_Ajax
         $cleared = $queue_class->clear_cooldown_delays();
 
         wp_send_json_success(array(
-            'message' => sprintf(__('Cleared cooldown delays for %d queued emails. They will be sent on next queue processing.', 'advnews-manager'), $cleared)
+            'message' => sprintf(__('Cleared cooldown delays for %d queued emails. The selected emails have a one-time cooldown override; batch limits still apply.', 'advnews-manager'), $cleared)
         ));
     }
 

@@ -81,51 +81,56 @@ class AdvNews_Queue_Processor {
 			// Process the queue
 			$result = $queue->process_queue($batch_size);
 
-			if (!empty($result['throttled'])) {
-				$wait_seconds = max(1, absint($result['wait_seconds'] ?? 0));
-				return array(
-					'success' => true,
-					'message' => sprintf(
-						__('Batch limit respected. The next batch can run in %s.', 'advnews-manager'),
-						human_time_diff(time(), time() + $wait_seconds)
-					),
-					'data' => $result
-				);
-			}
+            if (!empty($result['throttled'])) {
+                $wait_seconds = max(1, absint($result['wait_seconds'] ?? 0));
+                return array(
+                    'success' => true,
+                    'message' => sprintf(
+                        __('Batch limit respected. The next batch can run in %s.', 'advnews-manager'),
+                        human_time_diff(time(), time() + $wait_seconds)
+                    ),
+                    'data' => $result
+                );
+            }
 
-			if (!empty($result['processing_locked'])) {
-				return array(
-					'success' => true,
-					'message' => __('Another queue process is already running.', 'advnews-manager'),
-					'data' => $result
-				);
-			}
+            if (!empty($result['processing_locked'])) {
+                return array(
+                    'success' => true,
+                    'message' => __('Another queue process is already running.', 'advnews-manager'),
+                    'data' => $result
+                );
+            }
 
-			// Debug logging
-			if (defined('WP_DEBUG') && WP_DEBUG) {
-				error_log(sprintf(
-					'[AdvNews Queue Processor] Queue processed: %d sent, %d failed, %d remaining',
-					$result['sent'],
-					$result['failed'],
-					$result['remaining'] ?? 0
-				));
-			}
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log(sprintf(
+                    '[AdvNews Queue Processor] Queue processed: %d sent, %d failed, %d remaining',
+                    $result['sent'],
+                    $result['failed'],
+                    $result['remaining'] ?? 0
+                ));
+            }
 
-			return array(
-				'success' => true,
-				'message' => sprintf(
-					__('Processed queue: %d emails sent, %d failed.', 'advnews-manager'),
-					$result['sent'],
-					$result['failed']
-				),
-				'data' => array(
-					'sent' => $result['sent'],
-					'failed' => $result['failed'],
-					'remaining' => $result['remaining'] ?? 0,
-					'on_cooldown' => $result['on_cooldown'] ?? 0,
-					'batch_size' => $batch_size
-				)
-			);
+            $message = sprintf(
+                __('Processed queue: %d emails sent, %d failed.', 'advnews-manager'),
+                $result['sent'],
+                $result['failed']
+            );
+            if ((int) $result['sent'] === 0 && (int) $result['failed'] === 0 && !empty($result['remaining'])) {
+                $message = $this->queue_waiting_message($result['blockers'] ?? array());
+            }
+
+            return array(
+                'success' => true,
+                'message' => $message,
+                'data' => array(
+                    'sent' => $result['sent'],
+                    'failed' => $result['failed'],
+                    'remaining' => $result['remaining'] ?? 0,
+                    'on_cooldown' => $result['on_cooldown'] ?? 0,
+                    'blockers' => $result['blockers'] ?? array(),
+                    'batch_size' => $batch_size
+                )
+            );
 		} catch (Exception $e) {
 			if (get_option('advnews_enable_debug_log')) {
 				error_log('[AdvNews] Queue processing error: ' . $e->getMessage());
@@ -141,6 +146,30 @@ class AdvNews_Queue_Processor {
 			);
 		}
 	}
+    private function queue_waiting_message($blockers)
+    {
+        $reasons = array();
+        $labels = array(
+            'waiting_schedule' => __('waiting for their campaign schedule', 'advnews-manager'),
+            'paused_campaign' => __('in paused campaigns', 'advnews-manager'),
+            'inactive_campaign' => __('in campaigns that must be started first', 'advnews-manager'),
+            'on_cooldown' => __('waiting for the Days Between Emails cooldown', 'advnews-manager'),
+            'missing_campaign' => __('missing their campaign record', 'advnews-manager'),
+            'missing_recipient' => __('missing their subscriber record', 'advnews-manager'),
+        );
+        foreach ($labels as $key => $label) {
+            $count = isset($blockers[$key]) ? absint($blockers[$key]) : 0;
+            if ($count > 0) {
+                $reasons[] = sprintf('%d %s', $count, $label);
+            }
+        }
+
+        if (empty($reasons)) {
+            return __('No emails are currently eligible to send. Review the campaign status and schedule.', 'advnews-manager');
+        }
+
+        return sprintf(__('No emails were sent: %s.', 'advnews-manager'), implode(', ', $reasons));
+    }
 	/**
 	* Get emails sent today
 	*

@@ -1711,7 +1711,7 @@ class AdvNews_Admin
         ?>
         <div class="queue-status" style="background:#f8f9fa; border:1px solid #ccd0d4; border-radius:4px; padding:20px; margin:20px 0;">
             <h3><?php _e('Current Queue Status', 'advnews-manager'); ?></h3>
-            <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:15px 0;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin:15px 0;">
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#2271b1;"><?php echo esc_html($queue_status['queued']); ?></span>
                     <span style="display:block; font-size:12px; color:#666;"><?php _e('Queued', 'advnews-manager'); ?></span>
@@ -1719,6 +1719,10 @@ class AdvNews_Admin
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#f0c33c;"><?php echo esc_html($queue_status['on_cooldown']); ?></span>
                     <span style="display:block; font-size:12px; color:#666;"><?php _e('On Cooldown', 'advnews-manager'); ?></span>
+                </div>
+                <div style="text-align:center;">
+                    <span style="font-size:24px; font-weight:600; color:#00a32a;"><?php echo esc_html($queue_status['ready']); ?></span>
+                    <span style="display:block; font-size:12px; color:#666;"><?php _e('Ready to send', 'advnews-manager'); ?></span>
                 </div>
                 <div style="text-align:center;">
                     <span style="font-size:24px; font-weight:600; color:#f0c33c;"><?php echo esc_html($queue_status['sending']); ?></span>
@@ -1746,6 +1750,25 @@ class AdvNews_Admin
                         esc_html(number_format_i18n($queue_status['on_cooldown']))
                     );
                     ?>
+                </p>
+            <?php endif; ?>
+            <?php
+            $queue_blockers = array(
+                'waiting_schedule' => __('waiting for their scheduled campaign time', 'advnews-manager'),
+                'paused_campaign' => __('in paused campaigns', 'advnews-manager'),
+                'inactive_campaign' => __('in draft or closed campaigns', 'advnews-manager'),
+                'missing_campaign' => __('missing their campaign', 'advnews-manager'),
+                'missing_recipient' => __('missing their subscriber', 'advnews-manager'),
+            );
+            $queue_notes = array();
+            foreach ($queue_blockers as $key => $label) {
+                if (!empty($queue_status[$key])) {
+                    $queue_notes[] = sprintf('%d %s', (int) $queue_status[$key], $label);
+                }
+            }
+            if (!empty($queue_notes)) : ?>
+                <p style="margin:8px 0 15px; color:#50575e;">
+                    <?php echo esc_html(sprintf(__('Not ready to send: %s.', 'advnews-manager'), implode(', ', $queue_notes))); ?>
                 </p>
             <?php endif; ?>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
