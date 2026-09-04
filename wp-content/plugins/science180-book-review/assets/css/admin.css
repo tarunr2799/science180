@@ -374,3 +374,98 @@
     color: #7a287d;
     font-weight: 700;
 }
+
+.s180br-choice-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.s180br-choice-button {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 82px;
+    cursor: pointer;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 12px 14px;
+    color: #1d2327;
+    font: inherit;
+    line-height: 1.35;
+}
+
+.s180br-choice-button:hover,
+.s180br-choice-button:focus-visible {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: 0;
+}
+
+.s180br-choice-button strong {
+    color: #135e96;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.s180br-choice-button span {
+    margin-top: 6px;
+    color: #50575e;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.s180br-choice-button.is-selected,
+.s180br-delivery-option.is-selected {
+    border-color: #00a32a;
+    background: #edfaef;
+    box-shadow: inset 4px 0 0 #00a32a;
+    cursor: default;
+}
+
+.s180br-choice-button.is-selected strong,
+.s180br-delivery-option.is-selected strong {
+    color: #087423;
+}
+`n
+.s180br-choice-danger.is-selected {
+    border-color: #d63638;
+    background: #fcf0f1;
+    box-shadow: inset 4px 0 0 #d63638;
+}
+
+.s180br-choice-danger.is-selected strong {
+    color: #8a2424;
+}
+
+.s180br-choice-button:disabled,
+.s180br-delivery-option:disabled {
+    opacity: 1;
+}
+
+.s180br-delivery-actions.is-locked {
+    background: #f6f7f7;
+}
+
+.s180br-delivery-actions.is-locked .s180br-delivery-option:not(.is-selected) {
+    background: #f6f7f7;
+    border-color: #dcdcde;
+    color: #8c8f94;
+    cursor: not-allowed;
+}
+
+.s180br-delivery-actions.is-locked .s180br-delivery-option:not(.is-selected) strong,
+.s180br-delivery-actions.is-locked .s180br-delivery-option:not(.is-selected) span {
+    color: #8c8f94;
+}
+
+@media (max-width: 782px) {
+    .s180br-choice-row {
+        grid-template-columns: 1fr;
+    }
+}

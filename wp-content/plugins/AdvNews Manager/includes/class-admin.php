@@ -45,7 +45,6 @@ class AdvNews_Admin
         add_action('wp_dashboard_setup', array($this, 'add_dashboard_widgets'));
         // Plugin action links
         add_filter('plugin_action_links_' . ADVNEWS_PLUGIN_BASENAME, array($this, 'add_plugin_action_links'));
-        add_filter('set_screen_option_advnews_email_logs_per_page', array($this, 'save_email_logs_screen_option'), 10, 3);
         // Admin footer text
         add_filter('admin_footer_text', array($this, 'admin_footer_text'));
         // display maxmind notice
@@ -124,7 +123,7 @@ class AdvNews_Admin
         );
 
         // NEW: Email Logs Menu Item
-        $email_logs_hook = add_submenu_page(
+        add_submenu_page(
             'advnews-manager',
             __('Email Logs', 'advnews-manager'),
             __('Email Logs', 'advnews-manager'),
@@ -132,7 +131,6 @@ class AdvNews_Admin
             'advnews-email-logs',
             array($this, 'render_email_logs')
         );
-        add_action('load-' . $email_logs_hook, array($this, 'add_email_logs_screen_option'));
 
         add_submenu_page(
             'advnews-manager',
@@ -161,24 +159,6 @@ class AdvNews_Admin
             'advnews-export',
             array($this, 'render_subscriber_export')
         );
-    }
-
-    public function add_email_logs_screen_option()
-    {
-        add_screen_option('per_page', array(
-            'label' => __('Logs per page', 'advnews-manager'),
-            'default' => 20,
-            'option' => 'advnews_email_logs_per_page',
-        ));
-    }
-
-    public function save_email_logs_screen_option($status, $option, $value)
-    {
-        if ($option !== 'advnews_email_logs_per_page') {
-            return $status;
-        }
-
-        return max(1, min(500, absint($value)));
     }
 
     /**

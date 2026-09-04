@@ -7,8 +7,6 @@ $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
 $campaign_id = isset($_GET['campaign_id']) ? intval($_GET['campaign_id']) : 0;
 $logs_per_page = (int) get_user_option('advnews_email_logs_per_page', get_current_user_id());
 $logs_per_page = $logs_per_page > 0 ? min(500, $logs_per_page) : 20;
-$logs_per_page_options = array_unique(array_merge(array(20, 50, 100, 200, 500), array($logs_per_page)));
-sort($logs_per_page_options, SORT_NUMERIC);
 
 // Fetch campaigns for the dropdown
 global $wpdb;
@@ -44,13 +42,8 @@ $all_campaigns = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table
 
             <input type="text" name="s" id="filter-search" placeholder="<?php _e('Search email, name...', 'advnews-manager'); ?>" value="<?php echo esc_attr($search); ?>" style="height: 35px; min-width: 250px;">
             <label for="filter-per-page" style="font-weight: 600;"><?php _e('Logs per page', 'advnews-manager'); ?></label>
-            <select name="per_page" id="filter-per-page" style="height: 35px;">
-                <?php foreach ($logs_per_page_options as $per_page_option): ?>
-                    <option value="<?php echo esc_attr($per_page_option); ?>" <?php selected($logs_per_page, $per_page_option); ?>>
-                        <?php echo esc_html(sprintf(__('%d per page', 'advnews-manager'), $per_page_option)); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <input type="number" name="per_page" id="filter-per-page" min="1" max="500" step="1" value="<?php echo esc_attr($logs_per_page); ?>" style="height: 35px; width: 110px;" aria-describedby="filter-per-page-help">
+            <span id="filter-per-page-help" class="description"><?php _e('1-500', 'advnews-manager'); ?></span>
             <button type="submit" class="button button-primary"><?php _e('Filter', 'advnews-manager'); ?></button>
             <a href="<?php echo admin_url('admin.php?page=advnews-email-logs'); ?>" class="button"><?php _e('Clear', 'advnews-manager'); ?></a>
         </form>
@@ -241,7 +234,8 @@ jQuery(document).ready(function($) {
         currentFilter.status = $('#filter-status').val();
         currentFilter.search = $('#filter-search').val();
         currentFilter.campaign_id = $('#filter-campaign').val(); // Capture Campaign ID
-        currentFilter.per_page = parseInt($('#filter-per-page').val(), 10) || 20;
+        currentFilter.per_page = Math.max(1, Math.min(500, parseInt($('#filter-per-page').val(), 10) || 20));
+        $('#filter-per-page').val(currentFilter.per_page);
         currentPage = 1;
         loadLogs(1);
     });

@@ -1555,6 +1555,13 @@ class S180BR_Plugin
                     </table>
                 </div>
             </div>
+            <?php
+            $decision_status = sanitize_key($item->status);
+            $delivery_type = sanitize_key($item->delivery_type ?? '');
+            $is_approved = in_array($decision_status, array('qualified', 'sent'), true);
+            $is_rejected = $decision_status === 'declined';
+            $has_delivery = $decision_status === 'sent' && $delivery_type !== '';
+            ?>
             <div class="s180re-admin-panel s180br-review-actions-panel">
                 <div class="s180br-actions-header">
                     <div>
@@ -1570,22 +1577,43 @@ class S180BR_Plugin
                             <h3><?php esc_html_e('Review decision', 'science180-book-review'); ?></h3>
                             <p class="description"><?php esc_html_e('Approve the requester before sending a review copy, or reject the request.', 'science180-book-review'); ?></p>
                         </div>
-                        <form class="s180br-button-row" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <form class="s180br-button-row s180br-choice-row" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                             <input type="hidden" name="action" value="s180re_update_request_status">
                             <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
                             <input type="hidden" name="return_url" value="<?php echo esc_url($return_url); ?>">
                             <?php wp_nonce_field('s180re_update_request_status'); ?>
-                            <button class="button button-primary" type="submit" name="status" value="qualified"><?php esc_html_e('Approve request', 'science180-book-review'); ?></button>
-                            <button class="button" type="submit" name="status" value="declined"><?php esc_html_e('Reject request', 'science180-book-review'); ?></button>
+                            <button class="s180br-choice-button <?php echo $is_approved ? 'is-selected' : ''; ?>" type="submit" name="status" value="qualified" <?php disabled($is_approved); ?>>
+                                <strong><?php echo $is_approved ? esc_html__('Approved', 'science180-book-review') : esc_html__('Approve request', 'science180-book-review'); ?></strong>
+                                <span><?php echo $is_approved ? esc_html__('This decision is selected.', 'science180-book-review') : esc_html__('Allow this requester to receive a review copy.', 'science180-book-review'); ?></span>
+                            </button>
+                            <button class="s180br-choice-button s180br-choice-danger <?php echo $is_rejected ? 'is-selected' : ''; ?>" type="submit" name="status" value="declined" <?php disabled($is_rejected); ?>>
+                                <strong><?php echo $is_rejected ? esc_html__('Rejected', 'science180-book-review') : esc_html__('Reject request', 'science180-book-review'); ?></strong>
+                                <span><?php echo $is_rejected ? esc_html__('This decision is selected.', 'science180-book-review') : esc_html__('Decline this request and notify the applicant.', 'science180-book-review'); ?></span>
+                            </button>
                         </form>
                     </section>
                     <?php $request_book = $this->get_book((int) $item->book_id); ?>
                     <?php if ($request_book && (!empty($request_book->pdf_id) || !empty($request_book->pdf_url))) : ?>
-                        <section class="s180br-action-group s180br-delivery-actions">
+                        <section class="s180br-action-group s180br-delivery-actions <?php echo (!$is_approved && !$has_delivery) ? 'is-locked' : ''; ?>">
                             <div class="s180br-action-copy">
                                 <span class="s180br-step-label"><?php esc_html_e('Step 2', 'science180-book-review'); ?></span>
                                 <h3><?php esc_html_e('Send or mark the review copy', 'science180-book-review'); ?></h3>
-                                <p class="description"><?php esc_html_e('Choose the actual delivery method. The choice is saved on this requester profile and shown in Status.', 'science180-book-review'); ?></p>
+                                <p class="description">
+                                    <?php
+                                    if ($is_rejected) {
+                                        esc_html_e('This request is rejected. Approve it first if you need to send a review copy.', 'science180-book-review');
+                                    } elseif (!$is_approved && !$has_delivery) {
+                                        esc_html_e('Approve the request first, then choose the actual delivery method.', 'science180-book-review');
+                                    } elseif ($has_delivery) {
+                                        printf(
+                                            esc_html__('Completed: %s is saved on this requester profile.', 'science180-book-review'),
+                                            esc_html($this->delivery_type_label($delivery_type))
+                                        );
+                                    } else {
+                                        esc_html_e('Choose the actual delivery method. The choice is saved on this requester profile and shown in Status.', 'science180-book-review');
+                                    }
+                                    ?>
+                                </p>
                             </div>
                             <div class="s180br-delivery-options">
                                 <form class="s180br-delivery-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -1593,9 +1621,9 @@ class S180BR_Plugin
                                     <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
                                     <input type="hidden" name="return_url" value="<?php echo esc_url($return_url); ?>">
                                     <?php wp_nonce_field('s180br_send_pdf'); ?>
-                                    <button class="s180br-delivery-option" type="submit" name="delivery_mode" value="personalized">
-                                        <strong><?php esc_html_e('Send personalized PDF', 'science180-book-review'); ?></strong>
-                                        <span><?php esc_html_e('Creates a protected copy with this reviewer name and email.', 'science180-book-review'); ?></span>
+                                    <button class="s180br-delivery-option <?php echo $delivery_type === 'personalized_pdf' ? 'is-selected' : ''; ?>" type="submit" name="delivery_mode" value="personalized" <?php disabled(!$is_approved || $delivery_type === 'personalized_pdf'); ?>>
+                                        <strong><?php echo $delivery_type === 'personalized_pdf' ? esc_html__('Selected: personalized PDF', 'science180-book-review') : esc_html__('Send personalized PDF', 'science180-book-review'); ?></strong>
+                                        <span><?php echo $delivery_type === 'personalized_pdf' ? esc_html__('This was the delivery method used.', 'science180-book-review') : esc_html__('Creates a protected copy with this reviewer name and email.', 'science180-book-review'); ?></span>
                                     </button>
                                 </form>
                                 <form class="s180br-delivery-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -1603,9 +1631,9 @@ class S180BR_Plugin
                                     <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
                                     <input type="hidden" name="return_url" value="<?php echo esc_url($return_url); ?>">
                                     <?php wp_nonce_field('s180br_send_pdf'); ?>
-                                    <button class="s180br-delivery-option" type="submit" name="delivery_mode" value="original">
-                                        <strong><?php esc_html_e('Send original PDF', 'science180-book-review'); ?></strong>
-                                        <span><?php esc_html_e('Sends the uploaded book PDF without personalization.', 'science180-book-review'); ?></span>
+                                    <button class="s180br-delivery-option <?php echo $delivery_type === 'original_pdf' ? 'is-selected' : ''; ?>" type="submit" name="delivery_mode" value="original" <?php disabled(!$is_approved || $delivery_type === 'original_pdf'); ?>>
+                                        <strong><?php echo $delivery_type === 'original_pdf' ? esc_html__('Selected: original PDF', 'science180-book-review') : esc_html__('Send original PDF', 'science180-book-review'); ?></strong>
+                                        <span><?php echo $delivery_type === 'original_pdf' ? esc_html__('This was the delivery method used.', 'science180-book-review') : esc_html__('Sends the uploaded book PDF without personalization.', 'science180-book-review'); ?></span>
                                     </button>
                                 </form>
                                 <form class="s180br-delivery-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -1613,9 +1641,9 @@ class S180BR_Plugin
                                     <input type="hidden" name="request_id" value="<?php echo esc_attr($item->id); ?>">
                                     <input type="hidden" name="return_url" value="<?php echo esc_url($return_url); ?>">
                                     <?php wp_nonce_field('s180re_update_request_status'); ?>
-                                    <button class="s180br-delivery-option" type="submit" name="status" value="sent">
-                                        <strong><?php esc_html_e('Mark paperback sent', 'science180-book-review'); ?></strong>
-                                        <span><?php esc_html_e('Records a mailed physical copy and sends the paperback notice.', 'science180-book-review'); ?></span>
+                                    <button class="s180br-delivery-option <?php echo $delivery_type === 'paperback' ? 'is-selected' : ''; ?>" type="submit" name="status" value="sent" <?php disabled(!$is_approved || $delivery_type === 'paperback'); ?>>
+                                        <strong><?php echo $delivery_type === 'paperback' ? esc_html__('Selected: paperback sent', 'science180-book-review') : esc_html__('Mark paperback sent', 'science180-book-review'); ?></strong>
+                                        <span><?php echo $delivery_type === 'paperback' ? esc_html__('This was the delivery method used.', 'science180-book-review') : esc_html__('Records a mailed physical copy and sends the paperback notice.', 'science180-book-review'); ?></span>
                                     </button>
                                 </form>
                             </div>
