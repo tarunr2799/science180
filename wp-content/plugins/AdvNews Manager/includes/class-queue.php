@@ -215,7 +215,7 @@ class AdvNews_Queue
         // FIXED: Explicitly select and alias columns to prevent c.id from overwriting cl.id
         $queued_emails = $this->wpdb->get_results($this->wpdb->prepare(
             "SELECT cl.id as log_id, cl.subscriber_id, cl.status, cl.send_after, cl.retry_count,
-                    c.id as campaign_id, c.name as campaign_name, c.subject, c.content, c.from_name, c.from_email, c.reply_to, c.priority, c.track_opens, c.track_clicks,
+                    c.id as campaign_id, c.name as campaign_name, c.subject, c.content, c.from_name, c.from_email, c.reply_to, c.priority, c.track_opens, c.track_clicks, c.respect_cooldown,
                     s.email as subscriber_email, s.first_name, s.last_name, s.organization
             FROM $table_logs cl
             INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
@@ -275,6 +275,16 @@ class AdvNews_Queue
                 if (defined('WP_DEBUG') && WP_DEBUG) {
                     error_log('[AdvNews Queue] Skipping Log ID ' . $email->log_id . ' - status changed to: ' . $current_status);
                 }
+                continue;
+            }
+
+            $cooldown_until = $this->subscriber_cooldown_until($email->subscriber_id, !empty($email->respect_cooldown));
+            if ($cooldown_until !== '') {
+                $this->wpdb->update(
+                    $table_logs,
+                    array('send_after' => $cooldown_until),
+                    array('id' => $email->log_id)
+                );
                 continue;
             }
 
@@ -398,6 +408,40 @@ class AdvNews_Queue
         }
 
         return array('sent' => $sent, 'failed' => $failed, 'remaining' => $remaining, 'on_cooldown' => $on_cooldown);
+    }
+
+    /**
+     * Recheck cooldown immediately before sending. This prevents overlapping
+     * campaigns from sending to the same subscriber before the first send has
+     * updated their last_email_sent timestamp.
+     */
+    private function subscriber_cooldown_until($subscriber_id, $respect_cooldown)
+    {
+        if (!$respect_cooldown) {
+            return '';
+        }
+
+        $cooldown_days = max(0, absint(get_option('advnews_cooldown_days', 5)));
+        if ($cooldown_days === 0) {
+            return '';
+        }
+
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $last_sent = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT last_email_sent FROM {$table_subscribers} WHERE id = %d",
+            $subscriber_id
+        ));
+        if (empty($last_sent)) {
+            return '';
+        }
+
+        $last_sent_timestamp = strtotime(get_gmt_from_date($last_sent));
+        $send_after_timestamp = $last_sent_timestamp + ($cooldown_days * DAY_IN_SECONDS);
+        if (!$last_sent_timestamp || $send_after_timestamp <= current_time('timestamp', true)) {
+            return '';
+        }
+
+        return gmdate('Y-m-d H:i:s', $send_after_timestamp);
     }
 
     /**

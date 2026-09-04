@@ -1898,9 +1898,12 @@ class S180BR_Plugin
         global $wpdb;
         $table = $this->table('pdf_deliveries');
         $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE token_hash = %s LIMIT 1", hash('sha256', $token)));
-        if (!$delivery || !empty($delivery->downloaded_at) || $delivery->status === 'revoked') {
+        // Mail-security services can follow download links before the recipient sees them.
+        // Allow a small number of authenticated downloads so that scan does not consume the copy.
+        $download_limit = 3;
+        if (!$delivery || $delivery->status === 'revoked' || (int) $delivery->download_attempts >= $download_limit) {
             status_header(410);
-            wp_die(esc_html__('This private download link has expired or has already been used.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
+            wp_die(esc_html__('This private download link has expired or has reached its download limit. Please contact Science180 for a new copy.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
         }
         if (!$this->is_private_delivery_file($delivery->file_path) || !is_readable($delivery->file_path)) {
             status_header(404);
@@ -1915,12 +1918,12 @@ class S180BR_Plugin
         $geo = $this->ip_geolocation($ip);
         $now = current_time('mysql');
         $updated = $wpdb->query($wpdb->prepare(
-            "UPDATE {$table} SET downloaded_at = %s, status = 'downloaded', download_attempts = download_attempts + 1, ip_address = %s, ip_city = %s, ip_country = %s, device_type = %s, user_agent = %s, updated_at = %s WHERE id = %d AND downloaded_at IS NULL",
-            $now, $ip, $geo['city'], $geo['country'], $this->device_type(), $this->user_agent(), $now, (int) $delivery->id
+            "UPDATE {$table} SET downloaded_at = COALESCE(downloaded_at, %s), status = 'downloaded', download_attempts = download_attempts + 1, ip_address = %s, ip_city = %s, ip_country = %s, device_type = %s, user_agent = %s, updated_at = %s WHERE id = %d AND status <> 'revoked' AND download_attempts < %d",
+            $now, $ip, $geo['city'], $geo['country'], $this->device_type(), $this->user_agent(), $now, (int) $delivery->id, $download_limit
         ));
         if ($updated !== 1) {
             status_header(410);
-            wp_die(esc_html__('This private download link has already been used.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
+            wp_die(esc_html__('This private download link has expired or has reached its download limit. Please contact Science180 for a new copy.', 'science180-book-review'), esc_html__('Download unavailable', 'science180-book-review'), array('response' => 410));
         }
 
         $request = $this->get_review_request((int) $delivery->request_id);
@@ -1956,7 +1959,7 @@ class S180BR_Plugin
     <div class="s180re-public-heading">
         <p class="s180re-eyebrow"><?php esc_html_e('Private review copy', 'science180-book-review'); ?></p>
         <h1><?php echo esc_html($book_title); ?></h1>
-        <p class="s180re-book-note"><?php esc_html_e('Please confirm below to download your private PDF review copy.', 'science180-book-review'); ?></p>
+        <p class="s180re-book-note"><?php esc_html_e('Please confirm below to download your private PDF review copy. Your secure link remains available for a limited number of downloads.', 'science180-book-review'); ?></p>
     </div>
     <form class="s180re-form s180re-download-form" method="post">
         <input type="hidden" name="s180br_pdf_confirm" value="1">
