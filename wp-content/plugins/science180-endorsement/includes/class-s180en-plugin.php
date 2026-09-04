@@ -1359,9 +1359,13 @@ class S180EN_Plugin
                         <?php if (!empty($endorsement->profile_url)) : ?>
                             <p class="s180re-detail-profile"><strong><?php esc_html_e('Website / social media:', 'science180-endorsement'); ?></strong> <a href="<?php echo esc_url($endorsement->profile_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($endorsement->profile_url); ?></a></p>
                         <?php endif; ?>
-                        <?php $profile_location = $this->endorsement_location($endorsement); ?>
-                        <?php if ($profile_location !== '') : ?>
-                            <p class="s180re-detail-location"><strong><?php esc_html_e('Location:', 'science180-endorsement'); ?></strong> <?php echo esc_html($profile_location); ?></p>
+                        <?php $profile_city = trim((string) ($endorsement->ip_city ?? '')); ?>
+                        <?php $profile_country = trim((string) ($endorsement->ip_country ?? '')); ?>
+                        <?php if ($profile_city !== '') : ?>
+                            <p class="s180re-detail-location"><strong><?php esc_html_e('City:', 'science180-endorsement'); ?></strong> <?php echo esc_html($profile_city); ?></p>
+                        <?php endif; ?>
+                        <?php if ($profile_country !== '') : ?>
+                            <p class="s180re-detail-location"><strong><?php esc_html_e('Country:', 'science180-endorsement'); ?></strong> <?php echo esc_html($profile_country); ?></p>
                         <?php endif; ?>
                         <div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($endorsement->comment)); ?></div>
                         <a class="s180re-text-link" href="<?php echo esc_url($this->site_relative_url($this->published_endorsements_url(), '/published-endorsements/')); ?>"><?php esc_html_e('Back to published endorsements', 'science180-endorsement'); ?></a>
@@ -1760,7 +1764,8 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Address', 'science180-endorsement'); ?></th><td><?php echo $admin_address !== '' ? nl2br(esc_html($admin_address)) : esc_html__('Not provided', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Comment', 'science180-endorsement'); ?></th><td><div class="s180re-rich-text"><?php echo wp_kses_post(wpautop($item->comment)); ?></div></td></tr>
                             <tr><th><?php esc_html_e('IP address', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->ip_address ?? ''); ?></td></tr>
-                            <tr><th><?php esc_html_e('IP location', 'science180-endorsement'); ?></th><td><?php echo esc_html(trim((string) ($item->ip_city ?? '') . ((($item->ip_city ?? '') && ($item->ip_country ?? '')) ? ', ' : '') . (string) ($item->ip_country ?? ''))); ?></td></tr>
+                            <tr><th><?php esc_html_e('City', 'science180-endorsement'); ?></th><td><?php echo !empty($item->ip_city) ? esc_html($item->ip_city) : esc_html__('Not available', 'science180-endorsement'); ?></td></tr>
+                            <tr><th><?php esc_html_e('Country', 'science180-endorsement'); ?></th><td><?php echo !empty($item->ip_country) ? esc_html($item->ip_country) : esc_html__('Not available', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Device', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->device_type ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('User agent', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->user_agent ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('Public page URL', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($item->status === 'approved' ? $this->endorsement_permalink($item) : $this->endorsement_preview_url($item)); ?>" target="_blank"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
