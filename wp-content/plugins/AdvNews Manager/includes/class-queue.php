@@ -112,16 +112,19 @@ class AdvNews_Queue
      * Process queue (send emails in batches)
      * FIXED: Resolved SQL ID collision between campaign_logs.id and campaigns.id
      */
-    public function process_queue($batch_size = 50)
+    public function process_queue($batch_size = 50, $args = array())
     {
         $batch_size = max(1, min(500, absint($batch_size)));
+        $args = is_array($args) ? $args : array();
+        $skip_batch_wait = !empty($args['skip_batch_wait']);
+        $force_scheduled = !empty($args['force_scheduled']);
 
         if (!$this->acquire_processing_lock()) {
             return $this->deferred_queue_result(array('processing_locked' => true));
         }
 
         try {
-            $wait_seconds = $this->seconds_until_next_batch();
+            $wait_seconds = $skip_batch_wait ? 0 : $this->seconds_until_next_batch();
             if ($wait_seconds > 0) {
                 return $this->deferred_queue_result(array(
                     'throttled' => true,
@@ -130,7 +133,7 @@ class AdvNews_Queue
                 ));
             }
 
-            return $this->process_queue_batch($batch_size);
+            return $this->process_queue_batch($batch_size, $force_scheduled);
         } finally {
             $this->release_processing_lock();
         }
@@ -200,7 +203,52 @@ class AdvNews_Queue
         ), $extra);
     }
 
-    private function process_queue_batch($batch_size)
+    /**
+     * Manual admin processing intentionally starts scheduled queued emails now.
+     * Automatic cron still respects scheduled_for because it does not pass this flag.
+     */
+    private function promote_scheduled_queue_for_manual_processing($batch_size, $current_time)
+    {
+        $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
+        $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
+        $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+
+        $campaign_ids = $this->wpdb->get_col($this->wpdb->prepare(
+            "SELECT c.id
+            FROM $table_logs cl
+            INNER JOIN $table_campaigns c ON cl.campaign_id = c.id
+            INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
+            WHERE cl.status = 'queued'
+            AND c.status = 'scheduled'
+            AND c.scheduled_for IS NOT NULL
+            AND c.scheduled_for != '0000-00-00 00:00:00'
+            AND c.scheduled_for > %s
+            GROUP BY c.id
+            ORDER BY MAX(c.priority) DESC, MIN(cl.created_at) ASC
+            LIMIT %d",
+            $current_time,
+            $batch_size
+        ));
+
+        if (empty($campaign_ids)) {
+            return 0;
+        }
+
+        $campaign_ids = array_map('absint', $campaign_ids);
+        $placeholders = implode(',', array_fill(0, count($campaign_ids), '%d'));
+        $query = "UPDATE $table_campaigns
+            SET status = 'sending', scheduled_for = NULL
+            WHERE status = 'scheduled'
+            AND scheduled_for > %s
+            AND id IN ($placeholders)";
+
+        return (int) $this->wpdb->query($this->wpdb->prepare(
+            $query,
+            array_merge(array($current_time), $campaign_ids)
+        ));
+    }
+
+    private function process_queue_batch($batch_size, $force_scheduled = false)
     {
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
@@ -211,6 +259,10 @@ class AdvNews_Queue
         }
 
         $current_time = current_time('mysql', true); // GMT for accurate scheduling
+
+        if ($force_scheduled) {
+            $this->promote_scheduled_queue_for_manual_processing($batch_size, $current_time);
+        }
 
         // FIXED: Explicitly select and alias columns to prevent c.id from overwriting cl.id
         $queued_emails = $this->wpdb->get_results($this->wpdb->prepare(

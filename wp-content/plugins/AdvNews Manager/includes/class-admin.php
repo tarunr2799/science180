@@ -1768,7 +1768,7 @@ class AdvNews_Admin
             }
             if (!empty($queue_notes)) : ?>
                 <p style="margin:8px 0 15px; color:#50575e;">
-                    <?php echo esc_html(sprintf(__('Still queued but not ready to send: %s. Process Queue Now only sends emails shown as Ready to send.', 'advnews-manager'), implode(', ', $queue_notes))); ?>
+                    <?php echo esc_html(sprintf(__('Still queued but not automatically ready: %s. Process Queue Now can start scheduled queued emails immediately; cooldown, paused campaigns, and invalid records stay protected.', 'advnews-manager'), implode(', ', $queue_notes))); ?>
                 </p>
             <?php endif; ?>
             <div style="display:flex; gap:10px; justify-content:flex-end;">

@@ -18,7 +18,7 @@ class AdvNews_Queue_Processor {
 	*
 	* @return array Result with success status and data
 	*/
-	public function execute() {
+	public function execute($args = array()) {
 		try {
 			// Check if queue is paused
 			if (get_option('advnews_queue_paused')) {
@@ -45,6 +45,7 @@ class AdvNews_Queue_Processor {
 
 			// Get batch size from settings
 			$batch_size = max(1, min(500, absint(get_option('advnews_emails_per_batch', 50))));
+			$queue_args = is_array($args) ? $args : array();
 
 			// Check daily limit
 			$max_per_day = get_option('advnews_max_emails_per_day', 0);
@@ -79,7 +80,7 @@ class AdvNews_Queue_Processor {
 				);
 			}
 			// Process the queue
-			$result = $queue->process_queue($batch_size);
+			$result = $queue->process_queue($batch_size, $queue_args);
 
             if (!empty($result['throttled'])) {
                 $wait_seconds = max(1, absint($result['wait_seconds'] ?? 0));

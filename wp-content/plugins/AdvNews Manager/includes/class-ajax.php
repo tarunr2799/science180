@@ -1388,7 +1388,10 @@ class AdvNews_Ajax
 
         require_once ADVNEWS_PLUGIN_DIR . 'cron/process-queue.php';
         $processor = new AdvNews_Queue_Processor();
-        $result = $processor->execute();
+        $result = $processor->execute(array(
+            'force_scheduled' => true,
+            'skip_batch_wait' => true,
+        ));
 
         // Log the result with more details
         if (defined('WP_DEBUG') && WP_DEBUG) {
