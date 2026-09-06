@@ -295,6 +295,13 @@ class AdvNews_Tracking
             return home_url();
         }
 
+        $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+        $url_host = wp_parse_url($url, PHP_URL_HOST);
+        $url_path = wp_parse_url($url, PHP_URL_PATH);
+        if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', (string) $url_path, $matches)) {
+            $url = 'https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : '');
+        }
+
         if (strpos($url, '//') === 0) {
             return 'https:' . $url;
         }
