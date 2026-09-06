@@ -207,6 +207,7 @@ function advnews_handle_tracking() {
         $tracking_class = new AdvNews_Tracking();
         $url = $tracking_class->record_click($hash, $log_id, $campaign_id);
         if ($url) {
+            $url = advnews_normalize_tracking_redirect_url($url);
             wp_redirect($url);
             exit;
         }
@@ -215,6 +216,44 @@ function advnews_handle_tracking() {
     }
 }
 add_action('init', 'advnews_handle_tracking');
+
+/**
+ * Normalize redirect URLs at the tracking endpoint so older malformed rows
+ * cannot send visitors to science180.net/science180.com/... pages.
+ */
+function advnews_normalize_tracking_redirect_url($url) {
+    $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
+
+    if ($url === '') {
+        return home_url();
+    }
+
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    $url_host = wp_parse_url($url, PHP_URL_HOST);
+    $url_path = wp_parse_url($url, PHP_URL_PATH);
+
+    if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', (string) $url_path, $matches)) {
+        return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
+    }
+
+    if (strpos($url, '//') === 0) {
+        return esc_url_raw('https:' . $url);
+    }
+
+    if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
+        return esc_url_raw($url);
+    }
+
+    if (strpos($url, '/') === 0) {
+        return esc_url_raw(home_url($url));
+    }
+
+    if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
+        return esc_url_raw('https://' . $url);
+    }
+
+    return esc_url_raw($url);
+}
 
 /**
  * Get campaign performance data
@@ -379,4 +418,3 @@ function advnews_register_tinymce_plugin($plugin_array) {
     return $plugin_array;
 }
 add_filter('mce_external_plugins', 'advnews_register_tinymce_plugin');
-

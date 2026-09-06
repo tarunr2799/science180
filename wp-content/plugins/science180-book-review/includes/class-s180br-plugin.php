@@ -502,11 +502,13 @@ class S180BR_Plugin
         add_submenu_page('s180br-books', __('Books', 'science180-book-review'), __('Books', 'science180-book-review'), 'manage_options', 's180br-books', array($this, 'render_books_page'));
         add_submenu_page('s180br-books', __('Review Requests', 'science180-book-review'), __('Review Requests', 'science180-book-review'), 'manage_options', 's180br-review-requests', array($this, 'render_review_requests_page'));
         add_submenu_page('s180br-books', __('Settings', 'science180-book-review'), __('Settings', 'science180-book-review'), 'manage_options', 's180br-settings', array($this, 'render_settings_page'));
+        add_submenu_page(null, __('Review Requests', 'science180-book-review'), __('Review Requests', 'science180-book-review'), 'manage_options', 's180br-reviewrequests', array($this, 'render_review_requests_page'));
+        add_submenu_page(null, __('Review Requests', 'science180-book-review'), __('Review Requests', 'science180-book-review'), 'manage_options', 's180brreview-requests', array($this, 'render_review_requests_page'));
     }
 
     public function redirect_legacy_review_request_admin_urls()
     {
-        if (!is_admin() || !current_user_can('manage_options')) {
+        if (!is_admin()) {
             return;
         }
 
