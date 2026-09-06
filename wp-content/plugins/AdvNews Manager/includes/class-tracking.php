@@ -201,6 +201,7 @@ class AdvNews_Tracking
         if (!$link) {
             return false;
         }
+        $original_url = $this->normalize_redirect_url($link->original_url);
         // Get IP address and user agent
         $ip_address = AdvNews_Security::get_client_ip();
         $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
@@ -229,7 +230,7 @@ class AdvNews_Tracking
             $log_id
         ));
         if (!$log) {
-            return $link->original_url;
+            return $original_url;
         }
         $subscriber_id = $log->subscriber_id;
         // Check if already clicked this link
@@ -280,7 +281,37 @@ class AdvNews_Tracking
                 'city' => $city
             ));
         }
-        return $link->original_url;
+        return $original_url;
+    }
+
+    /**
+     * Normalize tracked URLs before redirecting, including older bare-domain links.
+     */
+    private function normalize_redirect_url($url)
+    {
+        $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
+
+        if ($url === '') {
+            return home_url();
+        }
+
+        if (strpos($url, '//') === 0) {
+            return 'https:' . $url;
+        }
+
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
+            return esc_url_raw($url);
+        }
+
+        if (strpos($url, '/') === 0) {
+            return esc_url_raw(home_url($url));
+        }
+
+        if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
+            return esc_url_raw('https://' . $url);
+        }
+
+        return esc_url_raw($url);
     }
 
     /**

@@ -617,11 +617,43 @@ class AdvNews_Queue
         $links = array_unique($matches[1]);
         foreach ($links as $link) {
             if (strpos($link, 'mailto:') === 0 || strpos($link, '#') === 0) continue;
-            $tracking_link = $this->create_tracking_link($link, $campaign_id, $log_id);
+            $normalized_link = $this->normalize_tracking_url($link);
+            if ($normalized_link === '') continue;
+            $tracking_link = $this->create_tracking_link($normalized_link, $campaign_id, $log_id);
             $content = str_replace('href="' . $link . '"', 'href="' . $tracking_link . '"', $content);
             $content = str_replace("href='" . $link . "'", "href='" . $tracking_link . "'", $content);
         }
         return $content;
+    }
+
+    /**
+     * Normalize pasted email links before creating tracking redirects.
+     */
+    private function normalize_tracking_url($url)
+    {
+        $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
+
+        if ($url === '' || preg_match('/^(mailto|tel|sms|javascript|data):/i', $url) || strpos($url, '#') === 0) {
+            return '';
+        }
+
+        if (strpos($url, '//') === 0) {
+            return 'https:' . $url;
+        }
+
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
+            return esc_url_raw($url);
+        }
+
+        if (strpos($url, '/') === 0) {
+            return esc_url_raw(home_url($url));
+        }
+
+        if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
+            return esc_url_raw('https://' . $url);
+        }
+
+        return esc_url_raw($url);
     }
 
     /**

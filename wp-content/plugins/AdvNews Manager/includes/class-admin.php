@@ -1405,6 +1405,7 @@ class AdvNews_Admin
         $maxmind_license_key = get_option('advnews_maxmind_license_key', '');
         $maxmind_auto_update = get_option('advnews_maxmind_auto_update', true);
         $maxmind_db_path = get_option('advnews_maxmind_db_path', '');
+        $maxmind_last_update = (int) get_option('advnews_maxmind_last_update', 0);
         $maxmind_last_attempt = (int) get_option('advnews_maxmind_last_attempt', 0);
         $maxmind_last_error = get_option('advnews_maxmind_last_error', '');
 
@@ -1421,7 +1422,8 @@ class AdvNews_Admin
             }
         }
 
-        $db_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime($maxmind_db_path)) : __('Not downloaded yet', 'advnews-manager');
+        $db_file_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime($maxmind_db_path)) : __('Not downloaded yet', 'advnews-manager');
+        $db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_update) : '';
         ?>
         <select id="<?php echo esc_attr($args['label_for']); ?>" name="<?php echo esc_attr($args['option']); ?>" class="geolocation-service-select">
             <option value="ipapi" <?php selected($service, 'ipapi'); ?>><?php _e('ip-api.com (Free, no key required)', 'advnews-manager'); ?></option>
@@ -1466,7 +1468,7 @@ class AdvNews_Admin
                 <p class="description" style="margin-top:10px;">
                 <?php _e('Current DB Status: ', 'advnews-manager'); ?>
                 <?php if ($db_exists): ?>
-                <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?> (<?php echo $db_date; ?>)</span>
+                <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?></span>
                 <?php else: ?>
                 <span style="color:red;">✘ <?php _e('No Database Found', 'advnews-manager'); ?></span>
                 <?php if (defined('WP_DEBUG') && WP_DEBUG): ?>
@@ -1474,6 +1476,11 @@ class AdvNews_Admin
                 <?php endif; ?>
                 <?php endif; ?>
                 </p>
+                <?php if ($db_last_update_date): ?>
+                <p class="description"><?php printf(esc_html__('Last successful update: %s', 'advnews-manager'), esc_html($db_last_update_date)); ?></p>
+                <?php elseif ($db_exists): ?>
+                <p class="description"><?php printf(esc_html__('Database file date: %s', 'advnews-manager'), esc_html($db_file_date)); ?></p>
+                <?php endif; ?>
                 <?php if ($maxmind_last_attempt): ?>
                 <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_attempt))); ?></p>
                 <?php endif; ?>

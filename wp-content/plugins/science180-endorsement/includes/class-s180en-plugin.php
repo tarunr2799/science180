@@ -1658,7 +1658,9 @@ class S180EN_Plugin
                     echo '<a class="' . esc_attr($status === $view_status ? 'current' : '') . '" href="' . esc_url(add_query_arg($args, admin_url('admin.php'))) . '">' . esc_html($label) . '</a>';
                     $separator = ' | ';
                 }
+                echo wp_kses_post($separator);
                 ?>
+                <a href="<?php echo esc_url($this->endorsement_page_url()); ?>" target="_blank" rel="noopener"><?php esc_html_e('PUBLIC URL', 'science180-endorsement'); ?></a>
             </p>
             <br class="clear">
 

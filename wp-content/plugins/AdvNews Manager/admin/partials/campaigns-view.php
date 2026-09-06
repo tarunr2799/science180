@@ -141,8 +141,8 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                                         $subscriber_url = admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $recipient->subscriber_id);
                                         ?>
                                         <tr>
-                                            <td><a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($name ?: __('Subscriber', 'advnews-manager')); ?></a></td>
-                                            <td><a href="<?php echo esc_url($subscriber_url); ?>"><?php echo esc_html($recipient->email); ?></a></td>
+                                            <td><a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($name ?: __('Subscriber', 'advnews-manager')); ?></a></td>
+                                            <td><a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($recipient->email); ?></a></td>
                                             <td><?php echo esc_html(ucfirst($recipient->status)); ?></td>
                                             <td><?php echo $received_at ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($received_at))) : '&mdash;'; ?></td>
                                         </tr>
