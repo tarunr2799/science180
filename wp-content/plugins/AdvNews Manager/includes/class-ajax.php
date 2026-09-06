@@ -2807,6 +2807,9 @@ class AdvNews_Ajax
         $url = $tracking_class->record_click($hash, $log_id, $campaign_id);
 
         if ($url) {
+            if (function_exists('advnews_normalize_tracking_redirect_url')) {
+                $url = advnews_normalize_tracking_redirect_url($url);
+            }
             wp_redirect($url);
         } else {
             wp_redirect(home_url());
