@@ -369,6 +369,22 @@
     font-weight: 700;
 }
 
+.s180br-books-table th:last-child,
+.s180br-books-table td:last-child {
+    width: 320px;
+}
+
+.s180br-book-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    min-width: 280px;
+}
+
+.s180br-book-actions .button {
+    margin: 0;
+}
 .s180br-request-detail-label,
 .s180re-admin-panel .s180br-request-detail-label {
     color: #7a287d;
