@@ -430,6 +430,41 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
 </div>
 
 <style>
+.advnews-subscriber-view #poststuff #post-body.columns-2 {
+    margin-right: 0;
+}
+.advnews-subscriber-view #poststuff #post-body-content {
+    float: none;
+    margin-right: 0;
+    width: 100%;
+}
+.advnews-subscriber-view #poststuff #postbox-container-1 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    float: none;
+    margin-right: 0;
+    margin-top: 16px;
+    width: 100%;
+}
+.advnews-subscriber-view #poststuff #postbox-container-1 .postbox {
+    min-width: 0;
+}
+.advnews-subscriber-view .advnews-activity-table-wrap {
+    overflow-x: visible;
+}
+.advnews-subscriber-view .advnews-subscriber-activity-table {
+    min-width: 0;
+}
+.advnews-subscriber-view .advnews-subscriber-activity-table td {
+    line-height: 1.45;
+}
+.advnews-subscriber-view .advnews-activity-timeline {
+    min-width: 180px;
+}
+.advnews-subscriber-view .advnews-timeline-row {
+    grid-template-columns: 70px 1fr;
+}
 .advnews-subscriber-view .activity-badge {
     display: inline-block;
     padding: 3px 8px;
