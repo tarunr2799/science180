@@ -1497,7 +1497,7 @@ class AdvNews_Admin
                 <p class="description" style="margin-top:10px;">
                 <?php _e('Current DB Status: ', 'advnews-manager'); ?>
                 <?php if ($db_exists): ?>
-                <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?></span>
+                <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?><?php echo $db_last_update_date ? ' (' . esc_html($db_last_update_date) . ')' : ''; ?></span>
                 <?php else: ?>
                 <span style="color:red;">✘ <?php _e('No Database Found', 'advnews-manager'); ?></span>
                 <?php if (defined('WP_DEBUG') && WP_DEBUG): ?>

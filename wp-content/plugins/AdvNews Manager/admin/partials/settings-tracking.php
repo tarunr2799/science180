@@ -168,7 +168,7 @@ $db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format'
                                 <p class="description" style="margin-top:10px;">
                                     <?php _e('Current DB Status: ', 'advnews-manager'); ?>
                                     <?php if ($db_exists): ?>
-                                        <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?></span>
+                                        <span style="color:green;">✔ <?php _e('Database Found', 'advnews-manager'); ?><?php echo $db_last_update_date ? ' (' . esc_html($db_last_update_date) . ')' : ''; ?></span>
                                     <?php else: ?>
                                         <span style="color:red;">✘ <?php _e('No Database Found', 'advnews-manager'); ?></span>
                                     <?php endif; ?>

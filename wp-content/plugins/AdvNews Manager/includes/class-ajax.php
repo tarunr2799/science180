@@ -3284,6 +3284,9 @@ class AdvNews_Ajax
             ));
         }
 
+        $updated_at = time();
+        update_option('advnews_maxmind_last_attempt', $updated_at);
+        update_option('advnews_maxmind_last_update', $updated_at);
         delete_option('advnews_maxmind_last_error');
         wp_send_json_success(array(
             'message' => $result['message'],

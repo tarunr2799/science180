@@ -384,6 +384,9 @@ class AdvNews_Cron
             return $result;
         }
 
+        $updated_at = time();
+        update_option('advnews_maxmind_last_attempt', $updated_at);
+        update_option('advnews_maxmind_last_update', $updated_at);
         delete_option('advnews_maxmind_last_error');
         error_log('[Science180 Mail] MaxMind database updated successfully.');
         return true;

@@ -1456,7 +1456,9 @@ class AdvNews_Tracking
         $this->delete_directory($temp_extract_dir);
 
         // STEP 9: Update options
-        update_option('advnews_maxmind_last_update', time());
+        $updated_at = time();
+        update_option('advnews_maxmind_last_attempt', $updated_at);
+        update_option('advnews_maxmind_last_update', $updated_at);
         update_option('advnews_maxmind_db_path', $current_db_path);
 
         return array(
