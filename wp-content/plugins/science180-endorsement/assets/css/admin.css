@@ -23,6 +23,31 @@
     font-size: 18px;
     line-height: 1.6;
 }
+.s180re-public-url-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    max-width: 960px;
+    margin: 12px 0 8px;
+    padding: 12px 14px;
+    background: #f0f6fc;
+    border: 1px solid #c5d9ed;
+    border-radius: 6px;
+}
+
+.s180re-public-url-panel div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    align-items: baseline;
+}
+
+.s180re-public-url-panel a:not(.button) {
+    font-family: Consolas, Monaco, monospace;
+}
+
 
 .s180re-admin-layout {
     display: grid;

@@ -1637,6 +1637,14 @@ class S180EN_Plugin
         <div class="wrap s180re-admin">
             <h1><?php esc_html_e('Endorsements', 'science180-endorsement'); ?></h1>
             <?php $this->render_admin_notice(); ?>
+            <?php $public_endorsement_url = $this->endorsement_page_url(); ?>
+            <div class="s180re-public-url-panel">
+                <div>
+                    <strong><?php esc_html_e('Public endorsement URL', 'science180-endorsement'); ?></strong>
+                    <a href="<?php echo esc_url($public_endorsement_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($public_endorsement_url); ?></a>
+                </div>
+                <a class="button" href="<?php echo esc_url($public_endorsement_url); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open public page', 'science180-endorsement'); ?></a>
+            </div>
             <p class="subsubsub s180re-status-links">
                 <?php
                 $view_links = array(
@@ -1717,7 +1725,7 @@ class S180EN_Plugin
                             <tr>
                                 <th scope="row" class="check-column"><input class="s180re-bulk-check" type="checkbox" name="s180re_endorsement_ids[]" value="<?php echo esc_attr((int) $item->id); ?>" aria-label="<?php echo esc_attr(sprintf(__('Select %s', 'science180-endorsement'), $this->endorsement_public_title($item))); ?>"></th>
                                 <td><?php echo esc_html($item->created_at); ?></td>
-                                <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></td>
+                                <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($this->endorsement_public_title($item)); ?></a></td>
                                 <td><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
                                 <td><span class="s180re-status-badge s180re-status-<?php echo esc_attr(sanitize_html_class($item->status)); ?>"><?php echo esc_html($this->endorsement_status_label($item->status)); ?></span></td>
                                 <td class="s180re-row-actions-cell"><?php $this->render_endorsement_list_actions($item); ?></td>
@@ -1741,7 +1749,7 @@ class S180EN_Plugin
             <h1><?php echo esc_html($this->endorsement_public_title($item)); ?></h1>
             <p>
                 <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements')); ?>"><?php esc_html_e('Back to endorsements', 'science180-endorsement'); ?></a>
-                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
+                <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
                 <a class="button" href="<?php echo esc_url($this->endorsement_preview_url($item)); ?>" target="_blank" rel="noopener"><?php echo $item->status === 'approved' ? esc_html__('View public page', 'science180-endorsement') : esc_html__('Preview public page', 'science180-endorsement'); ?></a>
             </p>
             <div class="s180re-admin-layout">
@@ -1876,8 +1884,8 @@ class S180EN_Plugin
     private function render_endorsement_list_actions($item)
     {
         ?>
-        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>"><?php esc_html_e('View', 'science180-endorsement'); ?></a>
-        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
+        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&view=' . (int) $item->id)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View', 'science180-endorsement'); ?></a>
+        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180en-endorsements&edit=' . (int) $item->id)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Edit', 'science180-endorsement'); ?></a>
         <a class="button" href="<?php echo esc_url($this->endorsement_preview_url($item)); ?>" target="_blank" rel="noopener"><?php echo $item->status === 'approved' ? esc_html__('Public', 'science180-endorsement') : esc_html__('Preview', 'science180-endorsement'); ?></a>
         <?php
         if ($this->endorsement_is_reviewable($item)) {
