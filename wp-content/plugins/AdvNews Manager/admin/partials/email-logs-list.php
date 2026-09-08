@@ -50,11 +50,12 @@ $all_campaigns = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table
     </div>
 
     <div id="email-logs-container">
-        <table class="wp-list-table widefat fixed striped">
+        <table class="wp-list-table widefat fixed striped advnews-email-logs-table">
             <thead>
                 <tr>
                     <th><?php _e('Status', 'advnews-manager'); ?></th>
                     <th><?php _e('Recipient', 'advnews-manager'); ?></th>
+                    <th><?php _e('Location / IP', 'advnews-manager'); ?></th>
                     <th><?php _e('Campaign', 'advnews-manager'); ?></th>
                     <th><?php _e('Subject', 'advnews-manager'); ?></th>
                     <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
@@ -65,7 +66,7 @@ $all_campaigns = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}{$table
             </thead>
             <tbody id="email-logs-body">
                 <tr>
-                    <td colspan="8" style="text-align:center; padding: 40px;">
+                    <td colspan="9" style="text-align:center; padding: 40px;">
                         <span class="spinner is-active"></span> <?php _e('Loading logs...', 'advnews-manager'); ?>
                     </td>
                 </tr>
@@ -100,7 +101,7 @@ jQuery(document).ready(function($) {
 
     function loadLogs(page) {
         const tbody = $('#email-logs-body');
-        tbody.html('<tr><td colspan="8" style="text-align:center; padding: 40px;"><span class="spinner is-active"></span> Loading...</td></tr>');
+        tbody.html('<tr><td colspan="9" style="text-align:center; padding: 40px;"><span class="spinner is-active"></span> Loading...</td></tr>');
 
         $.ajax({
             url: advnews_ajax.ajax_url,
@@ -121,11 +122,11 @@ jQuery(document).ready(function($) {
                     currentPage = response.data.page;
                     totalPages = response.data.total_pages;
                 } else {
-                    tbody.html('<tr><td colspan="8" style="text-align:center; color:red;">' + (response.data.message || 'Error loading data') + '</td></tr>');
+                    tbody.html('<tr><td colspan="9" style="text-align:center; color:red;">' + (response.data.message || 'Error loading data') + '</td></tr>');
                 }
             },
             error: function() {
-                tbody.html('<tr><td colspan="8" style="text-align:center; color:red;">Error loading data.</td></tr>');
+                tbody.html('<tr><td colspan="9" style="text-align:center; color:red;">Error loading data.</td></tr>');
             }
         });
     }
@@ -135,7 +136,7 @@ jQuery(document).ready(function($) {
         tbody.empty();
 
         if (items.length === 0) {
-            tbody.html('<tr><td colspan="8" style="text-align:center;">' + (advnews_ajax.i18n?.no_data || 'No logs found.') + '</td></tr>');
+            tbody.html('<tr><td colspan="9" style="text-align:center;">' + (advnews_ajax.i18n?.no_data || 'No logs found.') + '</td></tr>');
             return;
         }
 
@@ -189,6 +190,10 @@ jQuery(document).ready(function($) {
 
             const subscriberUrl = item.subscriber_id ? `?page=advnews-subscribers&action=view&id=${item.subscriber_id}` : '';
             const emailHtml = subscriberUrl ? `<a href="${subscriberUrl}" target="_blank" rel="noopener noreferrer"><strong>${escHtml(item.email)}</strong></a>` : `<strong>${escHtml(item.email)}</strong>`;
+            const locationParts = [item.latest_city, item.latest_country].filter(Boolean);
+            const locationText = locationParts.length ? locationParts.join(', ') : '';
+            const ipText = item.latest_ip || '';
+            const locationHtml = locationText || ipText ? `${locationText ? `<strong>${escHtml(locationText)}</strong>` : ''}${locationText && ipText ? '<br>' : ''}${ipText ? `<code>${escHtml(ipText)}</code>` : ''}` : '<span style="color:#999;">—</span>';
             const row = `
                 <tr>
                     <td ${statusClass}>${statusLabel}${retryButton}${bounceMessage}</td>
@@ -196,6 +201,7 @@ jQuery(document).ready(function($) {
                         ${emailHtml}<br>
                         <small style="color:#666;">${escHtml(recipientName)}</small>
                     </td>
+                    <td>${locationHtml}</td>
                     <td>${campaignLink}</td>
                     <td>${subjectLine}</td>
                     <td><small>${escHtml(item.sent_at || '—')}</small></td>
@@ -332,5 +338,35 @@ jQuery(document).ready(function($) {
 .retry-email-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.advnews-email-logs-table th:nth-child(1),
+.advnews-email-logs-table td:nth-child(1) {
+    width: 8%;
+}
+.advnews-email-logs-table th:nth-child(2),
+.advnews-email-logs-table td:nth-child(2) {
+    width: 13%;
+}
+.advnews-email-logs-table th:nth-child(3),
+.advnews-email-logs-table td:nth-child(3) {
+    width: 14%;
+}
+.advnews-email-logs-table th:nth-child(4),
+.advnews-email-logs-table td:nth-child(4) {
+    width: 13%;
+}
+.advnews-email-logs-table th:nth-child(5),
+.advnews-email-logs-table td:nth-child(5) {
+    width: 16%;
+}
+.advnews-email-logs-table th:nth-child(n+6),
+.advnews-email-logs-table td:nth-child(n+6) {
+    width: 9%;
+}
+.advnews-email-logs-table code,
+.advnews-email-logs-table small,
+.advnews-email-logs-table a {
+    overflow-wrap: anywhere;
 }
 </style>

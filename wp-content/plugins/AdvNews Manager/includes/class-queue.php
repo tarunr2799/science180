@@ -652,6 +652,10 @@ class AdvNews_Queue
             return esc_url_raw($url);
         }
 
+        if (strpos($url, '/') === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', $url, $matches)) {
+            return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
+        }
+
         if (strpos($url, '/') === 0) {
             return esc_url_raw(home_url($url));
         }

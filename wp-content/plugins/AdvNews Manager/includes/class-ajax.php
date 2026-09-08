@@ -1439,6 +1439,8 @@ class AdvNews_Ajax
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_campaigns = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
 
         $where = array('1=1');
 
@@ -1466,7 +1468,19 @@ class AdvNews_Ajax
 
         // Get Items
         $query = "SELECT cl.*, c.name as campaign_name, c.subject as campaign_subject,
-                         s.id as subscriber_id, s.email, s.first_name, s.last_name
+                         s.id as subscriber_id, s.email, s.first_name, s.last_name,
+                         COALESCE(
+                            (SELECT tc.ip_address FROM $table_clicks tc WHERE tc.campaign_log_id = cl.id ORDER BY tc.clicked_at DESC LIMIT 1),
+                            (SELECT to2.ip_address FROM $table_opens to2 WHERE to2.campaign_log_id = cl.id ORDER BY to2.opened_at DESC LIMIT 1)
+                         ) AS latest_ip,
+                         COALESCE(
+                            (SELECT tc.country FROM $table_clicks tc WHERE tc.campaign_log_id = cl.id ORDER BY tc.clicked_at DESC LIMIT 1),
+                            (SELECT to2.country FROM $table_opens to2 WHERE to2.campaign_log_id = cl.id ORDER BY to2.opened_at DESC LIMIT 1)
+                         ) AS latest_country,
+                         COALESCE(
+                            (SELECT tc.city FROM $table_clicks tc WHERE tc.campaign_log_id = cl.id ORDER BY tc.clicked_at DESC LIMIT 1),
+                            (SELECT to2.city FROM $table_opens to2 WHERE to2.campaign_log_id = cl.id ORDER BY to2.opened_at DESC LIMIT 1)
+                         ) AS latest_city
                   FROM $table_logs cl
                   INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
                   INNER JOIN $table_campaigns c ON cl.campaign_id = c.id

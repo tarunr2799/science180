@@ -30,7 +30,12 @@ if (empty($maxmind_db_path) || !file_exists($maxmind_db_path)) {
     }
 }
 $db_exists = !empty($maxmind_db_path) && file_exists($maxmind_db_path);
-$db_file_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime($maxmind_db_path)) : __('Not downloaded yet', 'advnews-manager');
+$db_file_timestamp = $db_exists ? (int) filemtime($maxmind_db_path) : 0;
+if ($db_file_timestamp && $db_file_timestamp > $maxmind_last_update) {
+    $maxmind_last_update = $db_file_timestamp;
+    update_option('advnews_maxmind_last_update', $maxmind_last_update);
+}
+$db_file_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $db_file_timestamp) : __('Not downloaded yet', 'advnews-manager');
 $db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_update) : '';
 ?>
 
