@@ -53,6 +53,15 @@
     background: var(--s180re-admin-soft);
 }
 
+.s180br-books-table .s180re-table-cover {
+    width: 390px;
+}
+
+.s180br-books-table .s180re-table-cover img {
+    width: 360px;
+    height: 540px;
+}
+
 .s180re-address-block {
     white-space: pre-wrap;
     background: var(--s180re-admin-soft);
@@ -375,7 +384,7 @@
 
 .s180br-books-table th:nth-child(1),
 .s180br-books-table td:nth-child(1) {
-    width: 300px;
+    width: 390px;
 }
 
 .s180br-books-table th:nth-child(3),
