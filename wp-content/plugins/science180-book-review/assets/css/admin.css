@@ -369,21 +369,39 @@
     font-weight: 700;
 }
 
-.s180br-books-table th:last-child,
-.s180br-books-table td:last-child {
-    width: 320px;
+.s180br-books-table {
+    table-layout: fixed;
+}
+
+.s180br-books-table th:nth-child(1),
+.s180br-books-table td:nth-child(1) {
+    width: 300px;
+}
+
+.s180br-books-table th:nth-child(3),
+.s180br-books-table td:nth-child(3) {
+    width: 80px;
+}
+
+.s180br-books-table th:nth-child(4),
+.s180br-books-table td:nth-child(4) {
+    width: 260px;
 }
 
 .s180br-book-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    min-width: 280px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(76px, 1fr));
+    gap: 10px;
+    align-items: stretch;
 }
 
 .s180br-book-actions .button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 36px;
     margin: 0;
+    text-align: center;
 }
 .s180br-request-detail-label,
 .s180re-admin-panel .s180br-request-detail-label {
