@@ -125,13 +125,14 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                                     <th><?php _e('Name', 'advnews-manager'); ?></th>
                                     <th><?php _e('Email', 'advnews-manager'); ?></th>
                                     <th><?php _e('Status', 'advnews-manager'); ?></th>
+                                    <th><?php _e('Location / IP', 'advnews-manager'); ?></th>
                                     <th><?php _e('Date Received', 'advnews-manager'); ?></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($recipients)): ?>
                                     <tr>
-                                        <td colspan="4"><?php _e('No recipients have been queued for this campaign yet.', 'advnews-manager'); ?></td>
+                                        <td colspan="5"><?php _e('No recipients have been queued for this campaign yet.', 'advnews-manager'); ?></td>
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($recipients as $recipient): ?>
@@ -139,11 +140,26 @@ $campaign_categories = $wpdb->get_results($wpdb->prepare(
                                         $name = trim($recipient->first_name . ' ' . $recipient->last_name);
                                         $received_at = $recipient->delivered_at ?: ($recipient->sent_at ?: $recipient->created_at);
                                         $subscriber_url = admin_url('admin.php?page=advnews-subscribers&action=view&id=' . (int) $recipient->subscriber_id);
+                                        $location = trim(implode(', ', array_filter(array($recipient->latest_city ?? '', $recipient->latest_country ?? ''))));
+                                        $latest_ip = !empty($recipient->latest_ip) ? (string) $recipient->latest_ip : '';
                                         ?>
                                         <tr>
                                             <td><a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($name ?: __('Subscriber', 'advnews-manager')); ?></a></td>
                                             <td><a href="<?php echo esc_url($subscriber_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($recipient->email); ?></a></td>
                                             <td><?php echo esc_html(ucfirst($recipient->status)); ?></td>
+                                            <td>
+                                                <?php if ($location || $latest_ip): ?>
+                                                    <?php if ($location): ?>
+                                                        <span><?php echo esc_html($location); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if ($latest_ip): ?>
+                                                        <?php if ($location): ?><br><?php endif; ?>
+                                                        <code><?php echo esc_html($latest_ip); ?></code>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    &mdash;
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo $received_at ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($received_at))) : '&mdash;'; ?></td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -463,6 +479,18 @@ jQuery(document).ready(function($) {
 .advnews-recipient-table td,
 .advnews-recipient-table th {
     vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+.advnews-recipient-table th:nth-child(1),
+.advnews-recipient-table th:nth-child(3),
+.advnews-recipient-table th:nth-child(5) {
+    width: 14%;
+}
+.advnews-recipient-table th:nth-child(2) {
+    width: 26%;
+}
+.advnews-recipient-table th:nth-child(4) {
+    width: 32%;
 }
 .advnews-recipient-summary p {
     margin: 5px 0;

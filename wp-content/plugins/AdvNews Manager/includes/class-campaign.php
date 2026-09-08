@@ -610,6 +610,8 @@ class AdvNews_Campaign
     {
         $table_logs = $this->wpdb->prefix . $this->table_prefix . 'campaign_logs';
         $table_subscribers = $this->wpdb->prefix . $this->table_prefix . 'subscribers';
+        $table_opens = $this->wpdb->prefix . $this->table_prefix . 'tracking_opens';
+        $table_clicks = $this->wpdb->prefix . $this->table_prefix . 'tracking_clicks';
 
         $where = array($this->wpdb->prepare("cl.campaign_id = %d", $campaign_id));
 
@@ -619,7 +621,24 @@ class AdvNews_Campaign
 
         $where_clause = 'WHERE ' . implode(' AND ', $where);
 
-        $query = "SELECT cl.*, s.email, s.first_name, s.last_name, s.organization
+        $query = "SELECT
+                cl.*,
+                s.email,
+                s.first_name,
+                s.last_name,
+                s.organization,
+                COALESCE(
+                    (SELECT c.ip_address FROM $table_clicks c WHERE c.campaign_log_id = cl.id ORDER BY c.clicked_at DESC LIMIT 1),
+                    (SELECT o.ip_address FROM $table_opens o WHERE o.campaign_log_id = cl.id ORDER BY o.opened_at DESC LIMIT 1)
+                ) AS latest_ip,
+                COALESCE(
+                    (SELECT c.country FROM $table_clicks c WHERE c.campaign_log_id = cl.id ORDER BY c.clicked_at DESC LIMIT 1),
+                    (SELECT o.country FROM $table_opens o WHERE o.campaign_log_id = cl.id ORDER BY o.opened_at DESC LIMIT 1)
+                ) AS latest_country,
+                COALESCE(
+                    (SELECT c.city FROM $table_clicks c WHERE c.campaign_log_id = cl.id ORDER BY c.clicked_at DESC LIMIT 1),
+                    (SELECT o.city FROM $table_opens o WHERE o.campaign_log_id = cl.id ORDER BY o.opened_at DESC LIMIT 1)
+                ) AS latest_city
             FROM $table_logs cl
             INNER JOIN $table_subscribers s ON cl.subscriber_id = s.id
             $where_clause
@@ -654,7 +673,10 @@ class AdvNews_Campaign
                 s.email,
                 s.first_name,
                 s.last_name,
-                s.organization
+                s.organization,
+                NULL as latest_ip,
+                NULL as latest_country,
+                NULL as latest_city
             FROM $table_campaign_categories cc
             INNER JOIN $table_subscriber_categories sc ON cc.category_id = sc.category_id
             INNER JOIN $table_subscribers s ON sc.subscriber_id = s.id
