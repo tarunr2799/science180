@@ -55,13 +55,13 @@
 
 .s180br-books-table .s180re-table-cover,
 .s180br-books-table .s180br-book-cover-large {
-    width: 390px;
+    width: 280px;
 }
 
 .s180br-books-table .s180re-table-cover img,
 .s180br-books-table .s180br-book-cover-large img {
-    width: 360px !important;
-    height: 540px !important;
+    width: 256px !important;
+    height: 384px !important;
     max-width: none;
 }
 
@@ -387,9 +387,14 @@
 
 .s180br-books-table th:nth-child(1),
 .s180br-books-table td:nth-child(1) {
-    width: 390px;
+    width: 280px;
 }
 
+.s180br-books-table th:nth-child(2),
+.s180br-books-table td:nth-child(2) {
+    min-width: 220px;
+    overflow-wrap: break-word;
+}
 .s180br-books-table th:nth-child(3),
 .s180br-books-table td:nth-child(3) {
     width: 80px;
@@ -397,12 +402,12 @@
 
 .s180br-books-table th:nth-child(4),
 .s180br-books-table td:nth-child(4) {
-    width: 260px;
+    width: 160px;
 }
 
 .s180br-book-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(76px, 1fr));
+    grid-template-columns: repeat(2, minmax(68px, 1fr));
     gap: 10px;
     align-items: stretch;
 }

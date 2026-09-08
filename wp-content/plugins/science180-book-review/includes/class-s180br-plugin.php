@@ -1438,7 +1438,7 @@ class S180BR_Plugin
                         <tbody>
                             <?php foreach ($books as $item) : ?>
                                 <tr>
-                                    <td class="s180re-table-cover s180br-book-cover-large"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt="" style="width:360px;height:540px;max-width:none;object-fit:cover;"><?php endif; ?></td>
+                                    <td class="s180re-table-cover s180br-book-cover-large"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt="" style="width:256px;height:384px;max-width:none;object-fit:cover;"><?php endif; ?></td>
                                     <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->title); ?></a></td>
                                     <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
                                     <td class="s180br-book-actions">
