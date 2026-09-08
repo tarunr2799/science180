@@ -221,10 +221,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                         <th><?php _e('Link / Subject', 'advnews-manager'); ?></th>
                                         <th><?php _e('IP / Device', 'advnews-manager'); ?></th>
                                         <th><?php _e('Location', 'advnews-manager'); ?></th>
-                                        <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
-                                        <th><?php _e('Delivered Date', 'advnews-manager'); ?></th>
-                                        <th><?php _e('Opened Date', 'advnews-manager'); ?></th>
-                                        <th><?php _e('Clicked Date', 'advnews-manager'); ?></th>
+                                        <th><?php _e('Timeline', 'advnews-manager'); ?></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -245,7 +242,7 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                             </td>
                                             <td>
                                                 <?php if ($item['type'] == 'click' && !empty($item['url'])): ?>
-                                                    <a href="<?php echo esc_url($item['url']); ?>" target="_blank" style="font-size:12px;">
+                                                    <a href="<?php echo esc_url($item['url']); ?>" target="_blank" rel="noopener noreferrer" style="font-size:12px;">
                                                         <?php echo esc_html(wp_trim_words($item['url'], 5, '...')); ?>
                                                     </a>
                                                 <?php else: ?>
@@ -263,13 +260,21 @@ $subscriber_click_rate = $delivered_count > 0 ? round((intval($campaign_stats->c
                                                     —
                                                 <?php endif; ?>
                                             </td>
-                                            <?php foreach (array('sent_at', 'delivered_at', 'opened_at', 'clicked_at') as $date_field): ?>
-                                                <td>
-                                                    <?php echo !empty($item[$date_field])
-                                                        ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item[$date_field])))
-                                                        : '—'; ?>
-                                                </td>
-                                            <?php endforeach; ?>
+                                            <td class="advnews-activity-timeline">
+                                                <?php foreach (array(
+                                                    'sent_at' => __('Sent', 'advnews-manager'),
+                                                    'delivered_at' => __('Delivered', 'advnews-manager'),
+                                                    'opened_at' => __('Opened', 'advnews-manager'),
+                                                    'clicked_at' => __('Clicked', 'advnews-manager'),
+                                                ) as $date_field => $date_label): ?>
+                                                    <div class="advnews-timeline-row">
+                                                        <span><?php echo esc_html($date_label); ?></span>
+                                                        <strong><?php echo !empty($item[$date_field])
+                                                            ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item[$date_field])))
+                                                            : '—'; ?></strong>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

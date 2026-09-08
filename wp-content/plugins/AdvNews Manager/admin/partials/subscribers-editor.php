@@ -286,27 +286,17 @@ foreach ($subscriber_categories as $cat) {
                     <table class="wp-list-table widefat striped advnews-subscriber-activity-table">
                     <thead>
                         <tr>
-                            <th><?php _e('Sent Date', 'advnews-manager'); ?></th>
-                            <th><?php _e('Delivered Date', 'advnews-manager'); ?></th>
-                            <th><?php _e('Opened Date', 'advnews-manager'); ?></th>
-                            <th><?php _e('Clicked Date', 'advnews-manager'); ?></th>
                             <th><?php _e('Type', 'advnews-manager'); ?></th>
                             <th><?php _e('Campaign', 'advnews-manager'); ?></th>
                             <th><?php _e('Link / Subject', 'advnews-manager'); ?></th>
                             <th><?php _e('IP / Device', 'advnews-manager'); ?></th>
                             <th><?php _e('Location', 'advnews-manager'); ?></th>
+                            <th><?php _e('Timeline', 'advnews-manager'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($activity as $item): ?>
                             <tr>
-                                <?php foreach (array('sent_at', 'delivered_at', 'opened_at', 'clicked_at') as $date_field): ?>
-                                    <td>
-                                        <?php echo !empty($item[$date_field])
-                                            ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item[$date_field])))
-                                            : '—'; ?>
-                                    </td>
-                                <?php endforeach; ?>
                                 <td>
                                     <span class="activity-badge activity-<?php echo esc_attr($item['type']); ?>">
                                         <?php echo esc_html(ucfirst($item['type'])); ?>
@@ -315,7 +305,7 @@ foreach ($subscriber_categories as $cat) {
                                 <td><?php echo esc_html($item['campaign']); ?></td>
                                 <td>
                                     <?php if ($item['type'] == 'click'): ?>
-                                        <a href="<?php echo esc_url($item['url']); ?>" target="_blank"><?php echo esc_html(wp_trim_words($item['url'], 5, '...')); ?></a>
+                                        <a href="<?php echo esc_url($item['url']); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(wp_trim_words($item['url'], 5, '...')); ?></a>
                                     <?php else: ?>
                                         <?php echo esc_html($item['subject']); ?>
                                     <?php endif; ?>
@@ -325,6 +315,21 @@ foreach ($subscriber_categories as $cat) {
                                     <br><small><?php echo esc_html(trim(($item['device'] ?? '') . ' / ' . ($item['browser'] ?? '') . ' / ' . ($item['platform'] ?? ''), ' /')); ?></small>
                                 </td>
                                 <td><?php echo !empty($item['location']) ? esc_html($item['location']) : '—'; ?></td>
+                                <td class="advnews-activity-timeline">
+                                    <?php foreach (array(
+                                        'sent_at' => __('Sent', 'advnews-manager'),
+                                        'delivered_at' => __('Delivered', 'advnews-manager'),
+                                        'opened_at' => __('Opened', 'advnews-manager'),
+                                        'clicked_at' => __('Clicked', 'advnews-manager'),
+                                    ) as $date_field => $date_label): ?>
+                                        <div class="advnews-timeline-row">
+                                            <span><?php echo esc_html($date_label); ?></span>
+                                            <strong><?php echo !empty($item[$date_field])
+                                                ? esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item[$date_field])))
+                                                : '—'; ?></strong>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
