@@ -40,13 +40,13 @@
 
 .s180re-cover-preview,
 .s180re-table-cover {
-    width: 150px;
+    width: 300px;
 }
 
 .s180re-cover-preview img,
 .s180re-table-cover img {
-    width: 132px;
-    height: 198px;
+    width: 264px;
+    height: 396px;
     object-fit: cover;
     border-radius: 6px;
     border: 1px solid var(--s180re-admin-line);

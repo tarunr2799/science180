@@ -1193,31 +1193,48 @@ class S180BR_Plugin
 
     private function send_mail($to, $subject, $message, $headers = array())
     {
-        $mail_error = null;
-        $capture_error = function ($error) use (&$mail_error) {
-            $mail_error = $error;
-        };
+        $last_error = null;
+        $sent = false;
 
-        // Science180 Mail configures SMTP at a late priority. Apply the Book Review
-        // display name afterward while retaining its authorized SMTP address.
-        $configure_sender = function ($phpmailer) {
-            $from_name = $this->sender_name();
-            if ($from_name !== '') {
-                $phpmailer->FromName = $from_name;
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $mail_error = null;
+            $capture_error = function ($error) use (&$mail_error) {
+                $mail_error = $error;
+            };
+
+            // Science180 Mail configures SMTP at a late priority. Apply the Book Review
+            // display name afterward while retaining its authorized SMTP address.
+            $configure_sender = function ($phpmailer) {
+                $from_name = $this->sender_name();
+                if ($from_name !== '') {
+                    $phpmailer->FromName = $from_name;
+                }
+            };
+
+            add_action('wp_mail_failed', $capture_error);
+            add_action('phpmailer_init', $configure_sender, 10000);
+            try {
+                $sent = wp_mail($to, $subject, $message, $headers);
+            } finally {
+                remove_action('wp_mail_failed', $capture_error);
+                remove_action('phpmailer_init', $configure_sender, 10000);
             }
-        };
 
-        add_action('wp_mail_failed', $capture_error);
-        add_action('phpmailer_init', $configure_sender, 10000);
-        try {
-            $sent = wp_mail($to, $subject, $message, $headers);
-        } finally {
-            remove_action('wp_mail_failed', $capture_error);
-            remove_action('phpmailer_init', $configure_sender, 10000);
+            if ($sent) {
+                break;
+            }
+
+            if ($mail_error instanceof WP_Error) {
+                $last_error = $mail_error;
+            }
+
+            if ($attempt < 2) {
+                sleep(2);
+            }
         }
 
-        if (!$sent && $mail_error instanceof WP_Error) {
-            error_log('Science180 Book Review wp_mail failed: ' . $mail_error->get_error_message());
+        if (!$sent && $last_error instanceof WP_Error) {
+            error_log('Science180 Book Review wp_mail failed after retry: ' . $last_error->get_error_message());
         }
 
         return $sent;
@@ -1350,10 +1367,10 @@ class S180BR_Plugin
             <?php $this->render_admin_notice(); ?>
             <p class="subsubsub">
                 <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-books')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a> |
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=email_verified')); ?>"><?php esc_html_e('Needs review', 'science180-book-review'); ?></a> |
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=qualified')); ?>"><?php esc_html_e('Approved', 'science180-book-review'); ?></a> |
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=declined')); ?>"><?php esc_html_e('Rejected', 'science180-book-review'); ?></a> |
-                <a href="<?php echo esc_url($this->review_request_page_url()); ?>" target="_blank" rel="noopener"><?php esc_html_e('PUBLIC URL', 'science180-book-review'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=email_verified')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Needs review', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=qualified')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Approved', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=declined')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Rejected', 'science180-book-review'); ?></a> |
+                <a href="<?php echo esc_url($this->review_request_page_url()); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('PUBLIC URL', 'science180-book-review'); ?></a>
             </p>
             <br class="clear">
 
@@ -1422,10 +1439,10 @@ class S180BR_Plugin
                             <?php foreach ($books as $item) : ?>
                                 <tr>
                                     <td class="s180re-table-cover"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt=""><?php endif; ?></td>
-                                    <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->title); ?></a></td>
+                                    <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->title); ?></a></td>
                                     <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
                                     <td class="s180br-book-actions">
-                                        <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View', 'science180-book-review'); ?></a>
+                                        <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-book-review'); ?></a>
                                         <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180re_toggle_book&book_id=' . (int) $item->id), 's180re_toggle_book')); ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Hide', 'science180-book-review') : esc_html__('Show', 'science180-book-review'); ?></a>
                                         <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_book&book_id=' . (int) $item->id), 's180br_delete_book')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this book?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
@@ -1496,9 +1513,9 @@ class S180BR_Plugin
             <h1><?php esc_html_e('Review Copy Requests', 'science180-book-review'); ?></h1>
             <?php $this->render_admin_notice(); ?>
             <p class="subsubsub">
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('All', 'science180-book-review'); ?></a>
                 <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
-                    | <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=' . $status_key)); ?>"><?php echo esc_html($status_label); ?></a>
+                    | <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=' . $status_key)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($status_label); ?></a>
                 <?php endforeach; ?>
             </p>
             <br class="clear">
@@ -1530,7 +1547,7 @@ class S180BR_Plugin
                     <?php foreach ($items as $item) : ?>
                         <tr>
                             <td><?php echo esc_html($item->created_at); ?></td>
-                            <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php echo esc_html($item->book_title); ?></a></td>
+                            <td><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->book_title); ?></a></td>
                             <td><a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&s180br_view=' . (int) $item->id . '&return_url=' . rawurlencode($return_url))); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->first_name . ' ' . $item->last_name); ?></a><br><a href="mailto:<?php echo esc_attr($item->email); ?>"><?php echo esc_html($item->email); ?></a></td>
                             <td><?php echo esc_html($this->review_request_status_label($item->status, $item)); ?></td>
                             <td>
@@ -1566,7 +1583,7 @@ class S180BR_Plugin
             <?php $this->render_admin_notice(); ?>
             <p>
                 <a class="button" href="<?php echo esc_url($return_url); ?>"><?php esc_html_e('Back to requests', 'science180-book-review'); ?></a>
-                <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View book public page', 'science180-book-review'); ?></a>
+                <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View book public page', 'science180-book-review'); ?></a>
             </p>
 
             <div class="s180re-admin-layout">
@@ -1968,10 +1985,6 @@ class S180BR_Plugin
             $message .= '<img src="' . esc_url($open_url) . '" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;">';
 
             $sent = $this->send_mail($request->email, $subject, $message, $this->mail_headers());
-            if (!$sent) {
-                sleep(2);
-                $sent = $this->send_mail($request->email, $subject, $message, $this->mail_headers());
-            }
 
             if (!$sent) {
                 $wpdb->update($delivery_table, array('status' => 'email_failed', 'updated_at' => current_time('mysql')), array('id' => $delivery_id));
@@ -2557,7 +2570,7 @@ class S180BR_Plugin
             'book_missing' => __('Book title is required.', 'science180-book-review'),
             'request_updated' => __('Request status updated.', 'science180-book-review'),
             'request_updated_notified' => __('Request status updated and the applicant was notified.', 'science180-book-review'),
-            'request_updated_email_failed' => __('Request status updated, but the applicant email could not be sent.', 'science180-book-review'),
+            'request_updated_email_failed' => __('Request status was saved, but the applicant email was not confirmed by the mail server. Please use the action again if the applicant did not receive it.', 'science180-book-review'),
             'request_missing' => __('Review copy request not found.', 'science180-book-review'),
             'request_deleted' => __('Review copy request deleted.', 'science180-book-review'),
             'settings_saved' => __('Settings saved.', 'science180-book-review'),
@@ -2569,7 +2582,7 @@ class S180BR_Plugin
             'pdf_sent' => __('The private one-time PDF link was emailed successfully.', 'science180-book-review'),
             'pdf_missing' => __('This book does not have a readable PDF. Upload it on the book page first.', 'science180-book-review'),
             'pdf_generation_failed' => __('The PDF could not be generated. Check the server error log for details.', 'science180-book-review'),
-            'pdf_email_failed' => __('The PDF was prepared, but its email could not be sent.', 'science180-book-review'),
+            'pdf_email_failed' => __('The PDF link was prepared, but the mail server did not confirm the email send. Please use Resend; the saved delivery record will remain available.', 'science180-book-review'),
         );
 
         if (isset($messages[$status])) {
