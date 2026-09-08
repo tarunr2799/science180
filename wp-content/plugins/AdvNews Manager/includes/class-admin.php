@@ -28,6 +28,7 @@ class AdvNews_Admin
         // Admin init
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_init', array($this, 'handle_admin_actions'));
+        add_action('admin_init', array($this, 'redirect_legacy_subscribers_slug'));
         // Admin notices
         add_action('admin_notices', array($this, 'show_admin_notices'));
         // Admin post actions
@@ -49,6 +50,30 @@ class AdvNews_Admin
         add_filter('admin_footer_text', array($this, 'admin_footer_text'));
         // display maxmind notice
         add_action('admin_notices', array($this, 'show_maxmind_database_notice'));
+    }
+
+    /**
+     * Keep old manually shared subscriber URLs working.
+     */
+    public function redirect_legacy_subscribers_slug()
+    {
+        if (!is_admin() || !current_user_can('manage_options')) {
+            return;
+        }
+
+        if (!isset($_GET['page']) || sanitize_key(wp_unslash($_GET['page'])) !== 'advnewssubscribers') {
+            return;
+        }
+
+        $args = array('page' => 'advnews-subscribers');
+        foreach (array('action', 'id', 'status', 'category_id', 's', 'per_page', 'paged') as $key) {
+            if (isset($_GET[$key]) && $_GET[$key] !== '') {
+                $args[$key] = sanitize_text_field(wp_unslash($_GET[$key]));
+            }
+        }
+
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')));
+        exit;
     }
 
     /**
@@ -2182,7 +2207,7 @@ class AdvNews_Admin
                                 <a href="<?php echo admin_url('admin.php?page=advnews-categories&action=edit&id=' . $category->id); ?>" class="button button-small">
                                     <?php _e('Edit', 'advnews-manager'); ?>
                                 </a>
-                                <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&category_id=' . intval($category->id)); ?>" class="button button-small">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&category_id=' . intval($category->id))); ?>" class="button button-small" target="_blank" rel="noopener noreferrer">
                                     <?php _e('View Subscribers', 'advnews-manager'); ?>
                                 </a>
                                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=advnews_export_category_subscribers&category_id=' . intval($category->id)), 'advnews_export_category_subscribers_' . intval($category->id))); ?>" class="button button-small">

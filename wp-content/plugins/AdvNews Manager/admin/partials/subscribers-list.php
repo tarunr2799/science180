@@ -193,7 +193,7 @@ __('Never', 'advnews-manager');
 </th>
 <td>
 <strong>
-<a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $subscriber->id); ?>">
+<a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&action=view&id=' . $subscriber->id)); ?>" target="_blank" rel="noopener noreferrer">
 <?php echo esc_html($subscriber->email); ?>
 </a>
 </strong>
@@ -223,10 +223,10 @@ style="display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 1
 <td><?php echo esc_html($last_activity); ?></td>
 <td>
 <div class="row-actions">
-    <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $subscriber->id); ?>">
+    <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&action=edit&id=' . $subscriber->id)); ?>" target="_blank" rel="noopener noreferrer">
         <?php _e('Edit', 'advnews-manager'); ?>
     </a> |
-    <a href="<?php echo admin_url('admin.php?page=advnews-subscribers&action=view&id=' . $subscriber->id); ?>">
+    <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-subscribers&action=view&id=' . $subscriber->id)); ?>" target="_blank" rel="noopener noreferrer">
         <?php _e('View', 'advnews-manager'); ?>
     </a> |
     <?php if ($subscriber->status === 'active'): ?>

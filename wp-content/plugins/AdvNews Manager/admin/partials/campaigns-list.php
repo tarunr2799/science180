@@ -247,10 +247,10 @@ $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table_prefix}ca
                                 <a href="<?php echo admin_url('admin.php?page=advnews-campaigns&action=edit&id=' . $campaign->id); ?>">
                                     <?php _e('Edit', 'advnews-manager'); ?>
                                 </a> |
-                                <a href="<?php echo admin_url('admin.php?page=advnews-campaigns&action=view&id=' . $campaign->id); ?>">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-campaigns&action=view&id=' . $campaign->id)); ?>" target="_blank" rel="noopener noreferrer">
                                     <?php _e('Recipients', 'advnews-manager'); ?>
                                 </a> |
-                                <a href="<?php echo admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id); ?>">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=advnews-analytics&action=campaign&campaign_id=' . $campaign->id)); ?>" target="_blank" rel="noopener noreferrer">
                                     <?php _e('Stats', 'advnews-manager'); ?>
                                 </a> |
                                 <a href="#" class="duplicate-campaign-link" data-campaign-id="<?php echo esc_attr($campaign->id); ?>">
