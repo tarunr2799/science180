@@ -53,13 +53,16 @@
     background: var(--s180re-admin-soft);
 }
 
-.s180br-books-table .s180re-table-cover {
+.s180br-books-table .s180re-table-cover,
+.s180br-books-table .s180br-book-cover-large {
     width: 390px;
 }
 
-.s180br-books-table .s180re-table-cover img {
-    width: 360px;
-    height: 540px;
+.s180br-books-table .s180re-table-cover img,
+.s180br-books-table .s180br-book-cover-large img {
+    width: 360px !important;
+    height: 540px !important;
+    max-width: none;
 }
 
 .s180re-address-block {
