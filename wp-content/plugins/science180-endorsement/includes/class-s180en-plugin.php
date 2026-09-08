@@ -397,6 +397,7 @@ class S180EN_Plugin
 
         add_submenu_page('s180en-endorsements', __('Endorsements', 'science180-endorsement'), __('Endorsements', 'science180-endorsement'), 'manage_options', 's180en-endorsements', array($this, 'render_endorsements_admin_page'));
         add_submenu_page('s180en-endorsements', __('Settings', 'science180-endorsement'), __('Settings', 'science180-endorsement'), 'manage_options', 's180en-settings', array($this, 'render_settings_page'));
+        add_submenu_page(null, __('Endorsements', 'science180-endorsement'), __('Endorsements', 'science180-endorsement'), 'manage_options', 's180enendorsements', array($this, 'render_endorsements_admin_page'));
     }
 
     public function render_endorsement_form_shortcode()
@@ -1660,7 +1661,7 @@ class S180EN_Plugin
                 }
                 echo wp_kses_post($separator);
                 ?>
-                <a href="<?php echo esc_url($this->endorsement_page_url()); ?>" target="_blank" rel="noopener"><?php esc_html_e('PUBLIC URL', 'science180-endorsement'); ?></a>
+                <a href="<?php echo esc_url($this->endorsement_page_url()); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('PUBLIC URL', 'science180-endorsement'); ?></a>
             </p>
             <br class="clear">
 
@@ -1770,7 +1771,7 @@ class S180EN_Plugin
                             <tr><th><?php esc_html_e('Country', 'science180-endorsement'); ?></th><td><?php echo !empty($item->ip_country) ? esc_html($item->ip_country) : esc_html__('Not available', 'science180-endorsement'); ?></td></tr>
                             <tr><th><?php esc_html_e('Device', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->device_type ?? ''); ?></td></tr>
                             <tr><th><?php esc_html_e('User agent', 'science180-endorsement'); ?></th><td><?php echo esc_html($item->user_agent ?? ''); ?></td></tr>
-                            <tr><th><?php esc_html_e('Public page URL', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($item->status === 'approved' ? $this->endorsement_permalink($item) : $this->endorsement_preview_url($item)); ?>" target="_blank"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
+                            <tr><th><?php esc_html_e('Public page URL', 'science180-endorsement'); ?></th><td><a href="<?php echo esc_url($item->status === 'approved' ? $this->endorsement_permalink($item) : $this->endorsement_preview_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($this->endorsement_permalink($item)); ?></a></td></tr>
                         </tbody>
                     </table>
                 </div>
