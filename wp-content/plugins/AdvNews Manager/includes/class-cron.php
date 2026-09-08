@@ -123,9 +123,17 @@ class AdvNews_Cron
 
     public static function ensure_maxmind_update_schedule()
     {
+        $auto_update_enabled = get_option('advnews_geolocation_service', 'maxmind') === 'maxmind'
+            && (bool) get_option('advnews_maxmind_auto_update', true)
+            && trim((string) get_option('advnews_maxmind_license_key', '')) !== '';
+
+        if (!$auto_update_enabled) {
+            wp_clear_scheduled_hook('advnews_update_maxmind_database');
+            return;
+        }
+
         $event_count = 0;
         $scheduled_timestamp = wp_next_scheduled('advnews_update_maxmind_database');
-        $expected_timestamp = self::next_maxmind_update_timestamp();
         $cron_array = _get_cron_array();
         if (is_array($cron_array)) {
             foreach ($cron_array as $hooks) {
@@ -139,13 +147,13 @@ class AdvNews_Cron
             $event_count === 1
             && wp_get_schedule('advnews_update_maxmind_database') === 'daily'
             && $scheduled_timestamp
-            && abs((int) $scheduled_timestamp - $expected_timestamp) < MINUTE_IN_SECONDS
+            && (int) $scheduled_timestamp > time()
         ) {
             return;
         }
 
         wp_clear_scheduled_hook('advnews_update_maxmind_database');
-        wp_schedule_event($expected_timestamp, 'daily', 'advnews_update_maxmind_database');
+        wp_schedule_event(self::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
     }
 
     /**
@@ -333,7 +341,11 @@ class AdvNews_Cron
             }
         }
 
-        // 4. Clean up old tracking data
+        // 4. Keep the local MaxMind database fresh. This is a backup for hosts
+        // where the dedicated MaxMind cron event is delayed or missed.
+        self::update_maxmind_database();
+
+        // 5. Clean up old tracking data
         $retention_days = get_option('advnews_tracking_retention_days', 365);
         if ($retention_days > 0) {
             $cutoff_date = date('Y-m-d', strtotime("-$retention_days days"));
@@ -361,8 +373,12 @@ class AdvNews_Cron
             return false;
         }
 
+        $attempted_at = time();
+        update_option('advnews_maxmind_last_attempt', $attempted_at);
+
         $last_update = (int) get_option('advnews_maxmind_last_update', 0);
-        if ($last_update && (time() - $last_update) < DAY_IN_SECONDS) {
+        if ($last_update && ($attempted_at - $last_update) < DAY_IN_SECONDS) {
+            delete_option('advnews_maxmind_last_error');
             return true;
         }
 
@@ -371,7 +387,6 @@ class AdvNews_Cron
         }
 
         set_transient('advnews_maxmind_update_lock', 1, 10 * MINUTE_IN_SECONDS);
-        update_option('advnews_maxmind_last_attempt', time());
 
         require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
         $tracking = new AdvNews_Tracking();

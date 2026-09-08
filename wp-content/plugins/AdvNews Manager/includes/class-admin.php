@@ -1433,6 +1433,13 @@ class AdvNews_Admin
         $maxmind_last_update = (int) get_option('advnews_maxmind_last_update', 0);
         $maxmind_last_attempt = (int) get_option('advnews_maxmind_last_attempt', 0);
         $maxmind_last_error = get_option('advnews_maxmind_last_error', '');
+$maxmind_auto_ready = $service === 'maxmind'
+    && (bool) $maxmind_auto_update
+    && trim((string) $maxmind_license_key) !== '';
+if ($maxmind_auto_ready && class_exists('AdvNews_Cron')) {
+    AdvNews_Cron::ensure_maxmind_update_schedule();
+}
+$maxmind_next_update = wp_next_scheduled('advnews_update_maxmind_database');
 
         // ROBUST CHECK: Verify file exists, fallback to default path if stored path fails
         $db_exists = !empty($maxmind_db_path) && file_exists($maxmind_db_path);
@@ -1509,6 +1516,11 @@ class AdvNews_Admin
                 <p class="description"><?php printf(esc_html__('Last successful update: %s', 'advnews-manager'), esc_html($db_last_update_date)); ?></p>
                 <?php elseif ($db_exists): ?>
                 <p class="description"><?php printf(esc_html__('Database file date: %s', 'advnews-manager'), esc_html($db_file_date)); ?></p>
+                <?php endif; ?>
+                <?php if ($maxmind_next_update): ?>
+                <p class="description"><?php printf(esc_html__('Next automatic update: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_next_update))); ?></p>
+                <?php elseif ($maxmind_auto_ready): ?>
+                <p class="description" style="color:#d63638;"><?php esc_html_e('Automatic update is enabled, but the daily update is not scheduled yet. Save these settings or reload this page to repair it.', 'advnews-manager'); ?></p>
                 <?php endif; ?>
                 <?php if ($maxmind_last_attempt): ?>
                 <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_attempt))); ?></p>
