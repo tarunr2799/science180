@@ -136,11 +136,13 @@ class AdvNews_Cron
         $now = time();
         $last_update = (int) get_option('advnews_maxmind_last_update', 0);
         if ($last_update && ($now - $last_update) < DAY_IN_SECONDS) {
+            self::repair_maxmind_update_schedule($last_update);
             return false;
         }
 
         $last_attempt = (int) get_option('advnews_maxmind_last_attempt', 0);
         if ($last_attempt && ($now - $last_attempt) < 6 * HOUR_IN_SECONDS) {
+            self::repair_maxmind_update_schedule($last_update);
             return false;
         }
 
@@ -149,6 +151,42 @@ class AdvNews_Cron
         }
 
         return self::update_maxmind_database();
+    }
+
+    private static function maxmind_schedule_same_site_day($first_timestamp, $second_timestamp)
+    {
+        if (!$first_timestamp || !$second_timestamp) {
+            return false;
+        }
+
+        try {
+            $timezone = wp_timezone();
+            $first = (new DateTimeImmutable('@' . (int) $first_timestamp))->setTimezone($timezone);
+            $second = (new DateTimeImmutable('@' . (int) $second_timestamp))->setTimezone($timezone);
+            return $first->format('Y-m-d') === $second->format('Y-m-d');
+        } catch (Exception $error) {
+            return date('Y-m-d', (int) $first_timestamp) === date('Y-m-d', (int) $second_timestamp);
+        }
+    }
+
+    private static function repair_maxmind_update_schedule($last_update = 0)
+    {
+        if (!self::maxmind_auto_update_enabled()) {
+            return;
+        }
+
+        $scheduled_timestamp = wp_next_scheduled('advnews_update_maxmind_database');
+        $last_update = (int) $last_update;
+        if ($last_update <= 0) {
+            $last_update = (int) get_option('advnews_maxmind_last_update', 0);
+        }
+
+        if ($scheduled_timestamp && !self::maxmind_schedule_same_site_day($scheduled_timestamp, $last_update)) {
+            return;
+        }
+
+        wp_clear_scheduled_hook('advnews_update_maxmind_database');
+        wp_schedule_event(self::next_maxmind_update_timestamp(), 'daily', 'advnews_update_maxmind_database');
     }
 
     public static function ensure_maxmind_update_schedule()
@@ -174,6 +212,7 @@ class AdvNews_Cron
             && wp_get_schedule('advnews_update_maxmind_database') === 'daily'
             && $scheduled_timestamp
             && (int) $scheduled_timestamp > time()
+            && !self::maxmind_schedule_same_site_day($scheduled_timestamp, (int) get_option('advnews_maxmind_last_update', 0))
         ) {
             return;
         }
@@ -401,6 +440,7 @@ class AdvNews_Cron
 
         $last_update = (int) get_option('advnews_maxmind_last_update', 0);
         if ($last_update && ($attempted_at - $last_update) < DAY_IN_SECONDS) {
+            self::repair_maxmind_update_schedule($last_update);
             delete_option('advnews_maxmind_last_error');
             return true;
         }
@@ -425,6 +465,7 @@ class AdvNews_Cron
         $updated_at = time();
         update_option('advnews_maxmind_last_attempt', $updated_at);
         update_option('advnews_maxmind_last_update', $updated_at);
+        self::repair_maxmind_update_schedule($updated_at);
         delete_option('advnews_maxmind_last_error');
         error_log('[Science180 Mail] MaxMind database updated successfully.');
         return true;
