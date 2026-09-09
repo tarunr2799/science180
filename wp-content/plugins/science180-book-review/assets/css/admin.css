@@ -54,7 +54,7 @@
 }
 
 .s180br-books-admin .s180re-admin-layout {
-    grid-template-columns: minmax(260px, 340px) minmax(760px, 1fr);
+    grid-template-columns: minmax(300px, 330px) minmax(0, 1fr);
 }
 
 .s180br-books-table-wrap {
@@ -392,6 +392,7 @@
 
 .s180br-books-table {
     table-layout: fixed;
+    min-width: 920px;
 }
 
 .s180br-books-table th:nth-child(1),
@@ -578,13 +579,9 @@
     box-shadow: none;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1180px) {
     .s180br-books-admin .s180re-admin-layout {
         grid-template-columns: 1fr;
-    }
-
-    .s180br-books-admin .s180re-admin-panel:first-child {
-        max-width: 560px;
     }
 }
 
