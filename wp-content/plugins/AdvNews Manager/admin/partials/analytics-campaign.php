@@ -434,7 +434,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                                 <?php endif; ?>
                             </div>
                             <div class="country-info">
-                                <h4><a href="<?php echo esc_url($country_detail_url); ?>"><?php echo esc_html($country->country); ?></a></h4>
+                                <h4><a href="<?php echo esc_url($country_detail_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($country->country); ?></a></h4>
                                 <div class="country-stats">
                                     <div class="stat" title="<?php echo esc_attr($geographic_event_label); ?>">
                                         <span class="stat-icon">👁️</span>
@@ -489,12 +489,12 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                             ), admin_url('admin.php')) . '#advnews-geographic-recipients';
                             ?>
                             <tr>
-                                <td><strong><a href="<?php echo esc_url($city_detail_url); ?>"><?php echo esc_html($city->city); ?></a></strong></td>
+                                <td><strong><a href="<?php echo esc_url($city_detail_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($city->city); ?></a></strong></td>
                                 <td>
                                     <?php if (!empty($city->country_code)): ?>
                                         <img src="https://flagcdn.com/16x12/<?php echo strtolower($city->country_code); ?>.png" alt="<?php echo esc_attr($city->country); ?>" style="vertical-align: middle; margin-right: 5px;">
                                     <?php endif; ?>
-                                    <a href="<?php echo esc_url($city_country_url); ?>"><?php echo esc_html($city->country); ?></a>
+                                    <a href="<?php echo esc_url($city_country_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($city->country); ?></a>
                                 </td>
                                 <td><?php echo esc_html(number_format($city->opens)); ?></td>
                                 <td><?php echo esc_html($city->unique_visitors); ?></td>
@@ -545,7 +545,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                                         : '—';
                             ?>
                                 <tr>
-                                    <td><strong><a href="<?php echo esc_url($geo_country_url); ?>"><?php echo esc_html($geo->country ?: __('Unknown', 'advnews-manager')); ?></a></strong></td>
+                                    <td><strong><a href="<?php echo esc_url($geo_country_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($geo->country ?: __('Unknown', 'advnews-manager')); ?></a></strong></td>
                                     <td>
                                         <?php if (!empty($geo->country_code)): ?>
                                             <img src="https://flagcdn.com/24x18/<?php echo strtolower($geo->country_code); ?>.png" alt="<?php echo esc_attr($geo->country); ?>" style="vertical-align: middle;">
@@ -554,7 +554,7 @@ $recipient_details = $wpdb->get_results($wpdb->prepare(
                                             <?php echo esc_html__('—', 'advnews-manager'); ?>
                                         <?php endif; ?>
                                     </td>
-                                    <td><a href="<?php echo esc_url($geo_detail_url); ?>"><?php echo esc_html($geo->city ?: __('(unknown city)', 'advnews-manager')); ?></a></td>
+                                    <td><a href="<?php echo esc_url($geo_detail_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($geo->city ?: __('(unknown city)', 'advnews-manager')); ?></a></td>
                                     <td><?php echo esc_html($geo->opens); ?></td>
                                     <td><?php echo esc_html($geo->unique_opens); ?></td>
                                     <td><?php echo esc_html($geo->days_active); ?></td>
