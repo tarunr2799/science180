@@ -54,17 +54,47 @@
 }
 
 .s180br-books-admin .s180re-admin-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
 }
 
 .s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child {
-    max-width: 980px;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child input.regular-text,
 .s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child textarea.large-text {
-    width: min(100%, 620px);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.s180br-books-admin .s180re-admin-layout > form select,
+.s180br-books-admin .s180re-admin-layout > form input[type="number"] {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.s180br-books-admin .s180re-admin-layout > form .button {
+    min-height: 40px;
+    padding: 5px 14px;
+    white-space: normal;
+}
+
+.s180br-books-admin .s180re-admin-layout > form p {
+    margin: 0 0 8px;
+    overflow-wrap: anywhere;
+}
+
+.s180br-books-admin .s180re-cover-preview img {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    box-sizing: border-box;
 }
 
 .s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child .s180re-cover-preview {
@@ -611,6 +641,7 @@
 
 .s180br-current-books-panel {
     gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .s180br-books-list {
@@ -620,7 +651,7 @@
 
 .s180br-book-card {
     display: grid;
-    grid-template-columns: 300px minmax(220px, 1fr) 220px;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 220px;
     gap: 18px;
     align-items: center;
     padding: 16px;
@@ -641,7 +672,9 @@
 .s180br-book-card-cover img {
     width: 280px;
     height: 420px;
-    object-fit: cover;
+    max-width: 100%;
+    box-sizing: border-box;
+    object-fit: contain;
     border: 1px solid var(--s180re-admin-line);
     border-radius: 6px;
     background: var(--s180re-admin-soft);
@@ -699,7 +732,7 @@
 
 @media (max-width: 1320px) {
     .s180br-book-card {
-        grid-template-columns: 260px minmax(180px, 1fr) 220px;
+        grid-template-columns: minmax(0, 260px) minmax(0, 1fr) 220px;
     }
 
     .s180br-book-card-cover {
@@ -712,9 +745,9 @@
     }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
     .s180br-book-card {
-        grid-template-columns: 220px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
     }
 
     .s180br-book-card .s180br-book-actions {
