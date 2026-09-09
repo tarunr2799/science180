@@ -53,15 +53,24 @@
     background: var(--s180re-admin-soft);
 }
 
+.s180br-books-admin .s180re-admin-layout {
+    grid-template-columns: minmax(260px, 340px) minmax(760px, 1fr);
+}
+
+.s180br-books-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
 .s180br-books-table .s180re-table-cover,
 .s180br-books-table .s180br-book-cover-large {
-    width: 280px;
+    width: 344px;
 }
 
 .s180br-books-table .s180re-table-cover img,
 .s180br-books-table .s180br-book-cover-large img {
-    width: 256px !important;
-    height: 384px !important;
+    width: 320px !important;
+    height: 480px !important;
     max-width: none;
 }
 
@@ -387,22 +396,22 @@
 
 .s180br-books-table th:nth-child(1),
 .s180br-books-table td:nth-child(1) {
-    width: 280px;
+    width: 344px;
 }
 
 .s180br-books-table th:nth-child(2),
 .s180br-books-table td:nth-child(2) {
-    min-width: 220px;
+    min-width: 240px;
     overflow-wrap: break-word;
 }
 .s180br-books-table th:nth-child(3),
 .s180br-books-table td:nth-child(3) {
-    width: 80px;
+    width: 90px;
 }
 
 .s180br-books-table th:nth-child(4),
 .s180br-books-table td:nth-child(4) {
-    width: 230px;
+    width: 240px;
 }
 
 .s180br-book-actions {
@@ -567,4 +576,29 @@
     color: #fff;
     border-color: #3858e9;
     box-shadow: none;
+}
+
+@media (max-width: 1500px) {
+    .s180br-books-admin .s180re-admin-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .s180br-books-admin .s180re-admin-panel:first-child {
+        max-width: 560px;
+    }
+}
+
+@media (max-width: 782px) {
+    .s180br-books-table .s180re-table-cover,
+    .s180br-books-table .s180br-book-cover-large,
+    .s180br-books-table th:nth-child(1),
+    .s180br-books-table td:nth-child(1) {
+        width: 244px;
+    }
+
+    .s180br-books-table .s180re-table-cover img,
+    .s180br-books-table .s180br-book-cover-large img {
+        width: 220px !important;
+        height: 330px !important;
+    }
 }

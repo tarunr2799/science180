@@ -1362,7 +1362,7 @@ class S180BR_Plugin
         $book = $edit_id ? $this->get_book($edit_id) : null;
         $books = $this->get_books(false);
         ?>
-        <div class="wrap s180re-admin">
+        <div class="wrap s180re-admin s180br-books-admin">
             <h1><?php esc_html_e('Books for Review Copy Requests', 'science180-book-review'); ?></h1>
             <?php $this->render_admin_notice(); ?>
             <p class="subsubsub s180br-status-filter-links">
@@ -1433,12 +1433,13 @@ class S180BR_Plugin
 
                 <div class="s180re-admin-panel s180re-admin-panel-wide">
                     <h2><?php esc_html_e('Current books', 'science180-book-review'); ?></h2>
+                    <div class="s180br-books-table-wrap">
                     <table class="widefat striped s180br-books-table">
                         <thead><tr><th><?php esc_html_e('Cover', 'science180-book-review'); ?></th><th><?php esc_html_e('Title', 'science180-book-review'); ?></th><th><?php esc_html_e('Status', 'science180-book-review'); ?></th><th><?php esc_html_e('Actions', 'science180-book-review'); ?></th></tr></thead>
                         <tbody>
                             <?php foreach ($books as $item) : ?>
                                 <tr>
-                                    <td class="s180re-table-cover s180br-book-cover-large"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt="" style="width:256px;height:384px;max-width:none;object-fit:cover;"><?php endif; ?></td>
+                                    <td class="s180re-table-cover s180br-book-cover-large"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt=""><?php endif; ?></td>
                                     <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->title); ?></a></td>
                                     <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
                                     <td class="s180br-book-actions">
@@ -1451,6 +1452,7 @@ class S180BR_Plugin
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
             <?php if ($book) : ?>
