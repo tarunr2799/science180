@@ -402,23 +402,29 @@
 
 .s180br-books-table th:nth-child(4),
 .s180br-books-table td:nth-child(4) {
-    width: 160px;
+    width: 230px;
 }
 
 .s180br-book-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(68px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(96px, 1fr));
+    gap: 12px;
     align-items: stretch;
+    max-width: 220px;
 }
 
 .s180br-book-actions .button {
     display: inline-flex;
     justify-content: center;
     align-items: center;
-    min-height: 36px;
+    min-height: 42px;
     margin: 0;
+    padding: 7px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.25;
     text-align: center;
+    white-space: nowrap;
 }
 .s180br-request-detail-label,
 .s180re-admin-panel .s180br-request-detail-label {
