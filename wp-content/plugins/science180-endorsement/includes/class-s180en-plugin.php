@@ -1664,7 +1664,7 @@ class S180EN_Plugin
                     }
 
                     echo wp_kses_post($separator);
-                    echo '<a class="' . esc_attr($status === $view_status ? 'current' : '') . '" href="' . esc_url(add_query_arg($args, admin_url('admin.php'))) . '">' . esc_html($label) . '</a>';
+                    echo '<a class="' . esc_attr($status === $view_status ? 'current' : '') . '" href="' . esc_url(add_query_arg($args, admin_url('admin.php'))) . '" target="_blank" rel="noopener noreferrer">' . esc_html($label) . '</a>';
                     $separator = ' | ';
                 }
                 echo wp_kses_post($separator);
