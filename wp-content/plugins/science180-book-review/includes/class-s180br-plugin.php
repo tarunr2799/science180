@@ -1431,27 +1431,30 @@ class S180BR_Plugin
                     <p><button type="submit" class="button button-primary"><?php esc_html_e('Save book', 'science180-book-review'); ?></button></p>
                 </form>
 
-                <div class="s180re-admin-panel s180re-admin-panel-wide">
+                <div class="s180re-admin-panel s180re-admin-panel-wide s180br-current-books-panel">
                     <h2><?php esc_html_e('Current books', 'science180-book-review'); ?></h2>
-                    <div class="s180br-books-table-wrap">
-                    <table class="widefat striped s180br-books-table">
-                        <thead><tr><th><?php esc_html_e('Cover', 'science180-book-review'); ?></th><th><?php esc_html_e('Title', 'science180-book-review'); ?></th><th><?php esc_html_e('Status', 'science180-book-review'); ?></th><th><?php esc_html_e('Actions', 'science180-book-review'); ?></th></tr></thead>
-                        <tbody>
-                            <?php foreach ($books as $item) : ?>
-                                <tr>
-                                    <td class="s180re-table-cover s180br-book-cover-large"><?php if ($this->book_cover_url($item)) : ?><img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt=""><?php endif; ?></td>
-                                    <td class="s180br-book-title-cell"><a href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->title); ?></a></td>
-                                    <td><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></td>
-                                    <td class="s180br-book-actions">
-                                        <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View', 'science180-book-review'); ?></a>
-                                        <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-book-review'); ?></a>
-                                        <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180re_toggle_book&book_id=' . (int) $item->id), 's180re_toggle_book')); ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Hide', 'science180-book-review') : esc_html__('Show', 'science180-book-review'); ?></a>
-                                        <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_book&book_id=' . (int) $item->id), 's180br_delete_book')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this book?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <div class="s180br-books-list">
+                        <?php foreach ($books as $item) : ?>
+                            <article class="s180br-book-card">
+                                <div class="s180br-book-card-cover">
+                                    <?php if ($this->book_cover_url($item)) : ?>
+                                        <img src="<?php echo esc_url($this->book_cover_url($item)); ?>" alt="">
+                                    <?php else : ?>
+                                        <span><?php esc_html_e('No cover', 'science180-book-review'); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="s180br-book-card-main">
+                                    <a class="s180br-book-card-title" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($item->title); ?></a>
+                                    <span class="s180br-book-card-status <?php echo (int) $item->is_active === 1 ? 'is-active' : 'is-hidden'; ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Active', 'science180-book-review') : esc_html__('Hidden', 'science180-book-review'); ?></span>
+                                </div>
+                                <div class="s180br-book-actions">
+                                    <a class="button" href="<?php echo esc_url($this->book_review_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View', 'science180-book-review'); ?></a>
+                                    <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books&edit=' . (int) $item->id)); ?>"><?php esc_html_e('Edit', 'science180-book-review'); ?></a>
+                                    <a class="button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180re_toggle_book&book_id=' . (int) $item->id), 's180re_toggle_book')); ?>"><?php echo (int) $item->is_active === 1 ? esc_html__('Hide', 'science180-book-review') : esc_html__('Show', 'science180-book-review'); ?></a>
+                                    <a class="button s180re-delete-button" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=s180br_delete_book&book_id=' . (int) $item->id), 's180br_delete_book')); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this book?', 'science180-book-review')); ?>');"><?php esc_html_e('Delete', 'science180-book-review'); ?></a>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
