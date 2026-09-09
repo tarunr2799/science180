@@ -3,7 +3,7 @@
 * Plugin Name: Science180 Mail
 * Plugin URI: https://science180.net/
 * Description: A powerful, enterprise-grade newsletter management system for WordPress with advanced tracking, segmentation, and analytics capabilities.
-* Version: 1.0.30
+* Version: 1.0.31
 * Author: Science180
 * Author URI: https://science180.net/
 * Text Domain: advnews-manager
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ADVNEWS_VERSION', '1.0.30');
+define('ADVNEWS_VERSION', '1.0.31');
 define('ADVNEWS_DB_VERSION', '1.0.14');
 define('ADVNEWS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ADVNEWS_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -107,6 +107,9 @@ class AdvNews_Manager
 
         // Check for database upgrades on admin init
         add_action('admin_init', array($this, 'check_database_upgrade'));
+
+        // Repair missed MaxMind updates on admin visits when WP-Cron did not run.
+        add_action('admin_init', array('AdvNews_Cron', 'maybe_run_missed_maxmind_update'), 20);
 
         // IMPORTANT: Ensure cron jobs are scheduled on init (backup for existing installations)
         add_action('init', array($this, 'ensure_cron_scheduled'), 1);

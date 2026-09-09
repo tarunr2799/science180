@@ -120,14 +120,40 @@ class AdvNews_Cron
 
         return $company_name;
     }
+    private static function maxmind_auto_update_enabled()
+    {
+        return get_option('advnews_geolocation_service', 'maxmind') === 'maxmind'
+            && (bool) get_option('advnews_maxmind_auto_update', true)
+            && trim((string) get_option('advnews_maxmind_license_key', '')) !== '';
+    }
+
+    public static function maybe_run_missed_maxmind_update()
+    {
+        if (!self::maxmind_auto_update_enabled() || wp_doing_ajax() || wp_doing_cron()) {
+            return false;
+        }
+
+        $now = time();
+        $last_update = (int) get_option('advnews_maxmind_last_update', 0);
+        if ($last_update && ($now - $last_update) < DAY_IN_SECONDS) {
+            return false;
+        }
+
+        $last_attempt = (int) get_option('advnews_maxmind_last_attempt', 0);
+        if ($last_attempt && ($now - $last_attempt) < 6 * HOUR_IN_SECONDS) {
+            return false;
+        }
+
+        if (get_transient('advnews_maxmind_update_lock')) {
+            return false;
+        }
+
+        return self::update_maxmind_database();
+    }
 
     public static function ensure_maxmind_update_schedule()
     {
-        $auto_update_enabled = get_option('advnews_geolocation_service', 'maxmind') === 'maxmind'
-            && (bool) get_option('advnews_maxmind_auto_update', true)
-            && trim((string) get_option('advnews_maxmind_license_key', '')) !== '';
-
-        if (!$auto_update_enabled) {
+        if (!self::maxmind_auto_update_enabled()) {
             wp_clear_scheduled_hook('advnews_update_maxmind_database');
             return;
         }
@@ -366,10 +392,7 @@ class AdvNews_Cron
      */
     public static function update_maxmind_database()
     {
-        if (
-            get_option('advnews_geolocation_service', 'maxmind') !== 'maxmind'
-            || !get_option('advnews_maxmind_auto_update', true)
-        ) {
+        if (!self::maxmind_auto_update_enabled()) {
             return false;
         }
 

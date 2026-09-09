@@ -44,6 +44,8 @@ if ($db_file_timestamp && $db_file_timestamp > $maxmind_last_update) {
 }
 $db_file_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $db_file_timestamp) : __('Not downloaded yet', 'advnews-manager');
 $db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_update) : '';
+$maxmind_update_overdue = $maxmind_auto_ready && (!$maxmind_last_update || (time() - $maxmind_last_update) >= DAY_IN_SECONDS);
+$wp_cron_disabled = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
 ?>
 
 <div class="advnews-settings-section">
@@ -189,6 +191,12 @@ $db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format'
                                     <p class="description"><?php printf(esc_html__('Next automatic update: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_next_update))); ?></p>
                                 <?php elseif ($maxmind_auto_ready): ?>
                                     <p class="description" style="color:#d63638;"><?php esc_html_e('Automatic update is enabled, but the daily update is not scheduled yet. Save these settings or reload this page to repair it.', 'advnews-manager'); ?></p>
+                                <?php endif; ?>
+                                <?php if ($maxmind_update_overdue): ?>
+                                    <p class="description" style="color:#b32d2e;"><?php esc_html_e('Automatic update is overdue. Science180 Mail will retry safely from this admin screen if WordPress cron misses the daily run.', 'advnews-manager'); ?></p>
+                                <?php endif; ?>
+                                <?php if ($wp_cron_disabled): ?>
+                                    <p class="description" style="color:#b32d2e;"><?php esc_html_e('WordPress cron is disabled on this site. Daily automatic updates need a server cron request to wp-cron.php; this screen still performs a protected catch-up retry when overdue.', 'advnews-manager'); ?></p>
                                 <?php endif; ?>
                                 <?php if ($maxmind_last_attempt): ?>
                                     <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_attempt))); ?></p>
