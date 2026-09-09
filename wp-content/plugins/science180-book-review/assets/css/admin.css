@@ -54,8 +54,21 @@
 }
 
 .s180br-books-admin .s180re-admin-layout {
-    grid-template-columns: minmax(300px, 330px) minmax(0, 1fr);
+    grid-template-columns: 1fr;
     align-items: start;
+}
+
+.s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child {
+    max-width: 980px;
+}
+
+.s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child input.regular-text,
+.s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child textarea.large-text {
+    width: min(100%, 620px);
+}
+
+.s180br-books-admin .s180re-admin-layout > .s180re-admin-panel:first-child .s180re-cover-preview {
+    width: auto;
 }
 
 .s180br-books-table-wrap {
@@ -580,11 +593,6 @@
     box-shadow: none;
 }
 
-@media (max-width: 1180px) {
-    .s180br-books-admin .s180re-admin-layout {
-        grid-template-columns: 1fr;
-    }
-}
 
 @media (max-width: 782px) {
     .s180br-books-table .s180re-table-cover,
