@@ -489,7 +489,7 @@
 .s180br-delivery-option.is-selected strong {
     color: #087423;
 }
-`n
+
 .s180br-choice-danger.is-selected {
     border-color: #d63638;
     background: #fcf0f1;
@@ -525,4 +525,46 @@
     .s180br-choice-row {
         grid-template-columns: 1fr;
     }
+}
+
+.s180br-status-filter-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    float: none;
+    margin: 10px 0 16px;
+    font-size: 14px;
+}
+
+.s180br-status-filter-links a {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 14px;
+    border: 1px solid #3858e9;
+    border-radius: 4px;
+    background: #fff;
+    color: #1d4ed8;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.s180br-status-filter-links a:hover,
+.s180br-status-filter-links a:focus {
+    background: #eef2ff;
+    color: #1d4ed8;
+    box-shadow: 0 0 0 1px #3858e9;
+    outline: none;
+}
+
+.s180br-status-filter-links a.current,
+.s180br-status-filter-links a.current:hover,
+.s180br-status-filter-links a.current:focus {
+    background: #3858e9;
+    color: #fff;
+    border-color: #3858e9;
+    box-shadow: none;
 }
