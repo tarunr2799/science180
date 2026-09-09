@@ -42,8 +42,22 @@ if ($db_file_timestamp && $db_file_timestamp > $maxmind_last_update) {
     $maxmind_last_update = $db_file_timestamp;
     update_option('advnews_maxmind_last_update', $maxmind_last_update);
 }
-$db_file_date = $db_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $db_file_timestamp) : __('Not downloaded yet', 'advnews-manager');
-$db_last_update_date = $maxmind_last_update ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_update) : '';
+$site_timezone = wp_timezone();
+$site_timezone_label = wp_timezone_string();
+if ($site_timezone_label === '') {
+    $gmt_offset = (float) get_option('gmt_offset', 0);
+    $hours = (int) $gmt_offset;
+    $minutes = (int) abs(($gmt_offset - $hours) * 60);
+    $site_timezone_label = sprintf('UTC%+03d:%02d', $hours, $minutes);
+}
+$date_time_format = get_option('date_format') . ' ' . get_option('time_format');
+$format_site_datetime = static function ($timestamp) use ($date_time_format, $site_timezone) {
+    return wp_date($date_time_format, (int) $timestamp, $site_timezone);
+};
+$db_file_date = $db_exists ? $format_site_datetime($db_file_timestamp) : __('Not downloaded yet', 'advnews-manager');
+$db_last_update_date = $maxmind_last_update ? $format_site_datetime($maxmind_last_update) : '';
+$maxmind_next_update_date = $maxmind_next_update ? $format_site_datetime($maxmind_next_update) : '';
+$current_site_time = $format_site_datetime(time());
 $maxmind_update_overdue = $maxmind_auto_ready && (!$maxmind_last_update || (time() - $maxmind_last_update) >= DAY_IN_SECONDS);
 $wp_cron_disabled = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
 ?>
@@ -188,7 +202,7 @@ $wp_cron_disabled = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
                                     <p class="description"><?php printf(esc_html__('Database file date: %s', 'advnews-manager'), esc_html($db_file_date)); ?></p>
                                 <?php endif; ?>
                                 <?php if ($maxmind_next_update): ?>
-                                    <p class="description"><?php printf(esc_html__('Next automatic update: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_next_update))); ?></p>
+                                    <p class="description"><?php printf(esc_html__('Next automatic update: %s', 'advnews-manager'), esc_html($maxmind_next_update_date)); ?></p>
                                 <?php elseif ($maxmind_auto_ready): ?>
                                     <p class="description" style="color:#d63638;"><?php esc_html_e('Automatic update is enabled, but the daily update is not scheduled yet. Save these settings or reload this page to repair it.', 'advnews-manager'); ?></p>
                                 <?php endif; ?>
@@ -198,8 +212,21 @@ $wp_cron_disabled = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
                                 <?php if ($wp_cron_disabled): ?>
                                     <p class="description" style="color:#b32d2e;"><?php esc_html_e('WordPress cron is disabled on this site. Daily automatic updates need a server cron request to wp-cron.php; this screen still performs a protected catch-up retry when overdue.', 'advnews-manager'); ?></p>
                                 <?php endif; ?>
+                                <p class="description">
+                                    <?php printf(esc_html__('Times shown in WordPress site time: %1$s. Current site time: %2$s.', 'advnews-manager'), esc_html($site_timezone_label), esc_html($current_site_time)); ?>
+                                    <span id="advnews-browser-local-time"></span>
+                                </p>
+                                <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var target = document.getElementById('advnews-browser-local-time');
+                                    if (target) {
+                                        target.textContent = ' Your browser time: ' + new Date().toLocaleString() + '.';
+                                    }
+                                });
+                                </script>
+
                                 <?php if ($maxmind_last_attempt): ?>
-                                    <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $maxmind_last_attempt))); ?></p>
+                                    <p class="description"><?php printf(esc_html__('Last update attempt: %s', 'advnews-manager'), esc_html($format_site_datetime($maxmind_last_attempt))); ?></p>
                                 <?php endif; ?>
                                 <?php if ($maxmind_last_error): ?>
                                     <p class="description" style="color:#d63638;"><?php printf(esc_html__('Last error: %s', 'advnews-manager'), esc_html($maxmind_last_error)); ?></p>
