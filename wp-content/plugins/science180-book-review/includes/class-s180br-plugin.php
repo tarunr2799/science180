@@ -1367,9 +1367,9 @@ class S180BR_Plugin
             <?php $this->render_admin_notice(); ?>
             <p class="subsubsub s180br-status-filter-links">
                 <a class="current" href="<?php echo esc_url(admin_url('admin.php?page=s180br-books')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=email_verified')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Needs review', 'science180-book-review'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=qualified')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Approved', 'science180-book-review'); ?></a>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=declined')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Rejected', 'science180-book-review'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=email_verified')); ?>"><?php esc_html_e('Needs review', 'science180-book-review'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=qualified')); ?>"><?php esc_html_e('Approved', 'science180-book-review'); ?></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=declined')); ?>"><?php esc_html_e('Rejected', 'science180-book-review'); ?></a>
                 <a href="<?php echo esc_url($this->review_request_page_url()); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('PUBLIC URL', 'science180-book-review'); ?></a>
             </p>
             <br class="clear">
@@ -1518,9 +1518,9 @@ class S180BR_Plugin
             <h1><?php esc_html_e('Review Copy Requests', 'science180-book-review'); ?></h1>
             <?php $this->render_admin_notice(); ?>
             <p class="subsubsub s180br-status-filter-links">
-                <a class="<?php echo $status === '' ? 'current' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('All', 'science180-book-review'); ?></a>
+                <a class="<?php echo $status === '' ? 'current' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests')); ?>"><?php esc_html_e('All', 'science180-book-review'); ?></a>
                 <?php foreach ($this->review_request_statuses() as $status_key => $status_label) : ?>
-                    <a class="<?php echo $status === $status_key ? 'current' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=' . $status_key)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($status_label); ?></a>
+                    <a class="<?php echo $status === $status_key ? 'current' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=s180br-review-requests&status=' . $status_key)); ?>"><?php echo esc_html($status_label); ?></a>
                 <?php endforeach; ?>
             </p>
             <br class="clear">
