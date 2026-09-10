@@ -289,40 +289,7 @@ class AdvNews_Tracking
      */
     private function normalize_redirect_url($url)
     {
-        $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
-
-        if ($url === '') {
-            return home_url();
-        }
-
-        $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
-        $url_host = wp_parse_url($url, PHP_URL_HOST);
-        $url_path = wp_parse_url($url, PHP_URL_PATH);
-        if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', (string) $url_path, $matches)) {
-            $url = 'https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : '');
-        }
-
-        if (strpos($url, '//') === 0) {
-            return 'https:' . $url;
-        }
-
-        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
-            return esc_url_raw($url);
-        }
-
-        if (strpos($url, '/') === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', $url, $matches)) {
-            return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
-        }
-
-        if (strpos($url, '/') === 0) {
-            return esc_url_raw(home_url($url));
-        }
-
-        if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
-            return esc_url_raw('https://' . $url);
-        }
-
-        return esc_url_raw($url);
+        return advnews_normalize_tracking_redirect_url($url);
     }
 
     /**

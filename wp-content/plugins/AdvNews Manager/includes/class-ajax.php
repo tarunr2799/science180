@@ -1014,6 +1014,7 @@ class AdvNews_Ajax
         if (isset($_POST['template_html']) && !empty($_POST['template_html'])) {
             $data['content'] = wp_kses_post($_POST['template_html']);
         }
+        $data['content'] = advnews_normalize_email_links($data['content']);
 
         if ($template_id) {
             $result = $wpdb->update($table_name, $data, array('id' => $template_id));

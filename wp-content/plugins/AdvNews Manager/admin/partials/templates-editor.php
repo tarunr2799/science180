@@ -153,13 +153,16 @@ $categories = $category_class->get_all_categories();
                                 <!-- Visual Editor Tab -->
                                 <div id="tab-visual" class="editor-tab-content active">
                                     <?php
-                                    $content = $template ? $template->content : '';
+                                    $content = $template ? advnews_normalize_email_links($template->content) : '';
                                     $settings = array(
                                         'textarea_name' => 'template_html_visual',
                                         'media_buttons' => true,
                                         'textarea_rows' => 15,
                                         'teeny' => false,
                                         'tinymce' => array(
+                                            'convert_urls' => false,
+                                            'relative_urls' => false,
+                                            'remove_script_host' => false,
                                             'plugins' => 'charmap colorpicker hr lists paste tabfocus textcolor wordpress wpautoresize wpeditimage wplink table',
                                             'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,|,bullist,numlist,|,link,unlink,|,alignleft,aligncenter,alignright,|,forecolor,backcolor,|,table,|,code',
                                             'toolbar2' => 'fontselect,fontsizeselect,outdent,indent,|,pastetext,removeformat,|,undo,redo,|,wp_adv',

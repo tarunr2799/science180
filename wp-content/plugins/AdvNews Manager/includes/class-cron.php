@@ -211,7 +211,6 @@ class AdvNews_Cron
             $event_count === 1
             && wp_get_schedule('advnews_update_maxmind_database') === 'daily'
             && $scheduled_timestamp
-            && (int) $scheduled_timestamp > time()
             && !self::maxmind_schedule_same_site_day($scheduled_timestamp, (int) get_option('advnews_maxmind_last_update', 0))
         ) {
             return;
@@ -436,7 +435,6 @@ class AdvNews_Cron
         }
 
         $attempted_at = time();
-        update_option('advnews_maxmind_last_attempt', $attempted_at);
 
         $last_update = (int) get_option('advnews_maxmind_last_update', 0);
         if ($last_update && ($attempted_at - $last_update) < DAY_IN_SECONDS) {
@@ -450,6 +448,7 @@ class AdvNews_Cron
         }
 
         set_transient('advnews_maxmind_update_lock', 1, 10 * MINUTE_IN_SECONDS);
+        update_option('advnews_maxmind_last_attempt', $attempted_at);
 
         require_once ADVNEWS_PLUGIN_DIR . 'includes/class-tracking.php';
         $tracking = new AdvNews_Tracking();

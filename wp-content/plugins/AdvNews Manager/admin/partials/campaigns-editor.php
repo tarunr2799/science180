@@ -211,7 +211,7 @@ if (isset($_GET['message'])) {
                         <h2 class="hndle"><?php _e('Email Content', 'advnews-manager'); ?></h2>
                         <div class="inside">
                             <?php
-                            $content = $campaign ? $campaign->content : '';
+                            $content = $campaign ? advnews_normalize_email_links($campaign->content) : '';
                             wp_editor($content, 'content', array(
                                 'textarea_name' => 'content',
                                 'editor_height' => 400,
@@ -232,6 +232,8 @@ if (isset($_GET['message'])) {
                                     'cleanup_on_startup' => false,
                                     'convert_fonts_to_spans' => true,
                                     'remove_script_host' => false,
+                                    'convert_urls' => false,
+                                    'relative_urls' => false,
                                     'remove_trailing_brs' => false,
                                     'force_br_newlines' => false,
                                     'force_p_newlines' => true,

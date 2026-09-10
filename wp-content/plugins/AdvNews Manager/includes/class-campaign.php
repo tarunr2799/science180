@@ -68,7 +68,7 @@ class AdvNews_Campaign
             'font' => array('color' => array(), 'size' => array(), 'face' => array()),
             'center' => array()
         );
-        $sanitized_content = wp_kses($content, $allowed_html);
+        $sanitized_content = advnews_normalize_email_links(wp_kses($content, $allowed_html));
         
         if (empty($data['name']) || empty($data['subject']) || empty($sanitized_content)) {
             return new WP_Error('missing_fields', __('Name, subject, and content are required.', 'advnews-manager'));
@@ -191,7 +191,7 @@ class AdvNews_Campaign
             'font' => array('color' => array(), 'size' => array(), 'face' => array()),
             'center' => array()
         );
-        $sanitized_content = wp_kses($content, $allowed_html);
+        $sanitized_content = advnews_normalize_email_links(wp_kses($content, $allowed_html));
         
         $table_name = $this->wpdb->prefix . $this->table_prefix . 'campaigns';
         
@@ -885,7 +885,7 @@ class AdvNews_Campaign
      */
     public function prepare_email_content($content)
     {
-        $content = trim((string) $content);
+        $content = advnews_normalize_email_links(trim((string) $content));
 
         if ($content === '') {
             return '';

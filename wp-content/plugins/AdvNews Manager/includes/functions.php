@@ -223,40 +223,60 @@ add_action('init', 'advnews_handle_tracking');
  */
 function advnews_normalize_tracking_redirect_url($url) {
     $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
-
     if ($url === '') {
         return home_url();
     }
 
+    // Pasted links can contain https:host or https:/host, which browsers treat as relative.
+    $url = preg_replace('~^(https?):/*~i', '$1://', $url);
     $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
     $url_host = wp_parse_url($url, PHP_URL_HOST);
     $url_path = wp_parse_url($url, PHP_URL_PATH);
-
-    if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', (string) $url_path, $matches)) {
-        return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
+    if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0
+        && preg_match('~^/((?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}/.*)$~', (string) $url_path, $matches)) {
+        $suffix = '';
+        $query = wp_parse_url($url, PHP_URL_QUERY);
+        $fragment = wp_parse_url($url, PHP_URL_FRAGMENT);
+        if ($query !== null && $query !== false) { $suffix .= '?' . $query; }
+        if ($fragment !== null && $fragment !== false) { $suffix .= '#' . $fragment; }
+        $url = 'https://' . $matches[1] . $suffix;
     }
 
     if (strpos($url, '//') === 0) {
         return esc_url_raw('https:' . $url);
     }
-
-    if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
+    if (preg_match('~^[a-z][a-z0-9+.-]*:~i', $url)) {
         return esc_url_raw($url);
     }
-
-    if (strpos($url, '/') === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', $url, $matches)) {
-        return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
+    if (preg_match('~^/((?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}/.*)$~', $url, $matches)) {
+        return esc_url_raw('https://' . $matches[1]);
     }
-
     if (strpos($url, '/') === 0) {
         return esc_url_raw(home_url($url));
     }
-
-    if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
+    if (preg_match('~^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}(?:[/?#].*)?$~', $url)) {
         return esc_url_raw('https://' . $url);
     }
-
     return esc_url_raw($url);
+}
+
+/**
+ * Repair anchor destinations without reserializing email markup or changing non-web links.
+ */
+function advnews_normalize_email_links($content) {
+    $processor = new WP_HTML_Tag_Processor($content);
+    while ($processor->next_tag('A')) {
+        $href = $processor->get_attribute('href');
+        if (!is_string($href) || $href === '' || $href[0] === '#'
+            || preg_match('~^(?!https?:)[a-z][a-z0-9+.-]*:~i', $href)) {
+            continue;
+        }
+        $normalized = advnews_normalize_tracking_redirect_url($href);
+        if ($normalized !== '' && $normalized !== $href) {
+            $processor->set_attribute('href', $normalized);
+        }
+    }
+    return $processor->get_updated_html();
 }
 
 /**

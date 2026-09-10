@@ -611,19 +611,19 @@ class AdvNews_Queue
      */
     private function replace_tracking_links($content, $campaign_id, $log_id)
     {
-        preg_match_all('/href=["\']([^"\']+)["\']/', $content, $matches);
-        if (empty($matches[1])) return $content;
-
-        $links = array_unique($matches[1]);
-        foreach ($links as $link) {
-            if (strpos($link, 'mailto:') === 0 || strpos($link, '#') === 0) continue;
+        $processor = new WP_HTML_Tag_Processor($content);
+        $tracked = array();
+        while ($processor->next_tag('A')) {
+            $link = $processor->get_attribute('href');
+            if (!is_string($link)) { continue; }
             $normalized_link = $this->normalize_tracking_url($link);
-            if ($normalized_link === '') continue;
-            $tracking_link = $this->create_tracking_link($normalized_link, $campaign_id, $log_id);
-            $content = str_replace('href="' . $link . '"', 'href="' . $tracking_link . '"', $content);
-            $content = str_replace("href='" . $link . "'", "href='" . $tracking_link . "'", $content);
+            if ($normalized_link === '') { continue; }
+            if (!isset($tracked[$normalized_link])) {
+                $tracked[$normalized_link] = $this->create_tracking_link($normalized_link, $campaign_id, $log_id);
+            }
+            $processor->set_attribute('href', $tracked[$normalized_link]);
         }
-        return $content;
+        return $processor->get_updated_html();
     }
 
     /**
@@ -632,39 +632,10 @@ class AdvNews_Queue
     private function normalize_tracking_url($url)
     {
         $url = trim(html_entity_decode((string) $url, ENT_QUOTES, get_bloginfo('charset')));
-
         if ($url === '' || preg_match('/^(mailto|tel|sms|javascript|data):/i', $url) || strpos($url, '#') === 0) {
             return '';
         }
-
-        $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
-        $url_host = wp_parse_url($url, PHP_URL_HOST);
-        $url_path = wp_parse_url($url, PHP_URL_PATH);
-        if ($site_host && $url_host && strcasecmp($site_host, $url_host) === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', (string) $url_path, $matches)) {
-            $url = 'https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : '');
-        }
-
-        if (strpos($url, '//') === 0) {
-            return 'https:' . $url;
-        }
-
-        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $url)) {
-            return esc_url_raw($url);
-        }
-
-        if (strpos($url, '/') === 0 && preg_match('#^/([^/]+\.[A-Za-z]{2,})(/.*)?$#', $url, $matches)) {
-            return esc_url_raw('https://' . $matches[1] . (isset($matches[2]) ? $matches[2] : ''));
-        }
-
-        if (strpos($url, '/') === 0) {
-            return esc_url_raw(home_url($url));
-        }
-
-        if (preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[\/?#].*)?$/', $url)) {
-            return esc_url_raw('https://' . $url);
-        }
-
-        return esc_url_raw($url);
+        return advnews_normalize_tracking_redirect_url($url);
     }
 
     /**
